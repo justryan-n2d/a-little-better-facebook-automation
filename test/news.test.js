@@ -7,6 +7,7 @@ import {
   extractGoogleNewsRssArticles,
   searchGdelt,
   searchFreshNews,
+  searchGoogleNewsTopStoriesRss,
   isSafeNewsCandidate,
   selectFreshStory
 } from '../src/news.js';
@@ -119,6 +120,36 @@ test('falls back to Google News RSS after a GDELT failure', async () => {
   assert.equal(result.provider, 'google-news-rss');
   assert.equal(result.articles.length, 1);
   assert.equal(calls.filter(url => url.includes('gdeltproject.org')).length, 1);
+});
+
+
+
+test('falls back from empty Google query to Top Stories', async () => {
+  const calls = [];
+  const result = await searchFreshNews({
+    queries: ['student success'],
+    fetchImpl: async url => {
+      calls.push(String(url));
+      if (String(url).includes('gdeltproject.org')) {
+        return new Response('rate limited', { status: 429 });
+      }
+      if (String(url).includes('/rss/search')) {
+        return new Response('<rss><channel></channel></rss>', { status: 200 });
+      }
+      return new Response('<rss><channel><item><title>Community volunteers create a positive change</title><link>https://example.com/story</link><pubDate>Sat, 03 Oct 2026 03:00:00 GMT</pubDate><source>Example News</source></item></channel></rss>', { status: 200 });
+    }
+  });
+  assert.equal(result.provider, 'google-news-top-stories');
+  assert.equal(result.articles.length, 1);
+  assert.equal(calls.filter(url => url.includes('/rss')).length, 2);
+});
+
+test('parses Google News Top Stories RSS', async () => {
+  const xml = '<rss><channel><item><title>Community volunteers create a positive change</title><link>https://example.com/story</link><pubDate>Sat, 03 Oct 2026 03:00:00 GMT</pubDate><source>Example News</source></item></channel></rss>';
+  const items = await searchGoogleNewsTopStoriesRss({
+    fetchImpl: async () => new Response(xml, { status: 200 })
+  });
+  assert.equal(items.length, 1);
 });
 
 test('builds a category-aware hook and original angle', () => {
