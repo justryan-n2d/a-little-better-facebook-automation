@@ -39,7 +39,7 @@ const LITTLE_BETTER_TOPIC_GROUPS = [
   {
     name: 'human-kindness',
     context: ['person', 'people', 'stranger', 'neighbor', 'family', 'survivor', 'journalist', 'child', 'children', 'woman', 'man', 'worker', 'customer'],
-    positive: ['kindness', 'helping', 'helped', 'offered', 'shared', 'gave', 'gifted', 'comforted', 'supported', 'donated', 'reunited', 'surprised', 'paid', 'bought', 'food', 'meal', 'groceries', 'care', 'compassion', 'generosity']
+    positive: ['kindness', 'help', 'helping', 'helps', 'helped', 'offer', 'offers', 'offered', 'share', 'shares', 'shared', 'give', 'gives', 'gave', 'gift', 'gifted', 'comforted', 'supports', 'supported', 'donates', 'donated', 'reunited', 'surprised', 'paid', 'bought', 'feed', 'feeding', 'food', 'meal', 'groceries', 'care', 'compassion', 'generosity', 'embraced', 'welcomed']
   },
   {
     name: 'kindness-community',
