@@ -51,3 +51,14 @@ test('returns a stable timing variant for a date', () => {
   assert.equal(getTimingVariant('2026-10-07'), 'experiment');
   assert.equal(getTimingVariant('2026-10-14'), 'baseline');
 });
+
+
+test('daily workflow exposes both timing slots and marks scheduled runs', async () => {
+  const fs = await import('node:fs/promises');
+  const workflow = await fs.readFile('.github/workflows/daily-facebook-post.yml', 'utf8');
+
+  assert.match(workflow, /cron: "0 9 \* \* \*"/);
+  assert.match(workflow, /cron: "0 18 \* \* 3"/);
+  assert.match(workflow, /SCHEDULED_RUN: \$\{\{ github\.event_name == 'schedule' \}\}/);
+  assert.match(workflow, /did_publish/);
+});
