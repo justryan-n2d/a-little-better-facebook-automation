@@ -3,6 +3,30 @@ import assert from 'node:assert/strict';
 import { buildGrowthReport } from '../src/growth-report.js';
 
 
+
+test('reports performance by publish hour', () => {
+  const report = buildGrowthReport({
+    weekStart: '2026-10-05',
+    weekEnd: '2026-10-11',
+    history: [
+      { date: '2026-10-06', contentId: 'mindset-001', category: 'mindset', facebookPostId: 'p1' },
+      { date: '2026-10-07', contentId: 'bible-001', category: 'bible', facebookPostId: 'p2' }
+    ],
+    analytics: {
+      snapshots: [
+        { facebookPostId: 'p1', contentId: 'mindset-001', category: 'mindset', publishHour: 9, engagement: 10, engagementRate: 0.02 },
+        { facebookPostId: 'p2', contentId: 'bible-001', category: 'bible', publishHour: 18, engagement: 30, engagementRate: 0.06 }
+      ],
+      followerSnapshots: []
+    }
+  });
+
+  assert.match(report, /Publish time performance/);
+  assert.match(report, /9:00 AM/);
+  assert.match(report, /6:00 PM/);
+});
+
+
 test('reports performance by experiment traits', () => {
   const report = buildGrowthReport({
     weekStart: '2026-10-05',
