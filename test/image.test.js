@@ -30,9 +30,9 @@ test('long text wraps and reduces font size instead of overflowing', () => {
     'You do not have to have everything figured out. Take it one day at a time.',
     24
   );
-  const fontSize = calculateFontSize(lines.length, 470, { max: 58, min: 32 });
+  const fontSize = calculateFontSize(lines.length, 470, { max: 48, min: 26 });
   assert.ok(lines.length >= 3);
-  assert.ok(fontSize <= 58);
+  assert.ok(fontSize <= 48);
 });
 
 test('layout validation rejects collisions and accepts the production layout', () => {
