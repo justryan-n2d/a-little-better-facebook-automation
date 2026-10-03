@@ -115,7 +115,7 @@ function buildAlternateSvg({ imageText }) {
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
-  <rect width="1080" height="1350" fill="#92CBA7"/>
+  <rect width="1080" height="1350" fill="${MINT}"/>
   <rect x="58" y="58" width="964" height="1234" rx="48" fill="none" stroke="${WHITE}" stroke-width="3" opacity="0.35"/>
   <circle cx="95" cy="95" r="10" fill="${WHITE}" opacity="0.85"/>
   <circle cx="985" cy="1255" r="10" fill="${WHITE}" opacity="0.85"/>
