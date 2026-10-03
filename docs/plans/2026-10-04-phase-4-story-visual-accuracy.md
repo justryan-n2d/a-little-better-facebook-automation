@@ -1,200 +1,143 @@
-# Phase 4: Story + Visual Accuracy Implementation Plan
+# Phase 4: Story + Visual Accuracy
 
-> **For agentic workers:** Use the host's available task-by-task implementation workflow. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Final architecture for the Fresh News pipeline. This phase intentionally uses no paid AI API.
 
-**Goal:** Add true image/story semantic verification and final visual QA so Fresh News can reject a visually misleading post before artifact upload.
+## Goal
 
-**Architecture:** Keep the existing deterministic article-image extraction and keyword scoring as the first filter. Add `src/visual-verify.js` as an isolated vision service using the OpenAI Responses API with image input, with `required`, `optional`, and `metadata` modes. The source-image selector will verify downloaded candidate photos, and the post runner will verify the rendered Facebook graphic before it can be uploaded or published.
+Prevent A Little Better from publishing a misleading news post by checking the article image, story-image context, rendered graphic, and layout before publication.
 
-**Tech Stack:** Node.js 20+, native fetch, Sharp 0.34.x, GitHub Actions, OpenAI Responses API.
+## Final architecture
 
-## Global Constraints
-
-- Preserve the existing one-story → one-source → one-context → one-matching-visual rule.
-- Reject generic artwork, graphics, logos, screenshots, or visually unrelated images.
-- Fail safely in `required` mode rather than publishing an unverified or rejected image.
-- Keep the workflow usable without an AI secret by falling back to the existing metadata-only checks in `metadata` mode.
-- Do not add an SDK dependency; use the existing Node 20 fetch runtime and Sharp.
-- Record verification results in the news history/metadata so decisions are auditable.
-- Keep visual verification separate from Facebook publishing.
-
----
-
-### Task 1: Vision semantic verifier
-
-**Files:**
-- Create: `src/visual-verify.js`
-- Test: `test/visual-verify.test.js`
-
-**Interfaces:**
-- Consumes: image Buffer, story title, source domain, candidate context, display headline, verification mode, API key, model, fetch implementation.
-- Produces: normalized verification result with method, status, scores, detected subjects/context, rejection reason, and optional API error.
-
-- [ ] **Step 1: Add the focused failing test**
-
-Create tests that assert:
-1. A mocked Responses API result with `approved: true`, high story alignment, readable graphic, and `generic_graphic: false` returns `verified: true`.
-2. A mocked result with low story alignment returns `verified: false` even when the model says `approved: true`.
-3. `required` mode without an API key rejects before any network request.
-4. `metadata` mode performs no vision request and returns `method: "metadata-only"`.
-
-- [ ] **Step 2: Verify the relevant failure**
-
-Run: `node --test test/visual-verify.test.js`
-Expected: the test file fails because `../src/visual-verify.js` and its exported verifier do not yet exist.
-
-- [ ] **Step 3: Implement the minimum behavior**
-
-Implement image preparation with Sharp (rotate, fit inside 1280px, JPEG quality 80), send a Responses API request containing `input_text` plus `input_image`, request conservative JSON fields, parse the response, and enforce local thresholds:
-- source image story alignment >= 70/100 and not generic;
-- final graphic story alignment >= 65/100, readability >= 75/100, and not generic;
-- any explicit unsafe flag rejects;
-- `required` mode throws for missing key or API failure;
-- `optional` mode uses vision when a key is present and otherwise reports metadata-only;
-- `metadata` mode never calls the API.
-
-- [ ] **Step 4: Verify the focused pass**
-
-Run: `node --test test/visual-verify.test.js`
-Expected: all focused verifier tests pass.
-
-- [ ] **Step 5: Run the affected integration check**
-
-Run: `node --test test/visual-verify.test.js test/news.test.js`
-Expected: all existing news/image tests plus the new verifier tests pass.
-
-- [ ] **Step 6: Commit the passing deliverable**
-
-```bash
-git add src/visual-verify.js test/visual-verify.test.js
-git commit -m "feat: add vision-based story image verifier"
+```
+Find story
+   ↓
+Resolve original article
+   ↓
+Extract article-declared images
+   ↓
+Free image quality checks
+   ↓
+Story ↔ image context score
+   ↓
+Reject if weak
+   ↓
+Create A LITTLE BETTER graphic
+   ↓
+Free visual/layout QA
+   ↓
+Publish only if passed
 ```
 
-### Task 2: Gate source images and rendered graphics
+## Implementation
 
-**Files:**
-- Modify: `src/news.js`
-- Modify: `src/news-post.js`
-- Test: `test/news.test.js`
+### 1. Story discovery
 
-**Interfaces:**
-- Consumes: `findSourceArticleImage(story, { fetchImpl, visualVerificationMode, openaiApiKey, openaiVisionModel })` and `runNewsPost({ visualVerificationMode, openaiApiKey, openaiVisionModel })`.
-- Produces: source-image metadata with `visualVerification`, plus a post record with source and final-graphic verification results.
+- GDELT remains the primary provider.
+- Google News RSS remains the fallback.
+- Google News Top Stories remains the secondary fallback.
+- Existing positive-content and unsafe-content filters remain active.
+- Human-kindness stories keep priority.
 
-- [ ] **Step 1: Add the focused failing test**
+### 2. Original article and image extraction
 
-Extend source-image tests so two article photos have good metadata, but the vision mock rejects the first and approves the second. Assert the second photo is returned and its verification says `verified: true`.
+The source-image gate:
+- resolves the original article URL;
+- extracts Open Graph, Twitter, article-image, and JSON-LD image candidates;
+- ranks candidates using story terms, candidate metadata, URL terms, and image type;
+- downloads candidates directly from the article;
+- never substitutes an unrelated stock image when the story requires a specific article photo.
 
-Add a runner integration test that returns a mocked article/image and two successful vision decisions, then asserts the saved history contains `visualVerification.source` and `visualVerification.graphic`.
+### 3. Free image quality checks
 
-- [ ] **Step 2: Verify the relevant failure**
+`src/visual-verify.js` uses Sharp to inspect:
+- decoded image validity;
+- dimensions and total pixels;
+- visible variation;
+- contrast/standard deviation;
+- entropy;
+- generic artwork/graphic indicators;
+- unsafe visual-context terms.
 
-Run: `node --test test/news.test.js`
-Expected: the new tests fail because source selection and the post runner do not yet invoke the vision verifier or record its results.
+Very small, effectively blank, generic, or unsafe candidates are rejected.
 
-- [ ] **Step 3: Implement the minimum behavior**
+### 4. Story ↔ image context score
 
-Update `findSourceArticleImage` to download each ranked candidate, invoke the verifier, reject vision-failed candidates, and return the first verified candidate in required mode. Preserve metadata-only acceptance when the workflow is not configured for vision.
+The verifier compares the story title with:
+- article image context such as alt text, title, captions, and tags;
+- candidate image URL;
+- candidate type.
 
-Update `runNewsPost` to verify the rendered PNG before writing artifact metadata/history. In required mode, abort before artifact/history write when final visual QA rejects the graphic. Store source and final verification summaries in the record.
+The score uses:
+- exact meaningful-token matches;
+- shared context groups for people/helping/food/education/science/achievement/hope/environment;
+- stronger weight for specific matches;
+- hard rejection for generic artwork/graphics.
 
-- [ ] **Step 4: Verify the focused pass**
+This is an evidence-based metadata/context check. It does not claim to literally see or understand the pixels like a vision model.
 
-Run: `node --test test/news.test.js`
-Expected: all news tests pass.
+### 5. Final A LITTLE BETTER graphic
 
-- [ ] **Step 5: Run the affected integration check**
+The existing Sharp raster-first renderer remains the production renderer:
+- full-bleed source photo;
+- circular inset from the same source photo;
+- A LITTLE BETTER branding;
+- headline;
+- source and photo credit;
+- 4:5 primary format at 1080 × 1350.
 
-Run: `npm test`
-Expected: the complete Node test suite passes.
+The same source photo is used throughout the graphic.
 
-- [ ] **Step 6: Commit the passing deliverable**
+### 6. Free visual/layout QA
 
-```bash
-git add src/news.js src/news-post.js test/news.test.js
-git commit -m "feat: gate fresh news images with visual QA"
-```
+Before the post is accepted:
+- rendered dimensions must match the selected template;
+- rendered image must have visible variation and acceptable quality;
+- text zones must not collide;
+- headline must fit the allocated box;
+- headline/story context must stay aligned;
+- readability score must meet the threshold.
 
-### Task 3: Activate vision verification safely in GitHub Actions
+The post runner stops before history/publication when this gate fails.
 
-**Files:**
-- Modify: `.github/workflows/a-little-better-fresh-news.yml`
-- Modify: `README.md`
+### 7. Production schedule
 
-**Interfaces:**
-- Consumes: optional `OPENAI_API_KEY` repository secret and the existing Fresh News runner.
-- Produces: automatic mode selection: `required` when the secret exists, otherwise `metadata`, plus clear configuration guidance.
+Fresh News is scheduled three times per week:
+- Tuesday 11:00 AM Asia/Manila
+- Thursday 11:00 AM Asia/Manila
+- Saturday 11:00 AM Asia/Manila
 
-- [ ] **Step 1: Add the focused failing test**
+Manual workflow dispatch remains available.
 
-Extend the existing YAML validation coverage with a test/script assertion that the Fresh News workflow exposes `OPENAI_API_KEY` and a visual-verification mode to the news-post step.
+### 8. Audit trail
 
-- [ ] **Step 2: Verify the relevant failure**
+The news history stores:
+- source image metadata;
+- source verification result;
+- final graphic verification result.
 
-Run: `npm test`
-Expected: the new workflow assertion fails because those environment variables are not yet present.
+History remains bounded.
 
-- [ ] **Step 3: Implement the minimum behavior**
+## Phase 4 status
 
-Add a workflow step that detects whether `OPENAI_API_KEY` exists and emits `required` or `metadata` as the verification mode. Pass both the key and mode to `node src/news-post.js`. Update README secret/configuration instructions and explain that missing AI configuration keeps the existing metadata-only safety path.
+- [x] Original article resolution
+- [x] Article-declared image extraction
+- [x] Same-source image requirement
+- [x] Same-context image matching
+- [x] Reject unrelated artwork/graphics
+- [ ] Support more publisher-specific article formats
+- [x] Deterministic semantic story-image matching
+- [x] Automatic image relevance score
+- [x] Automatic final visual/layout QA before upload/publish
 
-- [ ] **Step 4: Verify the focused pass**
+## Design policy
 
-Run: `npm test`
-Expected: all tests pass and workflow YAML validation remains green.
+The system should fail safely.
 
-- [ ] **Step 5: Run the affected integration check**
+No post is better than a post that:
+- pairs a story with the wrong image;
+- uses generic artwork for a specific real-world event;
+- has an unreadable headline;
+- has broken layout;
+- weakens trust in A Little Better.
 
-Run: `npm test`
-Expected: complete suite passes with no regressions.
-
-- [ ] **Step 6: Commit the passing deliverable**
-
-```bash
-git add .github/workflows/a-little-better-fresh-news.yml README.md
-git commit -m "chore: wire visual verification into fresh news"
-```
-
-### Task 4: Record Phase 4 status and verification policy
-
-**Files:**
-- Modify: `ROADMAP_FACEBOOK_POST_AUTOMATION.md`
-
-**Interfaces:**
-- Consumes: implemented source-image verification and final-graphic QA.
-- Produces: accurate Phase 4 checklist and explicit activation requirement.
-
-- [ ] **Step 1: Add the focused failing test**
-
-No code test is needed for this documentation-only task. Verify the roadmap against the implementation before editing.
-
-- [ ] **Step 2: Verify the relevant failure**
-
-Run: `git grep -n "Phase 4" ROADMAP_FACEBOOK_POST_AUTOMATION.md`
-Expected: Phase 4 still shows semantic verification, automatic visual scoring, and pre-upload visual QA as incomplete.
-
-- [ ] **Step 3: Implement the minimum behavior**
-
-Mark the implemented capabilities complete, document that true vision checks are active when `OPENAI_API_KEY` is configured, and keep the provider-specific-format item open.
-
-- [ ] **Step 4: Verify the focused pass**
-
-Run: `git diff --check`
-Expected: no whitespace errors.
-
-- [ ] **Step 5: Run the affected integration check**
-
-Run: `npm test`
-Expected: complete suite remains green.
-
-- [ ] **Step 6: Commit the passing deliverable**
-
-```bash
-git add ROADMAP_FACEBOOK_POST_AUTOMATION.md
-git commit -m "docs: update Phase 4 visual accuracy status"
-```
-
-## Unresolved externally observable decisions
-
-- The workflow can only use true vision verification when an `OPENAI_API_KEY` repository secret is available. Without it, the workflow deliberately stays on the existing metadata-only path rather than failing every daily post.
-- `gpt-5-mini` is the default vision model; `OPENAI_VISION_MODEL` can override it without changing the workflow logic.
+OpenAI is not part of the production dependency for Phase 4. A future optional AI layer could be added later, but the page must remain fully functional without paid AI access.
