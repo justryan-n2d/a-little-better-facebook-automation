@@ -690,7 +690,7 @@ function sameSourceDomain(imageUrl, sourceDomain, articleUrl) {
 }
 
 function extractMetaImages(html) {
-  return [...String(html || '').matchAll(/<meta\\b[^>]*>/gi)].map(match => {
+  return [...String(html || '').matchAll(/<meta\b[^>]*>/gi)].map(match => {
     const tag = match[0];
     const property = tag.match(/(?:property|name)\\s*=\\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
     const content = tag.match(/content\\s*=\\s*["']([^"']+)["']/i)?.[1];
