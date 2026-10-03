@@ -13,7 +13,7 @@ const BLOCKED_TERMS = [
   'murder', 'murdered', 'killed', 'death', 'dead', 'suicide', 'self-harm',
   'rape', 'sexual assault', 'torture', 'gore', 'graphic', 'beheading',
   'bombing', 'terrorist', 'terrorism', 'war', 'massacre', 'shooting',
-  'stabbed', 'homicide', 'drug trafficking', 'porn'
+  'stabbed', 'homicide', 'drug trafficking', 'porn', 'arrest', 'arrested', 'crime', 'criminal', 'accused', 'charged', 'assault', 'abuse', 'abduction', 'trafficking', 'corruption'
 ];
 
 const STOPWORDS = new Set([
@@ -21,6 +21,53 @@ const STOPWORDS = new Set([
   'in','is','it','its','of','on','or','that','the','their','this','to','was',
   'were','with','after','before','into','over','new','says','said','from'
 ]);
+
+const LITTLE_BETTER_TOPIC_GROUPS = [
+  {
+    name: 'kindness-community',
+    keywords: ['kindness', 'kind', 'helping', 'helped', 'support', 'community', 'volunteer', 'volunteers', 'donation', 'donated', 'charity', 'generosity', 'care']
+  },
+  {
+    name: 'education-growth',
+    keywords: ['student', 'students', 'school', 'education', 'learning', 'teacher', 'teachers', 'scholarship', 'graduate', 'graduation', 'study']
+  },
+  {
+    name: 'science-innovation',
+    keywords: ['science', 'scientist', 'discovery', 'discovered', 'breakthrough', 'innovation', 'innovative', 'technology', 'research', 'invention', 'inventor']
+  },
+  {
+    name: 'achievement-progress',
+    keywords: ['achievement', 'achieves', 'achieved', 'success', 'successful', 'award', 'awards', 'winner', 'wins', 'won', 'milestone', 'record', 'champion', 'comeback', 'creator', 'artist', 'athlete']
+  },
+  {
+    name: 'hope-uplifting',
+    keywords: ['inspiring', 'inspiration', 'inspirational', 'hope', 'hopeful', 'positive', 'uplifting', 'heartwarming', 'good news', 'feel-good']
+  },
+  {
+    name: 'better-world',
+    keywords: ['environment', 'sustainability', 'sustainable', 'renewable', 'clean energy', 'green technology', 'conservation', 'restoration']
+  }
+];
+
+export function getLittleBetterTopic(title) {
+  const lower = cleanText(title).toLowerCase();
+  if (!lower || BLOCKED_TERMS.some(term => lower.includes(term))) return null;
+
+  const matches = LITTLE_BETTER_TOPIC_GROUPS
+    .map(group => ({
+      name: group.name,
+      matches: group.keywords.filter(keyword => lower.includes(keyword))
+    }))
+    .filter(group => group.matches.length > 0)
+    .sort((a, b) => b.matches.length - a.matches.length || a.name.localeCompare(b.name));
+
+  return matches[0] || null;
+}
+
+export function isLittleBetterTopic(title) {
+  return Boolean(getLittleBetterTopic(title));
+}
+
 
 function cleanText(value) {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -83,7 +130,7 @@ export function isSafeNewsCandidate(title) {
   const padded = ` ${value} `;
   const isBlocked = BLOCKED_TERMS.some(term => padded.includes(` ${term} `));
 
-  return value.length >= 24 && !isBlocked;
+  return value.length >= 24 && !isBlocked && isLittleBetterTopic(title);
 }
 
 export function extractGdeltArticles(payload) {
@@ -325,7 +372,7 @@ export function selectFreshStory(articles, {
   const groups = new Map();
 
   for (const article of Array.isArray(articles) ? articles : []) {
-    if (!isSafeNewsCandidate(article?.title)) continue;
+    if (!isSafeNewsCandidate(article?.title) || !isLittleBetterTopic(article?.title)) continue;
     const url = normalizeUrl(article.url);
     const fingerprint = titleFingerprint(article.title);
     if (!url || usedUrlSet.has(url) || usedTitleSet.has(fingerprint)) continue;
@@ -360,7 +407,9 @@ export function selectFreshStory(articles, {
       };
       delete candidate.sourceDomains;
       delete candidate.ranks;
-      return { ...candidate, score: scoreCandidate(candidate, now) };
+      const topic = getLittleBetterTopic(candidate.title);
+      const brandScore = Math.min(24, (topic?.matches.length || 0) * 8);
+      return { ...candidate, topic: topic?.name || null, score: scoreCandidate(candidate, now) + brandScore };
     })
     .sort((a, b) =>
       b.score - a.score ||
