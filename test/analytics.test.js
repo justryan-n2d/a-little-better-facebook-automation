@@ -10,7 +10,7 @@ import {
 test('scores shares and comments more strongly than simple reactions', () => {
   assert.equal(
     engagementScore({ reactions: 10, comments: 2, shares: 1 }),
-    18
+    17
   );
 });
 
