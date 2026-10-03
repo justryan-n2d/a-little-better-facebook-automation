@@ -1,368 +1,317 @@
 import sharp from 'sharp';
+import { calculateNewsLayout, fitTextToBox, rectanglesOverlap } from './news-image.js';
 
-export const DEFAULT_VISION_MODEL = 'gpt-5-mini';
-export const SOURCE_ALIGNMENT_THRESHOLD = 70;
-export const FINAL_ALIGNMENT_THRESHOLD = 65;
+export const SOURCE_ALIGNMENT_THRESHOLD = 50;
+export const FINAL_ALIGNMENT_THRESHOLD = 50;
 export const FINAL_READABILITY_THRESHOLD = 75;
 
-const RESPONSES_URL = 'https://api.openai.com/v1/responses';
+const STOPWORDS = new Set([
+  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'has', 'have',
+  'how', 'in', 'is', 'it', 'its', 'of', 'on', 'or', 'that', 'the', 'their',
+  'this', 'to', 'was', 'were', 'with', 'after', 'before', 'into', 'over',
+  'new', 'says', 'said', 'today', 'first', 'more', 'than', 'one', 'story'
+]);
+
+const GENERIC_VISUAL_TERMS = [
+  'logo', 'icon', 'infographic', 'diagram', 'chart', 'graph', 'screenshot',
+  'screen capture', 'slide', 'slides', 'presentation', 'poster', 'flyer',
+  'worksheet', 'map', 'textbook', 'document', 'placeholder', 'template',
+  'background', 'illustration', 'painting', 'artwork', 'drawing', 'sculpture',
+  'statue', 'museum', 'canvas', 'graphic'
+];
+
+const UNSAFE_TERMS = [
+  'murder', 'killed', 'death', 'suicide', 'self-harm', 'rape', 'sexual assault',
+  'torture', 'gore', 'beheading', 'bombing', 'terrorist', 'terrorism', 'war',
+  'massacre', 'shooting', 'stabbed', 'homicide', 'drug trafficking', 'porn',
+  'arrested', 'crime', 'criminal', 'assault', 'abuse', 'abduction', 'trafficking',
+  'corruption', 'protest', 'riot', 'unrest', 'clash', 'scandal', 'controversy',
+  'lawsuit', 'election', 'campaign', 'politician', 'partisan'
+];
+
+const TOKEN_GROUPS = [
+  ['help', 'helps', 'helped', 'helping', 'assist', 'assists', 'assisted', 'assistance', 'support', 'supports', 'supported'],
+  ['give', 'gives', 'gave', 'giving', 'gift', 'gifted', 'donate', 'donates', 'donated', 'donation', 'share', 'shares', 'shared'],
+  ['family', 'families', 'parent', 'parents', 'mother', 'father', 'child', 'children', 'kid', 'kids'],
+  ['neighbor', 'neighborhood', 'community', 'communities', 'volunteer', 'volunteers', 'charity'],
+  ['food', 'meal', 'meals', 'grocery', 'groceries', 'bread', 'water', 'dinner', 'lunch'],
+  ['student', 'students', 'school', 'education', 'teacher', 'teachers', 'college', 'graduate', 'graduation'],
+  ['science', 'scientist', 'scientists', 'research', 'technology', 'innovation', 'invention', 'breakthrough'],
+  ['award', 'awards', 'winner', 'winners', 'won', 'wins', 'milestone', 'record', 'champion'],
+  ['hope', 'hopeful', 'inspiring', 'inspiration', 'heartwarming', 'uplifting', 'positive'],
+  ['environment', 'conservation', 'sustainability', 'sustainable', 'renewable', 'ocean', 'marine']
+];
 
 function cleanText(value) {
-  return String(value ?? '').replace(/\s+/g, ' ').trim();
+  return String(value ?? '').replace(/\\s+/g, ' ').trim();
 }
 
-function normalizeMode(mode) {
-  const value = String(mode ?? 'optional').toLowerCase();
-  if (value === 'required' || value === 'metadata' || value === 'optional') return value;
-  throw new Error('NEWS_VISUAL_VERIFY_MODE must be required, optional, or metadata.');
+function normalizeTokens(value) {
+  return [...new Set(
+    cleanText(value)
+      .toLowerCase()
+      .replace(/[^a-z0-9\\s]/g, ' ')
+      .split(/\\s+/)
+      .map(token => token.trim())
+      .filter(token => token.length >= 4 && !STOPWORDS.has(token))
+  )];
 }
 
-async function prepareVisionImage(imageBuffer) {
+function containsTerm(text, term) {
+  const normalized = ' ' + cleanText(text).toLowerCase().replace(/[^a-z0-9\\s]/g, ' ').replace(/\\s+/g, ' ').trim() + ' ';
+  return normalized.includes(' ' + String(term).toLowerCase() + ' ');
+}
+
+function groupIndexes(tokens) {
+  return new Set(
+    TOKEN_GROUPS
+      .map((group, index) => tokens.some(token => group.includes(token)) ? index : -1)
+      .filter(index => index >= 0)
+  );
+}
+
+function semanticScore(storyText, candidateText) {
+  const storyTokens = normalizeTokens(storyText);
+  const candidateTokens = normalizeTokens(candidateText);
+  if (!storyTokens.length || !candidateTokens.length) return { score: 0, matches: [], sharedGroups: 0 };
+
+  const exactMatches = storyTokens.filter(token => candidateTokens.includes(token));
+  const storyGroups = groupIndexes(storyTokens);
+  const candidateGroups = groupIndexes(candidateTokens);
+  const sharedGroups = [...storyGroups].filter(index => candidateGroups.has(index));
+
+  const specificMatches = exactMatches.filter(token =>
+    !['person', 'people', 'someone', 'thing', 'moment', 'photo', 'image'].includes(token)
+  );
+
+  let score = Math.min(55, exactMatches.length * 14);
+  score += Math.min(35, sharedGroups.length * 12);
+  if (specificMatches.length >= 2) score += 10;
+  if (exactMatches.length === 0 && sharedGroups.length === 0) score = 0;
+
+  return {
+    score: Math.max(0, Math.min(100, score)),
+    matches: exactMatches.slice(0, 12),
+    sharedGroups
+  };
+}
+
+async function inspectImage(imageBuffer) {
   const input = Buffer.isBuffer(imageBuffer) ? imageBuffer : Buffer.from(imageBuffer || '');
   if (!input.length) throw new Error('imageBuffer is required for visual verification.');
 
-  try {
-    const optimized = await sharp(input, { failOn: 'error' })
-      .rotate()
-      .resize({ width: 1280, height: 1280, fit: 'inside', withoutEnlargement: false })
-      .jpeg({ quality: 80, chromaSubsampling: '4:2:0' })
-      .toBuffer();
+  const image = sharp(input, { failOn: 'error' });
+  const metadata = await image.metadata();
+  const stats = await image.stats();
 
-    return 'data:image/jpeg;base64,' + optimized.toString('base64');
-  } catch {
-    return 'data:image/jpeg;base64,' + input.toString('base64');
-  }
-}
+  const width = Number(metadata.width || 0);
+  const height = Number(metadata.height || 0);
+  const pixels = width * height;
+  const channels = Array.isArray(stats.channels) ? stats.channels : [];
+  const meanStdDev = channels.length
+    ? channels.reduce((sum, channel) => sum + Number(channel.stdev || 0), 0) / channels.length
+    : 0;
+  const mean = channels.length
+    ? channels.reduce((sum, channel) => sum + Number(channel.mean || 0), 0) / channels.length
+    : 0;
+  const entropy = Number(stats.entropy || 0);
 
-function buildPrompt({
-  storyTitle,
-  sourceDomain,
-  candidateContext,
-  displayHeadline,
-  purpose
-}) {
-  const finalGraphic = purpose === 'final';
-
-  return [
-    finalGraphic
-      ? 'You are the final visual quality gate for a heartwarming Facebook news post.'
-      : 'You are a conservative visual fact-checker for a heartwarming Facebook news post.',
-    'Judge only what is visibly present in the image. Do not invent hidden context.',
-    'Approve only when the visible photo plausibly matches the story context.',
-    'Reject generic stock-like scenes when the story requires a specific person, event, object, or action.',
-    'Reject artwork, illustrations, logos, screenshots, posters, maps, or graphics when the post expects a real news photo.',
-    'For the final graphic, also judge whether the headline is readable and whether the graphic still clearly communicates the same story.',
-    '',
-    'Story title: ' + cleanText(storyTitle),
-    'Source: ' + cleanText(sourceDomain),
-    'Article image context: ' + cleanText(candidateContext),
-    finalGraphic ? 'Display headline: ' + cleanText(displayHeadline) : '',
-    '',
-    'Return ONLY JSON with these fields:',
-    '{"approved":true,"story_alignment_score":0,"photo_quality_score":0,"readability_score":0,"generic_graphic":false,"unsafe":false,"visible_subjects":[],"visible_context":"","reason":""}',
-    'Scores are 0-100. Be conservative. Use approved=false when the evidence is weak.'
-  ].filter(Boolean).join('\n');
-}
-
-function getResponseText(payload) {
-  if (typeof payload?.output_text === 'string' && payload.output_text.trim()) {
-    return payload.output_text.trim();
-  }
-
-  const chunks = [];
-  for (const item of Array.isArray(payload?.output) ? payload.output : []) {
-    for (const content of Array.isArray(item?.content) ? item.content : []) {
-      if (typeof content?.text === 'string') chunks.push(content.text);
-    }
-  }
-
-  return chunks.join('\n').trim();
-}
-
-function extractJson(text) {
-  const source = String(text || '').trim();
-  try {
-    return JSON.parse(source);
-  } catch {}
-
-  const fenced = source.match(/\`\`\`(?:json)?\s*([\s\S]*?)\s*\`\`\`/i);
-  if (fenced) {
-    try {
-      return JSON.parse(fenced[1]);
-    } catch {}
-  }
-
-  const start = source.indexOf('{');
-  const end = source.lastIndexOf('}');
-  if (start >= 0 && end > start) {
-    try {
-      return JSON.parse(source.slice(start, end + 1));
-    } catch {}
-  }
-
-  throw new Error('Vision response did not contain valid JSON.');
-}
-
-function numberOrZero(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? Math.max(0, Math.min(100, number)) : 0;
-}
-
-function evaluateDecision(decision, purpose) {
-  const storyAlignmentScore = numberOrZero(decision.story_alignment_score);
-  const photoQualityScore = numberOrZero(decision.photo_quality_score);
-  const readabilityScore = numberOrZero(decision.readability_score);
-  const genericGraphic = Boolean(decision.generic_graphic);
-  const unsafe = Boolean(decision.unsafe);
-  const approvedByModel = decision.approved === true;
-
-  const alignmentThreshold = purpose === 'final'
-    ? FINAL_ALIGNMENT_THRESHOLD
-    : SOURCE_ALIGNMENT_THRESHOLD;
-
-  const failures = [];
-  if (!approvedByModel) failures.push('model rejected the image');
-  if (unsafe) failures.push('image flagged as unsafe');
-  if (genericGraphic) failures.push('image appears to be a generic graphic or artwork');
-  if (storyAlignmentScore < alignmentThreshold) {
-    failures.push('story alignment score is below ' + alignmentThreshold);
-  }
-  if (purpose === 'final' && readabilityScore < FINAL_READABILITY_THRESHOLD) {
-    failures.push('readability score is below ' + FINAL_READABILITY_THRESHOLD);
-  }
+  const dimensionScore = Math.min(50, Math.min(width, height) / 700 * 50);
+  const variationScore = Math.min(30, meanStdDev * 2);
+  const entropyScore = Math.min(20, entropy * 3);
+  const photoQualityScore = Math.max(0, Math.min(100, Math.round(
+    dimensionScore + variationScore + entropyScore
+  )));
 
   return {
-    verified: failures.length === 0,
-    storyAlignmentScore,
-    photoQualityScore,
-    readabilityScore,
-    genericGraphic,
-    unsafe,
-    visibleSubjects: Array.isArray(decision.visible_subjects)
-      ? decision.visible_subjects.map(cleanText).filter(Boolean).slice(0, 12)
-      : [],
-    visibleContext: cleanText(decision.visible_context),
-    reason: failures.length ? failures.join('; ') : cleanText(decision.reason) || 'Vision verification passed.'
+    width,
+    height,
+    pixels,
+    mean,
+    meanStdDev,
+    entropy,
+    photoQualityScore
   };
+}
+
+function reasonList(failures, successReason) {
+  return failures.length ? failures.join('; ') : successReason;
 }
 
 export async function verifyImageStoryAlignment({
   imageBuffer,
   storyTitle,
-  sourceDomain,
+  sourceDomain = '',
   candidateContext = '',
-  mode = process.env.NEWS_VISUAL_VERIFY_MODE || 'optional',
-  apiKey = process.env.OPENAI_API_KEY || '',
-  model = process.env.OPENAI_VISION_MODEL || DEFAULT_VISION_MODEL,
-  fetchImpl = fetch
+  candidateUrl = '',
+  candidateKind = ''
 } = {}) {
-  const normalizedMode = normalizeMode(mode);
-
-  if (normalizedMode === 'metadata') {
-    return {
-      verified: null,
-      method: 'metadata-only',
-      status: 'not-run',
-      model: null,
-      storyAlignmentScore: null,
-      photoQualityScore: null,
-      readabilityScore: null,
-      genericGraphic: null,
-      unsafe: null,
-      visibleSubjects: [],
-      visibleContext: '',
-      reason: 'Vision verification disabled; metadata-only safety checks remain active.'
-    };
-  }
-
-  if (!apiKey) {
-    if (normalizedMode === 'required') {
-      throw new Error('OPENAI_API_KEY is required for visual verification in required mode.');
-    }
-
-    return {
-      verified: null,
-      method: 'metadata-only',
-      status: 'not-configured',
-      model: null,
-      storyAlignmentScore: null,
-      photoQualityScore: null,
-      readabilityScore: null,
-      genericGraphic: null,
-      unsafe: null,
-      visibleSubjects: [],
-      visibleContext: '',
-      reason: 'OPENAI_API_KEY is not configured; using metadata-only safety checks.'
-    };
-  }
-
-  const imageUrl = await prepareVisionImage(imageBuffer);
-  const response = await fetchImpl(RESPONSES_URL, {
-    method: 'POST',
-    headers: {
-      authorization: 'Bearer ' + apiKey,
-      'content-type': 'application/json'
-    },
-    body: JSON.stringify({
-      model,
-      input: [{
-        role: 'user',
-        content: [
-          {
-            type: 'input_text',
-            text: buildPrompt({
-              storyTitle,
-              sourceDomain,
-              candidateContext,
-              displayHeadline: '',
-              purpose: 'source'
-            })
-          },
-          {
-            type: 'input_image',
-            image_url: imageUrl,
-            detail: 'high'
-          }
-        ]
-      }],
-      max_output_tokens: 350
-    })
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error('OpenAI visual verification HTTP ' + response.status + ': ' + cleanText(body).slice(0, 300));
-  }
-
-  const payload = await response.json();
-  const decision = evaluateDecision(extractJson(getResponseText(payload)), 'source');
-
-  return {
-    ...decision,
-    method: 'openai-vision',
-    status: decision.verified ? 'approved' : 'rejected',
-    model
-  };
-}
-
-async function verifyRenderedGraphic(options = {}) {
-  const {
-    imageBuffer,
-    storyTitle,
-    sourceDomain,
-    displayHeadline = '',
-    mode = process.env.NEWS_VISUAL_VERIFY_MODE || 'optional',
-    apiKey = process.env.OPENAI_API_KEY || '',
-    model = process.env.OPENAI_VISION_MODEL || DEFAULT_VISION_MODEL,
-    fetchImpl = fetch
-  } = options;
-
-  const normalizedMode = normalizeMode(mode);
-
-  if (normalizedMode === 'metadata') {
-    return {
-      verified: null,
-      method: 'metadata-only',
-      status: 'not-run',
-      model: null,
-      storyAlignmentScore: null,
-      photoQualityScore: null,
-      readabilityScore: null,
-      genericGraphic: null,
-      unsafe: null,
-      visibleSubjects: [],
-      visibleContext: '',
-      reason: 'Final graphic vision QA disabled; deterministic layout/render checks remain active.'
-    };
-  }
-
-  if (!apiKey) {
-    if (normalizedMode === 'required') {
-      throw new Error('OPENAI_API_KEY is required for final visual QA in required mode.');
-    }
-
-    return {
-      verified: null,
-      method: 'metadata-only',
-      status: 'not-configured',
-      model: null,
-      storyAlignmentScore: null,
-      photoQualityScore: null,
-      readabilityScore: null,
-      genericGraphic: null,
-      unsafe: null,
-      visibleSubjects: [],
-      visibleContext: '',
-      reason: 'OPENAI_API_KEY is not configured; final graphic QA remains metadata-only.'
-    };
-  }
-
-  const imageUrl = await prepareVisionImage(imageBuffer);
-  const prompt = buildPrompt({
-    storyTitle,
-    sourceDomain,
-    candidateContext: 'Final rendered A Little Better graphic',
-    displayHeadline,
-    purpose: 'final'
-  });
-
-  const response = await fetchImpl(RESPONSES_URL, {
-    method: 'POST',
-    headers: {
-      authorization: 'Bearer ' + apiKey,
-      'content-type': 'application/json'
-    },
-    body: JSON.stringify({
-      model,
-      input: [{
-        role: 'user',
-        content: [
-          { type: 'input_text', text: prompt },
-          { type: 'input_image', image_url: imageUrl, detail: 'high' }
-        ]
-      }],
-      max_output_tokens: 350
-    })
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error('OpenAI final visual QA HTTP ' + response.status + ': ' + cleanText(body).slice(0, 300));
-  }
-
-  const payload = await response.json();
-  const decision = evaluateDecision(extractJson(getResponseText(payload)), 'final');
-
-  return {
-    ...decision,
-    method: 'openai-vision',
-    status: decision.verified ? 'approved' : 'rejected',
-    model
-  };
-}
-
-export async function verifyRenderedNewsGraphic(options = {}) {
+  let inspection;
   try {
-    return await verifyRenderedGraphic(options);
+    inspection = await inspectImage(imageBuffer);
   } catch (error) {
-    const mode = normalizeMode(options.mode ?? process.env.NEWS_VISUAL_VERIFY_MODE ?? 'optional');
-    if (mode === 'optional') {
-      return {
-        verified: null,
-        method: 'metadata-fallback',
-        status: 'vision-error',
-        model: options.model || process.env.OPENAI_VISION_MODEL || DEFAULT_VISION_MODEL,
-        storyAlignmentScore: null,
-        photoQualityScore: null,
-        readabilityScore: null,
-        genericGraphic: null,
-        unsafe: null,
-        visibleSubjects: [],
-        visibleContext: '',
-        reason: 'Vision QA failed; continuing on deterministic render checks.',
-        error: error instanceof Error ? error.message : String(error)
-      };
-    }
-    throw error;
+    return {
+      verified: false,
+      method: 'deterministic',
+      status: 'rejected',
+      model: null,
+      storyAlignmentScore: 0,
+      photoQualityScore: 0,
+      readabilityScore: null,
+      genericGraphic: false,
+      unsafe: false,
+      visibleSubjects: [],
+      visibleContext: cleanText(candidateContext),
+      reason: 'image inspection failed: ' + (error instanceof Error ? error.message : String(error))
+    };
   }
+
+  const storyText = cleanText(storyTitle);
+  const candidateText = cleanText([
+    candidateContext,
+    candidateUrl,
+    candidateKind,
+    sourceDomain
+  ].filter(Boolean).join(' '));
+
+  const { score, matches, sharedGroups } = semanticScore(storyText, candidateText);
+  const genericGraphic = GENERIC_VISUAL_TERMS.some(term =>
+    containsTerm(candidateText, term)
+  );
+  const unsafe = UNSAFE_TERMS.some(term =>
+    containsTerm(candidateText, term)
+  );
+
+  const failures = [];
+  if (inspection.width < 500 || inspection.height < 400 || inspection.pixels < 250000) {
+    failures.push('image dimensions are too small for a reliable news photo');
+  }
+  if (inspection.mean < 4 || inspection.mean > 252 || inspection.meanStdDev < 2) {
+    failures.push('image has insufficient visible variation');
+  }
+  if (inspection.photoQualityScore < 60) {
+    failures.push('photo quality score is below 60');
+  }
+  if (genericGraphic) failures.push('image metadata indicates artwork or a generic graphic');
+  if (unsafe) failures.push('image context contains unsafe content');
+  if (score < SOURCE_ALIGNMENT_THRESHOLD) {
+    failures.push('story-image context alignment score is below ' + SOURCE_ALIGNMENT_THRESHOLD);
+  }
+
+  return {
+    verified: failures.length === 0,
+    method: 'deterministic',
+    status: failures.length ? 'rejected' : 'approved',
+    model: null,
+    storyAlignmentScore: score,
+    photoQualityScore: inspection.photoQualityScore,
+    readabilityScore: null,
+    genericGraphic,
+    unsafe,
+    visibleSubjects: matches,
+    visibleContext: cleanText(candidateContext),
+    sharedContextGroups: sharedGroups.length,
+    reason: reasonList(
+      failures,
+      'Deterministic story, context, and image-quality checks passed.'
+    )
+  };
+}
+
+export async function verifyRenderedNewsGraphic({
+  imageBuffer,
+  storyTitle,
+  displayHeadline = '',
+  sourceDomain = '',
+  template = '4:5'
+} = {}) {
+  const failures = [];
+  let inspection;
+
+  try {
+    inspection = await inspectImage(imageBuffer);
+  } catch (error) {
+    return {
+      verified: false,
+      method: 'deterministic',
+      status: 'rejected',
+      model: null,
+      storyAlignmentScore: 0,
+      photoQualityScore: 0,
+      readabilityScore: 0,
+      genericGraphic: false,
+      unsafe: false,
+      visibleSubjects: [],
+      visibleContext: '',
+      reason: 'render inspection failed: ' + (error instanceof Error ? error.message : String(error))
+    };
+  }
+
+  const layout = calculateNewsLayout(template);
+  const expected = layout.width + 'x' + layout.height;
+  const actual = inspection.width + 'x' + inspection.height;
+  if (actual !== expected) {
+    failures.push('rendered dimensions are ' + actual + ', expected ' + expected);
+  }
+  if (inspection.mean < 4 || inspection.meanStdDev < 2) {
+    failures.push('rendered graphic has insufficient visible variation');
+  }
+  if (inspection.photoQualityScore < 60) {
+    failures.push('rendered image quality score is below 60');
+  }
+
+  const zones = [layout.photoCredit, layout.brand, layout.headline, layout.source];
+  for (let i = 0; i < zones.length; i += 1) {
+    for (let j = i + 1; j < zones.length; j += 1) {
+      if (rectanglesOverlap(zones[i], zones[j])) {
+        failures.push('layout collision: ' + zones[i].name + ' overlaps ' + zones[j].name);
+      }
+    }
+  }
+
+  let readabilityScore = 100;
+  try {
+    const fit = fitTextToBox(displayHeadline || storyTitle, {
+      maxWidth: layout.headline.width - layout.headline.padding * 2,
+      maxHeight: layout.headline.height - layout.headline.padding * 2,
+      maxFontSize: 62,
+      minFontSize: 38,
+      lineHeight: 1.08,
+      maxLines: 4
+    });
+
+    if (fit.fontSize < 40) readabilityScore = 75;
+    else if (fit.fontSize < 44) readabilityScore = 85;
+    else if (fit.fontSize < 48) readabilityScore = 92;
+  } catch {
+    readabilityScore = 0;
+    failures.push('headline cannot fit inside the allocated box');
+  }
+
+  if (readabilityScore < FINAL_READABILITY_THRESHOLD) {
+    failures.push('readability score is below ' + FINAL_READABILITY_THRESHOLD);
+  }
+
+  const semantic = semanticScore(storyTitle, displayHeadline || storyTitle);
+  if (semantic.score < FINAL_ALIGNMENT_THRESHOLD) {
+    failures.push('story-headline alignment score is below ' + FINAL_ALIGNMENT_THRESHOLD);
+  }
+
+  return {
+    verified: failures.length === 0,
+    method: 'deterministic',
+    status: failures.length ? 'rejected' : 'approved',
+    model: null,
+    storyAlignmentScore: semantic.score,
+    photoQualityScore: inspection.photoQualityScore,
+    readabilityScore,
+    genericGraphic: false,
+    unsafe: false,
+    visibleSubjects: semantic.matches,
+    visibleContext: cleanText([displayHeadline, sourceDomain].filter(Boolean).join(' | ')),
+    reason: reasonList(
+      failures,
+      'Deterministic visual, layout, headline-fit, and render checks passed.'
+    )
+  };
 }
