@@ -34,7 +34,6 @@ async function makeGraphic() {
 }
 
 test('deterministic verifier approves a high-quality article image with matching context', async () => {
-  let externalCall = false;
   const imageBuffer = await makePhoto();
 
   const result = await verifyImageStoryAlignment({
