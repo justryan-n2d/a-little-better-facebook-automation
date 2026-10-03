@@ -143,8 +143,12 @@ export function buildNewsSvg({
     ).join('\n')}
   </g>
 
-  <rect x="90" y="1232" width="900" height="2" fill="${YELLOW}" opacity="0.9"/>
-  <text x="540" y="1270" text-anchor="middle" fill="${WHITE}" font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="600">
+  <g fill="${WHITE}">
+    ${angleLines.map((line, i) =>
+      `<text x="540" y="${1250 + i * 24}" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="600">${escapeXml(line)}</text>`
+    ).join('\\n')}
+  </g>
+  <text x="540" y="1310" text-anchor="middle" fill="${WHITE}" font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="600">
     Source: ${escapeXml(sourceDomain)}
   </text>
 </svg>`;
