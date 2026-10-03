@@ -26,7 +26,8 @@ if (hasPostedOnDate(history, date) && !isTrue('FORCE_POST')) {
 const post = getDailyPost(date, history.posts);
 console.log(`Selected ${post.category} content: ${post.contentId}`);
 
-const image = await renderPostImage({ imageText: post.imageText });
+const imageStyle = post.category === 'bible' ? 'alternate' : 'mint';
+const image = await renderPostImage({ imageText: post.imageText, variant: imageStyle });
 console.log(`Generated ${Math.round(image.length / 1024)} KB PNG.`);
 
 if (isTrue('DRY_RUN')) {
