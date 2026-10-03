@@ -9,7 +9,7 @@ import {
   downloadImage,
   extractImageQuery,
   findOpenverseImage,
-  searchGdelt,
+  searchFreshNews,
   selectFreshStory
 } from './news.js';
 import { renderNewsImage } from './news-image.js';
@@ -65,8 +65,8 @@ export async function runNewsPost({
     return { skipped: true, reason: 'already-published-today', date };
   }
 
-  const articles = await searchGdelt({ fetchImpl });
-  const story = selectFreshStory(articles, usedStoryValues(history));
+  const discovery = await searchFreshNews({ fetchImpl });
+  const story = selectFreshStory(discovery.articles, usedStoryValues(history));
   if (!story) {
     throw new Error('No safe fresh news story was found.');
   }
@@ -102,6 +102,7 @@ export async function runNewsPost({
     title: story.title,
     url: story.url,
     sourceDomain,
+    provider: discovery.provider,
     sourceCount: story.sourceCount,
     discoveryScore: story.score,
     published: false,

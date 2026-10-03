@@ -127,38 +127,132 @@ async function fetchJson(url, { timeoutMs = 15000, fetchImpl = fetch } = {}) {
 export async function searchGdelt({
   queries = NEWS_QUERIES,
   timespan = '36h',
-  maxRecords = 20,
+  maxRecords = 100,
   fetchImpl = fetch
 } = {}) {
-  const all = [];
-  for (const query of queries) {
-    const url = new URL(GDELT_BASE);
-    url.searchParams.set('query', query);
-    url.searchParams.set('mode', 'artlist');
-    url.searchParams.set('maxrecords', String(maxRecords));
-    url.searchParams.set('timespan', timespan);
-    url.searchParams.set('sort', 'HybridRel');
-    url.searchParams.set('format', 'json');
+  const combinedQuery = [...new Set(queries.filter(Boolean))]
+    .map(query => `(${query})`)
+    .join(' OR ');
 
-    try {
-      const payload = await fetchJson(url, { fetchImpl });
-      for (const [index, item] of extractGdeltArticles(payload).entries()) {
-        if (!item?.url || !item?.title) continue;
-        all.push({
-          title: cleanText(item.title),
-          url: normalizeUrl(item.url),
-          domain: item.domain || domainFromUrl(item.url),
-          seendate: item.seendate || item.published || null,
-          socialimage: item.socialimage || null,
-          query,
-          rank: index + 1
-        });
-      }
-    } catch (error) {
-      console.log(`GDELT query failed: ${query} (${error instanceof Error ? error.message : String(error)})`);
-    }
+  const url = new URL(GDELT_BASE);
+  url.searchParams.set('query', combinedQuery);
+  url.searchParams.set('mode', 'artlist');
+  url.searchParams.set('maxrecords', String(maxRecords));
+  url.searchParams.set('timespan', timespan);
+  url.searchParams.set('sort', 'HybridRel');
+  url.searchParams.set('format', 'json');
+
+  const payload = await fetchJson(url, { fetchImpl });
+  return extractGdeltArticles(payload)
+    .filter(item => item?.url && item?.title)
+    .map((item, index) => ({
+      title: cleanText(item.title),
+      url: normalizeUrl(item.url),
+      domain: item.domain || domainFromUrl(item.url),
+      seendate: item.seendate || item.published || null,
+      socialimage: item.socialimage || null,
+      query: combinedQuery,
+      rank: index + 1
+    }));
+}
+
+function decodeXmlEntities(value) {
+  return String(value ?? '')
+    .replaceAll('<![CDATA[', '')
+    .replaceAll(']]>', '')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>');
+}
+
+export function extractGoogleNewsRssArticles(xml) {
+  const text = String(xml ?? '');
+  const items = [...text.matchAll(/<item\b[\s\S]*?<\/item>/gi)];
+
+  return items.map((match, index) => {
+    const item = match[0];
+    const readTag = tag => {
+      const open = '<' + tag + '\\b[^>]*>';
+      const close = '</' + tag + '>';
+      const found = item.match(new RegExp(open + '([\\s\\S]*?)' + close, 'i'));
+      return decodeXmlEntities(found?.[1] || '').trim();
+    };
+
+    const title = readTag('title');
+    const url = readTag('link');
+    const pubDate = readTag('pubDate');
+    const source = readTag('source');
+
+    return {
+      title,
+      url: normalizeUrl(url),
+      domain: source || domainFromUrl(url),
+      seendate: pubDate || null,
+      socialimage: null,
+      rank: index + 1
+    };
+  }).filter(item => item.title && item.url);
+}
+
+export async function searchGoogleNewsRss({
+  queries = NEWS_QUERIES,
+  maxRecords = 50,
+  fetchImpl = fetch
+} = {}) {
+  const query = [...new Set(queries.filter(Boolean))]
+    .map(value => `(${value})`)
+    .join(' OR ');
+
+  const url = new URL('https://news.google.com/rss/search');
+  url.searchParams.set('q', query);
+  url.searchParams.set('hl', 'en');
+  url.searchParams.set('gl', 'US');
+  url.searchParams.set('ceid', 'US:en');
+
+  const response = await fetchImpl(url, {
+    headers: { 'user-agent': 'A-Little-Better-News/1.0' }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Google News RSS HTTP ${response.status}`);
   }
-  return all;
+
+  const xml = await response.text();
+  return extractGoogleNewsRssArticles(xml)
+    .map(item => ({ ...item, query }))
+    .slice(0, maxRecords);
+}
+
+export async function searchFreshNews({
+  queries = NEWS_QUERIES,
+  timespan = '36h',
+  maxRecords = 100,
+  fetchImpl = fetch
+} = {}) {
+  try {
+    const articles = await searchGdelt({ queries, timespan, maxRecords, fetchImpl });
+    if (articles.length > 0) {
+      return { provider: 'gdelt', articles };
+    }
+    throw new Error('GDELT returned no articles.');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`GDELT unavailable; using Google News RSS fallback (${message})`);
+
+    const articles = await searchGoogleNewsRss({
+      queries,
+      maxRecords: Math.min(maxRecords, 50),
+      fetchImpl
+    });
+
+    return {
+      provider: 'google-news-rss',
+      articles
+    };
+  }
 }
 
 export function selectFreshStory(articles, {
