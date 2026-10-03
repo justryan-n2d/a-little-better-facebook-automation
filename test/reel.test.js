@@ -31,6 +31,19 @@ test('builds a vertical Reel SVG with brand text', () => {
   assert.match(svg, /Keep going\./);
 });
 
+
+test('weekly Reel workflow runs Sunday at 9 PM and uploads the MP4 artifact', async () => {
+  const fs = await import('node:fs/promises');
+  const workflow = await fs.readFile('.github/workflows/a-little-better-reel.yml', 'utf8');
+
+  assert.match(workflow, /cron: "0 21 \* \* 0"/);
+  assert.match(workflow, /timezone: "Asia\/Manila"/);
+  assert.match(workflow, /run: node src\/reel\.js/);
+  assert.match(workflow, /path: artifacts\/reel-\*\.mp4/);
+  assert.match(workflow, /Manual review only/);
+  assert.doesNotMatch(workflow, /FB_PAGE_ACCESS_TOKEN/);
+});
+
 test('selects the strongest measured weekly post for a Reel', () => {
   const result = selectTopReelPost({
     weekStart: '2026-09-28',
