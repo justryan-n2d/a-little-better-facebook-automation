@@ -9,7 +9,7 @@ import {
   buildPhotoCredit,
   downloadImage,
   buildImageQueries,
-  findOpenverseImage,
+  findSourceArticleImage,
   searchFreshNews,
   selectFreshStory
 } from './news.js';
@@ -72,12 +72,7 @@ export async function runNewsPost({
     throw new Error('No safe fresh news story was found.');
   }
 
-  const imageQueries = buildImageQueries(story.title, story.topic);
-  const imageMeta = await findOpenverseImage(imageQueries, { fetchImpl });
-  if (!imageMeta) {
-    throw new Error(`No eligible Openverse image found. Tried: ${imageQueries.join(' | ')}`);
-  }
-
+  const imageMeta = await findSourceArticleImage(story, { fetchImpl });
   const imageBuffer = await downloadImage(imageMeta.urlCandidates || imageMeta.url, { fetchImpl });
   const hook = buildNewsHook(story.title);
   const angle = buildNewsAngle(story.title);
