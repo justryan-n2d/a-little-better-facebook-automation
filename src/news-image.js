@@ -230,11 +230,11 @@ export function calculateNewsLayout(template = '4:5') {
 
   const brand = rect(
     (width - brandWidth) / 2,
-    headline.y - 94 * scale,
+    headline.y - 116 * scale,
     brandWidth,
     brandHeight,
     'branding',
-    10 * scale
+    6 * scale
   );
 
   const zones = [photoCredit, photoInset, brand, headline, source];
