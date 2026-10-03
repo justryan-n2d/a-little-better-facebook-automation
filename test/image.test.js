@@ -25,19 +25,19 @@ test('renderer uses the brand colors', () => {
   assert.match(svg, /#FFFFFF/g);
 });
 
-test('long text wraps and reduces font size instead of overflowing', () => {
+test('long text wraps, fits width, and reduces font size instead of overflowing', () => {
   const lines = wrapLines(
     'You do not have to have everything figured out. Take it one day at a time.',
-    24
+    20
   );
-  const fontSize = calculateFontSize(lines.length, 470, { max: 42, min: 24 });
+  const fontSize = calculateFontSize(lines, 744, 420, { max: 38, min: 22 });
   assert.ok(lines.length >= 3);
-  assert.ok(fontSize <= 42);
+  assert.ok(fontSize <= 38);
 });
 
 test('layout validation rejects collisions and accepts the production layout', () => {
   assert.equal(validateLayout({
-    headline: { x: 126, y: 340, width: 816, height: 440 },
+    headline: { x: 150, y: 350, width: 780, height: 420 },
     support: { x: 150, y: 865, width: 780, height: 90 },
     brand: { x: 360, y: 1160, width: 360, height: 60 }
   }), true);
@@ -62,4 +62,11 @@ test('dry-run mode is allowed to preview even when a date is already posted', as
   const indexSource = await import('node:fs/promises').then(fs => fs.readFile('src/index.js', 'utf8'));
   assert.match(indexSource, /&& !isTrue\('FORCE_POST'\) && !dryRun/);
   assert.match(indexSource, /if \(dryRun\)/);
+});
+
+
+test('branding is centered at the bottom', () => {
+  const svg = buildSvg({ imageText: 'Keep going.' });
+  assert.match(svg, /translate\(540 0\)/);
+  assert.match(svg, /A LITTLE BETTER/);
 });
