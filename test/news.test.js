@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildNewsHook,
+  buildNewsHook,\n  buildNewsAngle,
   extractGdeltArticles,
   isSafeNewsCandidate,
   selectFreshStory
@@ -68,7 +68,7 @@ test('avoids previously used title fingerprints', () => {
   assert.equal(selected, null);
 });
 
-test('builds a category-aware hook', () => {
+test('builds a category-aware hook and original angle', () => {
   assert.match(buildNewsHook('Student receives award for science project'), /student/i);
   assert.match(buildNewsHook('New science discovery changes how we see space'), /development/i);
 });
