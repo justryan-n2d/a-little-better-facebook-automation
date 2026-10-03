@@ -3,7 +3,8 @@ import { resolve } from 'node:path';
 import { publishPhoto } from './facebook.js';
 import {
   buildNewsCaption,
-  buildNewsHook,\n  buildNewsAngle,
+  buildNewsHook,
+  buildNewsAngle,
   buildPhotoCredit,
   downloadImage,
   extractImageQuery,
@@ -49,12 +50,6 @@ function usedStoryValues(history) {
   };
 }
 
-function daysOld(dateString, today) {
-  const a = new Date(`${dateString}T00:00:00+08:00`).getTime();
-  const b = new Date(${today}T00:00:00+08:00).getTime();
-  return Math.floor((b - a) / 86400000);
-}
-
 export async function runNewsPost({
   today,
   autoPublish,
@@ -83,7 +78,8 @@ export async function runNewsPost({
   }
 
   const imageBuffer = await downloadImage(imageMeta.url, { fetchImpl });
-  const hook = buildNewsHook(story.title);\n  const angle = buildNewsAngle(story.title);
+  const hook = buildNewsHook(story.title);
+  const angle = buildNewsAngle(story.title);
   const photoCredit = buildPhotoCredit(imageMeta);
   const sourceDomain = story.domain || 'news source';
 
@@ -96,6 +92,7 @@ export async function runNewsPost({
     hook,
     title: story.title,
     sourceDomain,
+    angle,
     photoCredit,
     outputPath: imagePath
   });
@@ -118,6 +115,7 @@ export async function runNewsPost({
       landingUrl: imageMeta.landingUrl
     },
     hook,
+    angle,
     generatedAt: new Date().toISOString()
   };
 
@@ -126,6 +124,7 @@ export async function runNewsPost({
     sourceDomain,
     sourceUrl: story.url,
     hook,
+    angle,
     photoCredit
   });
 
