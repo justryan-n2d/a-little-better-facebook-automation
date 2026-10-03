@@ -1,0 +1,15 @@
+{
+  "name": "a-little-better-facebook-automation",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Daily original content generation and Facebook Page publishing for A Little Better.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "start": "node src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {}
+}
