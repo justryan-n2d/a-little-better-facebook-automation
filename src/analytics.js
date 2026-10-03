@@ -100,6 +100,53 @@ export function summarizeCategoryPerformance(snapshots = []) {
     );
 }
 
+export function summarizeExperimentPerformance(snapshots = [], dimension) {
+  const groups = new Map();
+
+  for (const snapshot of Array.isArray(snapshots) ? snapshots : []) {
+    const value = dimension === 'selectionMode'
+      ? snapshot?.experiment?.selectionMode
+      : snapshot?.experiment?.contentTraits?.[dimension];
+
+    if (!value) continue;
+
+    const engagement = asNumber(snapshot?.engagement ?? engagementScore(snapshot));
+    const rate = Number(snapshot?.engagementRate);
+    const current = groups.get(value) || {
+      value,
+      posts: 0,
+      totalEngagement: 0,
+      totalEngagementRate: 0,
+      ratePosts: 0
+    };
+
+    current.posts += 1;
+    current.totalEngagement += engagement;
+
+    if (Number.isFinite(rate) && rate >= 0) {
+      current.totalEngagementRate += rate;
+      current.ratePosts += 1;
+    }
+
+    groups.set(value, current);
+  }
+
+  return [...groups.values()]
+    .map(group => ({
+      value: group.value,
+      posts: group.posts,
+      averageEngagement: Number((group.totalEngagement / group.posts).toFixed(2)),
+      averageEngagementRate: group.ratePosts
+        ? Number((group.totalEngagementRate / group.ratePosts).toFixed(4))
+        : null
+    }))
+    .sort((a, b) =>
+      (b.averageEngagementRate ?? -1) - (a.averageEngagementRate ?? -1) ||
+      b.averageEngagement - a.averageEngagement ||
+      a.value.localeCompare(b.value)
+    );
+}
+
 export function getFollowerDelta(snapshots = []) {
   const available = (Array.isArray(snapshots) ? snapshots : [])
     .filter(snapshot => Number.isFinite(Number(snapshot?.followersCount)))
