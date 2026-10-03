@@ -51,6 +51,62 @@ function resultForCompletedFailure(run, maxAttempts) {
   return { type: 'alert', runId: run.id, reason: 'publish-job-failure' };
 }
 
+export function decideAnalyticsHealthAction({
+  now,
+  today,
+  scheduleHour = 18,
+  scheduleMinute = 0,
+  graceMinutes = 120,
+  analytics = {}
+}) {
+  const scheduleMs = toTime(
+    `${today}T${String(scheduleHour).padStart(2, '0')}:${String(scheduleMinute).padStart(2, '0')}:00+08:00`
+  );
+  const nowMs = toTime(now);
+
+  if (nowMs < scheduleMs + graceMinutes * 60_000) {
+    return { type: 'wait', reason: 'before-analytics-grace-period' };
+  }
+
+  const runs = Array.isArray(analytics?.collectorRuns) ? analytics.collectorRuns : [];
+  const latest = [...runs]
+    .filter(run => run?.capturedDate)
+    .sort((a, b) =>
+      String(b.capturedDate).localeCompare(String(a.capturedDate)) ||
+      String(b.capturedAt || '').localeCompare(String(a.capturedAt || ''))
+    )[0];
+
+  if (!latest) {
+    return { type: 'alert', reason: 'analytics-missing', capturedDate: null };
+  }
+
+  if (String(latest.capturedDate) !== today) {
+    return {
+      type: 'alert',
+      reason: 'analytics-stale',
+      capturedDate: latest.capturedDate
+    };
+  }
+
+  if (Number(latest.successfulPosts || 0) === 0 && Number(latest.attemptedPosts || 0) > 0) {
+    return {
+      type: 'alert',
+      reason: 'analytics-collection-zero',
+      capturedDate: latest.capturedDate
+    };
+  }
+
+  if (Number(latest.errorCount || 0) > 0) {
+    return {
+      type: 'alert',
+      reason: 'analytics-partial',
+      capturedDate: latest.capturedDate
+    };
+  }
+
+  return { type: 'healthy', capturedDate: latest.capturedDate };
+}
+
 export function decideWatchdogAction({
   now,
   today,
