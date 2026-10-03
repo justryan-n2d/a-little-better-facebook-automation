@@ -170,16 +170,14 @@ const BRAND_LETTER_SPACING = 4;
 const BRAND_TEXT_WIDTH = 250;
 const BRAND_ICON_WIDTH = 59;
 const BRAND_GAP = 14;
-const BRAND_SHIFT_X = -180;
+// LOCKED BRAND POSITION: keep this exact horizontal position for every future post.
+const BRAND_LOCKUP_X = 198.5;
 
 function buildBrand(layout) {
   const box = layout.brand;
-  const lockupWidth = BRAND_ICON_WIDTH + BRAND_GAP + BRAND_TEXT_WIDTH;
-  const lockupLeft = (box.width - lockupWidth) / 2;
-  const lockupX = box.x + lockupLeft + BRAND_SHIFT_X;
 
   return `
-    <g transform="translate(${lockupX} 0)" class="brand-lockup">
+    <g transform="translate(${BRAND_LOCKUP_X} 0)" class="brand-lockup">
       <g transform="translate(32 ${box.y + 4})" stroke="${COLORS.white}" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
         <path d="M0 40 C0 23 11 10 27 7 C27 24 18 39 0 40Z"/>
         <path d="M1 40 C-10 26 -19 21 -32 22 C-28 36 -17 43 1 40Z"/>
@@ -194,9 +192,9 @@ function buildMintSvg({ imageText }) {
 
   const lines = wrapLines(imageText, 24).filter(Boolean);
   const fontSize = calculateFontSize(lines, layout.headline.width - 28, layout.headline.height, {
-    max: 52,
-    min: 26,
-    lineHeightRatio: 1.12
+    max: 56,
+    min: 27,
+    lineHeightRatio: 1.08
   });
 
   const body = buildHeadline({ lines, box: layout.headline, fontSize });
@@ -220,7 +218,7 @@ function buildMintSvg({ imageText }) {
   <style>
     .headline {
       font-family: 'DejaVu Sans';
-      font-weight: 500;
+      font-weight: 700;
     }
     .support {
       font-family: 'DejaVu Sans';
@@ -244,9 +242,9 @@ function buildAlternateSvg({ imageText }) {
 
   const lines = wrapLines(imageText, 24).filter(Boolean);
   const fontSize = calculateFontSize(lines, layout.headline.width - 28, layout.headline.height, {
-    max: 50,
-    min: 25,
-    lineHeightRatio: 1.12
+    max: 54,
+    min: 26,
+    lineHeightRatio: 1.08
   });
 
   const body = buildHeadline({ lines, box: layout.headline, fontSize });
