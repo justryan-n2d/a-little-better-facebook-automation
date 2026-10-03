@@ -50,7 +50,10 @@ const LITTLE_BETTER_TOPIC_GROUPS = [
 ];
 
 function containsTerm(text, term) {
-  const escaped = String(term).replace(/[.*+?^${}()|[\]\\]/g, '\\export function getLittleBetterTopic(title) {
+  const escaped = String(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp('\\b' + escaped + '\\b', 'i').test(text);
+}
+export function getLittleBetterTopic(title) {
   const lower = cleanText(title).toLowerCase();
   if (!lower || BLOCKED_TERMS.some(term => lower.includes(term))) return null;
 
