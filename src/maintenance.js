@@ -47,8 +47,8 @@ export function getExpirationWarning({
     .filter(value => Number.isFinite(value) && value >= 0)
     .sort((a, b) => a - b);
 
-  const threshold = normalized.find(value => daysLeft <= value);
-  if (threshold === undefined) return null;
+  if (!normalized.includes(daysLeft)) return null;
+  const threshold = daysLeft;
 
   return {
     daysLeft,
