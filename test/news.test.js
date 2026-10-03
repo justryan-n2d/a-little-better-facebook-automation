@@ -688,17 +688,17 @@ test('rejects an unrelated article image and accepts the matching article image 
         }
 
         if (url.includes('cdn.example/football.jpg') || url.includes('cdn.example/family.jpg')) {
-          const raw = Buffer.alloc(500 * 400 * 3);
-          for (let y = 0; y < 400; y += 1) {
-            for (let x = 0; x < 500; x += 1) {
-              const index = (y * 500 + x) * 3;
+          const raw = Buffer.alloc(700 * 500 * 3);
+          for (let y = 0; y < 500; y += 1) {
+            for (let x = 0; x < 700; x += 1) {
+              const index = (y * 700 + x) * 3;
               raw[index] = (x * 3) % 256;
               raw[index + 1] = (y * 4) % 256;
               raw[index + 2] = (x + y) % 256;
             }
           }
           const image = await sharp(raw, {
-            raw: { width: 500, height: 400, channels: 3 }
+            raw: { width: 700, height: 500, channels: 3 }
           }).png().toBuffer();
 
           return new Response(image, {
@@ -722,17 +722,17 @@ test('fresh news runner stores deterministic source and final visual verificatio
   const tempDir = await mkdtemp('/tmp/a-little-better-phase4-');
   const historyPath = join(tempDir, 'history.json');
   const outputDate = '2099-12-31';
-  const raw = Buffer.alloc(500 * 400 * 3);
-  for (let y = 0; y < 400; y += 1) {
-    for (let x = 0; x < 500; x += 1) {
-      const index = (y * 500 + x) * 3;
+  const raw = Buffer.alloc(700 * 500 * 3);
+  for (let y = 0; y < 500; y += 1) {
+    for (let x = 0; x < 700; x += 1) {
+      const index = (y * 700 + x) * 3;
       raw[index] = (x * 3) % 256;
       raw[index + 1] = (y * 4) % 256;
       raw[index + 2] = (x + y) % 256;
     }
   }
   const visual = await sharp(raw, {
-    raw: { width: 500, height: 400, channels: 3 }
+    raw: { width: 700, height: 500, channels: 3 }
   }).png().toBuffer();
 
   let storyUrlCalls = 0;
