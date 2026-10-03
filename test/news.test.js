@@ -24,6 +24,7 @@ import {
   isSafeNewsCandidate,
   isLittleBetterTopic,
   getLittleBetterTopic,
+  isHeartwarmingHumanStory,
   selectFreshStory
 } from '../src/news.js';
 import { buildNewsSvg, calculateNewsLayout, fitTextToBox, NEWS_PRIMARY, rectanglesOverlap, renderNewsImage } from '../src/news-image.js';
