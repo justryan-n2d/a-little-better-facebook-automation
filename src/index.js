@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { getDailyPost, getPhilippineDate } from './content.js';
 import { renderPostImage } from './image.js';
 import { publishPhoto } from './facebook.js';
@@ -29,6 +30,11 @@ console.log(`Selected ${post.category} content: ${post.contentId}`);
 const imageStyle = post.category === 'bible' ? 'alternate' : 'mint';
 const image = await renderPostImage({ imageText: post.imageText, variant: imageStyle });
 console.log(`Generated ${Math.round(image.length / 1024)} KB PNG.`);
+const previewDir = resolve('artifacts');
+await mkdir(previewDir, { recursive: true });
+const previewPath = resolve(previewDir, `a-little-better-${post.date}-${post.contentId}.png`);
+await writeFile(previewPath, image);
+console.log(`Saved preview image: ${previewPath}`);
 
 if (isTrue('DRY_RUN')) {
   console.log('DRY_RUN=true, so Facebook publishing is skipped.');
