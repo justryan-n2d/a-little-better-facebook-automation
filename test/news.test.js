@@ -628,6 +628,178 @@ test('production renderer preserves the source photo and readable text layers', 
   }
 });
 
+test('rejects a semantically wrong top-ranked article image and accepts the verified candidate', async () => {
+  const visionResponses = [
+    {
+      output_text: JSON.stringify({
+        approved: false,
+        story_alignment_score: 18,
+        photo_quality_score: 90,
+        readability_score: 90,
+        generic_graphic: false,
+        unsafe: false,
+        visible_subjects: ['football players'],
+        visible_context: 'A football game',
+        reason: 'The visible scene does not match the family grocery story.'
+      })
+    },
+    {
+      output_text: JSON.stringify({
+        approved: true,
+        story_alignment_score: 91,
+        photo_quality_score: 89,
+        readability_score: 90,
+        generic_graphic: false,
+        unsafe: false,
+        visible_subjects: ['a neighbor', 'a family', 'grocery bags'],
+        visible_context: 'A neighbor carrying groceries toward a family',
+        reason: 'The visible people and action match the story.'
+      })
+    }
+  ];
+
+  const result = await findSourceArticleImage(
+    {
+      url: 'https://news.google.com/rss/articles/example',
+      domain: 'Example News',
+      title: 'Neighbor helps family with groceries'
+    },
+    {
+      visualVerificationMode: 'required',
+      openaiApiKey: 'test-key',
+      fetchImpl: async (input) => {
+        const url = String(input);
+
+        if (url.includes('news.google.com')) {
+          return { ok: true, status: 200, url: 'https://example.news/story', text: async () => '' };
+        }
+
+        if (url === 'https://example.news/story') {
+          return new Response(
+            '<html><head>' +
+            '<meta property="og:image" content="https://cdn.example/football.jpg">' +
+            '</head><body>' +
+            '<img src="https://cdn.example/family.jpg" alt="Neighbor helps family with groceries and carries food">' +
+            '</body></html>',
+            { status: 200, headers: { 'content-type': 'text/html' } }
+          );
+        }
+
+        if (url.includes('api.openai.com')) {
+          return new Response(JSON.stringify(visionResponses.shift()), {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          });
+        }
+
+        if (url.includes('cdn.example/football.jpg') || url.includes('cdn.example/family.jpg')) {
+          return new Response(Buffer.alloc(12000, 12), {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' }
+          });
+        }
+
+        return new Response('not found', { status: 404 });
+      }
+    }
+  );
+
+  assert.equal(result.url, 'https://cdn.example/family.jpg');
+  assert.equal(result.visualVerification.verified, true);
+  assert.equal(result.visualVerification.storyAlignmentScore, 91);
+});
+
+test('fresh news runner stores source and final visual verification results', async () => {
+  const tempDir = await mkdtemp('/tmp/a-little-better-phase4-');
+  const historyPath = join(tempDir, 'history.json');
+  const outputDate = '2099-12-31';
+  const visual = await sharp({
+    create: {
+      width: 500,
+      height: 400,
+      channels: 3,
+      background: { r: 190, g: 130, b: 80 }
+    }
+  }).png().toBuffer();
+
+  const visionDecision = {
+    output_text: JSON.stringify({
+      approved: true,
+      story_alignment_score: 90,
+      photo_quality_score: 88,
+      readability_score: 92,
+      generic_graphic: false,
+      unsafe: false,
+      visible_subjects: ['neighbor', 'family', 'groceries'],
+      visible_context: 'A neighbor helping a family with groceries',
+      reason: 'The photo and final graphic remain aligned with the story.'
+    })
+  };
+
+  try {
+    const result = await runNewsPost({
+      today: outputDate,
+      autoPublish: false,
+      historyPath,
+      visualVerificationMode: 'required',
+      openaiApiKey: 'test-key',
+      openaiVisionModel: 'gpt-5-mini',
+      fetchImpl: async (input) => {
+        const url = String(input);
+
+        if (url.includes('gdeltproject.org')) {
+          return new Response(JSON.stringify({
+            articles: [{
+              title: 'Neighbor helps family with groceries',
+              url: 'https://example.news/story',
+              domain: 'Example News',
+              seendate: '20991231030000'
+            }]
+          }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          });
+        }
+
+        if (url === 'https://example.news/story') {
+          return { ok: true, status: 200, url, text: async () => '' };
+        }
+
+        if (url.includes('api.openai.com')) {
+          return new Response(JSON.stringify(visionDecision), {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          });
+        }
+
+        if (url.includes('cdn.example')) {
+          return new Response(visual, {
+            status: 200,
+            headers: { 'content-type': 'image/png' }
+          });
+        }
+
+        return new Response(
+          '<html><head><meta property="og:image" content="https://cdn.example/family.png"></head></html>',
+          { status: 200, headers: { 'content-type': 'text/html' } }
+        );
+      }
+    });
+
+    const history = JSON.parse(await readFile(historyPath, 'utf8'));
+    assert.equal(result.published, false);
+    assert.equal(history.stories.at(-1).visualVerification.source.method, 'openai-vision');
+    assert.equal(history.stories.at(-1).visualVerification.graphic.method, 'openai-vision');
+    assert.equal(history.stories.at(-1).visualVerification.source.verified, true);
+    assert.equal(history.stories.at(-1).visualVerification.graphic.verified, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+    await rm(join('artifacts', `fresh-news-${outputDate}.png`), { force: true }).catch(() => {});
+    await rm(join('artifacts', `fresh-news-${outputDate}.json`), { force: true }).catch(() => {});
+    await rm(join('artifacts', 'fresh-news-status.json'), { force: true }).catch(() => {});
+  }
+});
+
 test('news post runner is importable', () => {
   assert.equal(typeof runNewsPost, 'function');
 });
