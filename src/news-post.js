@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { publishPhoto } from './facebook.js';
 import {
   buildNewsCaption,
-  buildNewsHook,
+  buildNewsHook,\n  buildNewsAngle,
   buildPhotoCredit,
   downloadImage,
   extractImageQuery,
@@ -35,7 +35,7 @@ async function saveNewsHistory(path, history) {
     version: 1,
     stories: Array.isArray(history.stories) ? history.stories.slice(-180) : []
   };
-  await writeFile(path, `${JSON.stringify(normalized, null, 2)}\\n`, 'utf8');
+  await writeFile(path, `${JSON.stringify(normalized, null, 2)}\n`, 'utf8');
 }
 
 function alreadyPublishedToday(history, date) {
@@ -83,7 +83,7 @@ export async function runNewsPost({
   }
 
   const imageBuffer = await downloadImage(imageMeta.url, { fetchImpl });
-  const hook = buildNewsHook(story.title);
+  const hook = buildNewsHook(story.title);\n  const angle = buildNewsAngle(story.title);
   const photoCredit = buildPhotoCredit(imageMeta);
   const sourceDomain = story.domain || 'news source';
 
@@ -134,7 +134,7 @@ export async function runNewsPost({
     publishedPostId = (await publishPhoto({
       pageId: requiredEnv('FB_PAGE_ID'),
       pageAccessToken: requiredEnv('FB_PAGE_ACCESS_TOKEN'),
-      message: `${caption}\\n\\n${story.url}`,
+      message: `${caption}\n\n${story.url}`,
       image: await readFile(imagePath),
       graphVersion: process.env.META_GRAPH_VERSION || 'v26.0'
     })).postId;
@@ -153,10 +153,10 @@ export async function runNewsPost({
   };
   await saveNewsHistory(historyPath, nextHistory);
 
-  await writeFile(metadataPath, `${JSON.stringify({ ...record, caption, sourceUrl: story.url }, null, 2)}\\n`, 'utf8');
+  await writeFile(metadataPath, `${JSON.stringify({ ...record, caption, sourceUrl: story.url }, null, 2)}\n`, 'utf8');
   await writeFile(
     resolve('artifacts', 'fresh-news-status.json'),
-    `${JSON.stringify({ published: record.published, date, facebookPostId: publishedPostId }, null, 2)}\\n`,
+    `${JSON.stringify({ published: record.published, date, facebookPostId: publishedPostId }, null, 2)}\n`,
     'utf8'
   );
 
