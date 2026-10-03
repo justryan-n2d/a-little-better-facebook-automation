@@ -84,10 +84,12 @@ const HEARTWARMING_HUMAN_CONTEXT = [
 ];
 
 const HEARTWARMING_HUMAN_ACTIONS = [
-  'kindness', 'helped', 'helping', 'offered', 'shared', 'gave', 'gifted',
+  'kindness', 'helped', 'helping', 'help', 'offer', 'offers', 'offered',
+  'share', 'shares', 'shared', 'give', 'gives', 'gave', 'gift', 'gifted',
   'comforted', 'supported', 'donated', 'reunited', 'surprised', 'paid',
-  'bought', 'food', 'meal', 'groceries', 'care', 'compassion', 'generosity',
-  'embraced', 'welcomed', 'checked on'
+  'bought', 'feed', 'feeding', 'food', 'meal', 'groceries', 'care',
+  'compassion', 'generosity', 'embraced', 'welcomed', 'checked on',
+  'eat', 'eats', 'eating'
 ];
 
 export function isHeartwarmingHumanStory(title) {
