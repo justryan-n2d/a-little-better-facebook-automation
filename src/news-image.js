@@ -142,9 +142,10 @@ export function calculateNewsLayout(template = '4:5') {
 
   const brandWidth = 300 * scale;
   const brandHeight = 64 * scale;
+  const brandY = template === '1:1' ? height * 0.59 : height * 0.625;
   const brand = rect(
     (width - brandWidth) / 2,
-    height * 0.625,
+    brandY,
     brandWidth,
     brandHeight,
     'branding',
