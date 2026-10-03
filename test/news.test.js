@@ -648,7 +648,7 @@ test('rejects an unrelated article image and accepts the matching article image 
             '<html><head>' +
             '<meta property="og:image" content="https://cdn.example/football.jpg">' +
             '</head><body>' +
-            '<img src="https://cdn.example/family.jpg" alt="A person helps another family with groceries">' +
+            '<img src="https://cdn.example/family.jpg" alt="A person helps another person">' +
             '</body></html>',
             { status: 200, headers: { 'content-type': 'text/html' } }
           );
@@ -732,8 +732,8 @@ test('fresh news runner stores deterministic source and final visual verificatio
             return { ok: true, status: 200, url, text: async () => '' };
           }
           return new Response(
-            '<html><head><meta property="og:image" content="https://cdn.example/family.png"></head>' +
-            '</html>',
+            '<html><head><meta property="og:image" content="https://cdn.example/family.png"></head><body>' +
+            '<img src="https://cdn.example/family.png" alt="A neighbor helps a family with groceries"></body></html>',
             { status: 200, headers: { 'content-type': 'text/html' } }
           );
         }
