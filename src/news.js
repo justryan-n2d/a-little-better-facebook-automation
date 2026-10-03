@@ -69,7 +69,7 @@ const LITTLE_BETTER_TOPIC_GROUPS = [
 ];
 
 function containsTerm(text, term) {
-  const escaped = String(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escaped = String(term).replace(/[.*+?^${}()|[\]\]/g, '\\$&');
   return new RegExp('\\b' + escaped + '\\b', 'i').test(text);
 }
 
@@ -682,11 +682,11 @@ function articleImageCandidates(html, articleUrl) {
   for (const item of extractMetaImages(html)) {
     if (['og:image', 'og:image:url', 'twitter:image', 'twitter:image:src'].includes(item.property) && item.content) values.push(item.content);
   }
-  values.push(...[...String(html || '').matchAll(/<link\\b[^>]*(?:rel|itemprop)\\s*=\\s*["'][^"']*image[^"']*["'][^>]*>/gi)].map(match =>
-    match[0].match(/href\\s*=\\s*["']([^"']+)["']/i)?.[1] || ''));
-  values.push(...[...String(html || '').matchAll(/<img\\b[^>]+>/gi)].map(match =>
-    match[0].match(/(?:src|data-src|data-original)\\s*=\\s*["']([^"']+)["']/i)?.[1] || ''));
-  values.push(...[...String(html || '').matchAll(/"image"\\s*:\\s*(?:"([^"]+)"|\\[\\s*"([^"]+)")/gi)].map(match => match[1] || match[2] || ''));
+  values.push(...[...String(html || '').matchAll(/<link\b[^>]*(?:rel|itemprop)\s*=\s*["'][^"']*image[^"']*["'][^>]*>/gi)].map(match =>
+    match[0].match(/href\s*=\s*["']([^"']+)["']/i)?.[1] || ''));
+  values.push(...[...String(html || '').matchAll(/<img\b[^>]+>/gi)].map(match =>
+    match[0].match(/(?:src|data-src|data-original)\s*=\s*["']([^"']+)["']/i)?.[1] || ''));
+  values.push(...[...String(html || '').matchAll(/"image"\\s*:\\s*(?:"([^"]+)"|\[\\s*"([^"]+)")/gi)].map(match => match[1] || match[2] || ''));
   return [...new Set(values.map(value => { try { return new URL(value, articleUrl).toString(); } catch { return null; } }).filter(Boolean))];
 }
 
