@@ -1,0 +1,45 @@
+name: A Little Better Weekly Reel Draft
+
+on:
+  schedule:
+    - cron: "0 21 * * 0"
+      timezone: "Asia/Manila"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: a-little-better-weekly-reel
+  cancel-in-progress: false
+
+jobs:
+  reel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install video tools
+        run: sudo apt-get update && sudo apt-get install -y imagemagick ffmpeg
+
+      - name: Generate weekly Reel draft
+        run: node src/reel.js
+
+      - name: Upload Reel draft
+        uses: actions/upload-artifact@v4
+        with:
+          name: a-little-better-weekly-reel-draft
+          path: artifacts/reel-*.mp4
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Manual review only
+        run: echo "Manual review only. The Reel draft is not published automatically."

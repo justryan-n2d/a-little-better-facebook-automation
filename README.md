@@ -35,7 +35,7 @@ Generated images now rotate among four deterministic visual treatments: mint, al
 
 On every 4th eligible publishing day, the selector deliberately gives an unmeasured eligible post a chance. This creates a controlled 1-in-4 exploration cadence while the other days favor measured performance.
 
-Reels and group/community distribution remain manual actions. The weekly report prepares the Reel draft and tells you what to test without automatically spamming communities or publishing unreviewed video.
+Reels and group/community distribution remain manual actions. The weekly report prepares the Reel concept, and the separate Sunday 9:00 PM workflow generates a 1080 x 1920 MP4 draft from the strongest measured post. The Reel artifact is uploaded to GitHub Actions for manual review and is never published automatically.
 
 ## GitHub Secrets
 
