@@ -28,27 +28,23 @@ The headline and image must clearly refer to the same story.
 ## 2. Current architecture
 
 ```
-News discovery
+Find story
    ↓
-Safe / positive story filtering
+Resolve original article
    ↓
-Heartwarming human-story priority
+Extract article-declared images
    ↓
-Original article resolution
+Free image quality checks
    ↓
-Original article image extraction
+Story ↔ image context score
    ↓
-Same-story / same-context image validation
+Reject if weak
    ↓
-Sharp image rendering
+Create A LITTLE BETTER graphic
    ↓
-Headline + branding + source overlay
+Free visual/layout QA
    ↓
-Draft artifact
-   ↓
-Optional Facebook publishing
-   ↓
-History recording
+Publish only if passed
 ```
 
 ---
@@ -276,7 +272,7 @@ This allows the generated graphic to be reviewed before public posting.
 
 Current Fresh News schedule:
 
-**11:00 AM Asia/Manila every day**
+**Tuesday, Thursday, and Saturday at 11:00 AM Asia/Manila**
 
 The workflow can also be manually triggered through GitHub Actions.
 
@@ -346,7 +342,7 @@ A user should understand the basic story even when seeing only the image in the 
 - [x] Collision checks
 - [x] Sharp raster rendering
 
-## Phase 4 — Story + Visual Accuracy 🚧
+## Phase 4 — Story + Visual Accuracy ✅
 
 - [x] Original article resolution
 - [x] Article-declared image extraction
@@ -354,11 +350,12 @@ A user should understand the basic story even when seeing only the image in the 
 - [x] Same-context image matching
 - [x] Reject unrelated artwork/graphics
 - [ ] Support more publisher-specific article formats
-- [x] Stronger semantic image/story matching
-- [x] Automatic visual relevance score
-- [x] Automatic visual QA before artifact upload
+- [x] Deterministic semantic image/story matching
+- [x] Automatic image relevance score
+- [x] Automatic image-quality checks
+- [x] Automatic final visual/layout QA before upload/publish
 
-The remaining Phase 4 gap is publisher-specific article parsing. True visual verification is enabled when OPENAI_API_KEY is configured; otherwise the workflow deliberately uses the deterministic metadata-only path.
+Phase 4 production uses the free deterministic path. It does not require an OpenAI API key. The semantic gate is evidence-based from article metadata and image URL context, while Sharp provides deterministic image-quality and layout checks.
 
 ## Phase 5 — A Little Better Content Identity 🚧
 
@@ -379,11 +376,11 @@ The remaining Phase 4 gap is publisher-specific article parsing. True visual ver
 - [x] Source-photo preservation check
 - [x] Headline layout protection
 - [x] Centered branding
-- [ ] Automatic contrast check
-- [ ] Automatic text readability check
+- [x] Automatic contrast/visible-variation check
+- [x] Automatic headline readability check
 - [ ] Better photo crop/focal-point selection
 - [ ] Stronger source/credit text fitting
-- [ ] Automated preview image inspection
+- [x] Automated rendered-image inspection
 
 ## Phase 7 — Reliability 🚧
 
