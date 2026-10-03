@@ -27,7 +27,9 @@ The growth report uses a simple comparison score for post-level engagement:
 
 `reactions + 2 x comments + 3 x shares`
 
-Reach is shown only when the configured Meta insight is returned successfully. The system does not assume a missing reach metric is zero.
+When post reach is available, the collector also records engagement rate plus reaction, comment, share, and engaged-user rates. Missing reach does not produce a fake zero rate.
+
+The daily selector now uses the latest performance data to prefer stronger eligible content after a 28-day reuse cooldown. New or unmeasured content remains eligible, so the system can still explore instead of repeating the same winner every day.
 
 Reels and group/community distribution remain manual actions. The weekly report prepares the Reel draft and tells you what to test without automatically spamming communities or publishing unreviewed video.
 
