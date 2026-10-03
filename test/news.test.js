@@ -379,8 +379,8 @@ test('upgrades Googleusercontent thumbnail URLs before downloading article image
 
   assert.equal(result.length, 12000);
   assert.deepEqual(calls, [
-    'https://lh3.googleusercontent.com/example-image=s0-w300',
-    'https://lh3.googleusercontent.com/example-image=s0'
+    'https://lh3.googleusercontent.com/example-image=s0',
+    'https://lh3.googleusercontent.com/example-image=s0-w300'
   ]);
 });
 
