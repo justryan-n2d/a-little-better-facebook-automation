@@ -74,14 +74,15 @@ function hoursOld(seendate, now = new Date()) {
 }
 
 export function isSafeNewsCandidate(title) {
-  const value = cleanText(title).toLowerCase();
-  const isBlocked = BLOCKED_TERMS.some(term => {
-    const escaped = term.replace(/[.*+?^{}()|[\]\\]/g, '\\export function isSafeNewsCandidate(title) {
-  const value = cleanText(title).toLowerCase();
-  return value.length >= 24 && !BLOCKED_TERMS.some(term => value.includes(term));
-}');
-    return new RegExp(`\\\\b${escaped.replaceAll(' ', '\\\\s+')}\\\\b`, 'i').test(value);
-  });
+  const value = cleanText(title)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const padded = \` \${value} \`;
+  const isBlocked = BLOCKED_TERMS.some(term => padded.includes(\` \${term} \`));
+
   return value.length >= 24 && !isBlocked;
 }
 
