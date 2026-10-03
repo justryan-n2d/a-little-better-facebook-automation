@@ -351,6 +351,39 @@ test('uses the source article image that matches the story context', async () =>
   assert.ok(calls.some(item => item.url === 'https://www.buffalobills.com/news/example-story'));
 });
 
+test('upgrades Googleusercontent thumbnail URLs before downloading article images', async () => {
+  const calls = [];
+
+  const result = await downloadImage(
+    'https://lh3.googleusercontent.com/example-image=s0-w300',
+    {
+      fetchImpl: async input => {
+        const url = String(input);
+        calls.push(url);
+        if (url.endsWith('=s0-w300')) {
+          return new Response('thumbnail', {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' }
+          });
+        }
+        if (url.endsWith('=s0')) {
+          return new Response(Buffer.alloc(12000, 7), {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' }
+          });
+        }
+        return new Response('not found', { status: 404 });
+      }
+    }
+  );
+
+  assert.equal(result.length, 12000);
+  assert.deepEqual(calls, [
+    'https://lh3.googleusercontent.com/example-image=s0-w300',
+    'https://lh3.googleusercontent.com/example-image=s0'
+  ]);
+});
+
 test('tries the next image URL when the first image host fails', async () => {
   const calls = [];
   const payload = Buffer.alloc(12000, 7);
