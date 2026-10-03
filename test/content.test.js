@@ -17,6 +17,20 @@ test('adds experiment metadata to each selected post', () => {
   });
 });
 
+
+test('records the deterministic visual variant in experiment metadata', () => {
+  const post = getDailyPost('2026-10-06', []);
+
+  assert.ok(['mint', 'alternate', 'minimal', 'framed'].includes(
+    post.experiment.contentTraits.visualVariant
+  ));
+  assert.equal(
+    post.experiment.contentTraits.visualVariant,
+    getDailyPost('2026-10-06', []).experiment.contentTraits.visualVariant
+  );
+});
+
+
 test('generates a complete daily post with CTA', () => {
   const post = getDailyPost('2026-10-03', history);
   assert.equal(post.date, '2026-10-03');
