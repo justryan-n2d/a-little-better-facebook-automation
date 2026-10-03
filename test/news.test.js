@@ -9,14 +9,17 @@ import {
   searchFreshNews,
   searchGoogleNewsTopStoriesRss,
   isSafeNewsCandidate,
+  isLittleBetterTopic,
+  getLittleBetterTopic,
   selectFreshStory
 } from '../src/news.js';
 import { buildNewsSvg } from '../src/news-image.js';
 import { runNewsPost } from '../src/news-post.js';
 
 test('rejects unsafe or obviously graphic headlines', () => {
-  assert.equal(isSafeNewsCandidate('Woman survives an unexpected roof fall'), true);
+  assert.equal(isSafeNewsCandidate('Community volunteers help families after a storm'), true);
   assert.equal(isSafeNewsCandidate('Graphic murder scene shocks city'), false);
+  assert.equal(isSafeNewsCandidate('Student arrested after campus incident'), false);
   assert.equal(isSafeNewsCandidate('Tiny update'), false);
 });
 
@@ -42,12 +45,51 @@ test('uses one combined GDELT request for all content themes', async () => {
   assert.equal(result.length, 1);
 });
 
+test('requires a clear A Little Better topic', () => {
+  assert.equal(isLittleBetterTopic('Students win scholarship awards'), true);
+  assert.equal(isLittleBetterTopic('Scientists announce a new breakthrough'), true);
+  assert.equal(isLittleBetterTopic('Volunteers organize a community donation drive'), true);
+  assert.equal(isLittleBetterTopic('Random celebrity spotted at an event'), false);
+  assert.equal(getLittleBetterTopic('Students win scholarship awards')?.name, 'education-growth');
+});
+
 test('extracts GDELT article list', () => {
   const items = extractGdeltArticles({
     articles: [{ title: 'A story', url: 'https://example.com/a' }]
   });
   assert.equal(items.length, 1);
   assert.equal(items[0].title, 'A story');
+});
+
+test('skips unrelated or negative stories even when they are ranked highly', () => {
+  const selected = selectFreshStory([
+    {
+      title: 'Student arrested after campus incident',
+      url: 'https://bad.example/story',
+      domain: 'bad.example',
+      seendate: '20261003030000',
+      rank: 1
+    },
+    {
+      title: 'Community volunteers create a positive change',
+      url: 'https://good.example/story',
+      domain: 'good.example',
+      seendate: '20261003020000',
+      rank: 2
+    },
+    {
+      title: 'Random celebrity spotted at an event',
+      url: 'https://noise.example/story',
+      domain: 'noise.example',
+      seendate: '20261003010000',
+      rank: 3
+    }
+  ], {
+    now: new Date('2026-10-03T04:00:00Z')
+  });
+
+  assert.equal(selected.domain, 'good.example');
+  assert.equal(selected.topic, 'kindness-community');
 });
 
 test('selects a recent multi-source story and avoids used URLs', () => {
