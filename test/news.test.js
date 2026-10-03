@@ -7,6 +7,8 @@ import {
   isSafeNewsCandidate,
   selectFreshStory
 } from '../src/news.js';
+import { buildNewsSvg } from '../src/news-image.js';
+import { runNewsPost } from '../src/news-post.js';
 
 test('rejects unsafe or obviously graphic headlines', () => {
   assert.equal(isSafeNewsCandidate('Woman survives an unexpected roof fall'), true);
@@ -73,4 +75,22 @@ test('builds a category-aware hook and original angle', () => {
   assert.match(buildNewsHook('Student receives award for science project'), /student/i);
   assert.match(buildNewsHook('New science discovery changes how we see space'), /development/i);
   assert.match(buildNewsAngle('Student receives award for science project'), /achievements/i);
+});
+
+test('news SVG contains the brand, source, and original angle', () => {
+  const svg = buildNewsSvg({
+    imageDataBase64: 'dGVzdA==',
+    hook: 'A new story is catching attention today.',
+    title: 'Student wins national science award',
+    sourceDomain: 'example.com',
+    angle: 'Small achievements can become big reasons for people to keep going.',
+    photoCredit: 'Creator / Openverse / CC0'
+  });
+  assert.match(svg, /A LITTLE BETTER/);
+  assert.match(svg, /Source: example.com/);
+  assert.match(svg, /Small achievements/);
+});
+
+test('news post runner is importable', () => {
+  assert.equal(typeof runNewsPost, 'function');
 });
