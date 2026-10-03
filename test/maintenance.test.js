@@ -39,6 +39,16 @@ test('calculates token data-access warning from Unix seconds', () => {
   );
 });
 
+test('does not warn between configured token thresholds', () => {
+  const warning = getExpirationWarning({
+    now: '2026-10-03T00:00:00.000Z',
+    expiresAt: '2026-10-07T00:00:00.000Z',
+    thresholds: [7, 5, 2, 1, 0]
+  });
+
+  assert.equal(warning, null);
+});
+
 test('flags expired token data access', () => {
   const warning = getExpirationWarning({
     now: '2026-10-03T00:00:00.000Z',
