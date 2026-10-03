@@ -1,5 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 import {
   buildNewsHook,
   buildNewsAngle,
@@ -17,7 +23,7 @@ import {
   getLittleBetterTopic,
   selectFreshStory
 } from '../src/news.js';
-import { buildNewsSvg, calculateNewsLayout, fitTextToBox, NEWS_PRIMARY, rectanglesOverlap } from '../src/news-image.js';
+import { buildNewsSvg, calculateNewsLayout, fitTextToBox, NEWS_PRIMARY, rectanglesOverlap, renderNewsImage } from '../src/news-image.js';
 import { runNewsPost } from '../src/news-post.js';
 
 test('rejects unsafe or obviously graphic headlines', () => {
@@ -312,8 +318,43 @@ test('news SVG contains the brand, source, and original angle', () => {
   assert.match(svg, /Photo credit:/);
   assert.match(svg, /bottomFade/);
   assert.doesNotMatch(svg, /<image\b/);
+  assert.doesNotMatch(svg, /<tspan\b/);
   assert.equal(NEWS_PRIMARY, '#A3D4C0');
   assert.match(svg, /#A3D4C0/);
+});
+
+test('production renderer preserves the source photo and readable text layers', async () => {
+  const dir = await mkdtemp('/tmp/a-little-better-render-test-');
+  const input = Buffer.from(
+    'P3\\n20 20\\n255\\n' +
+    Array.from({ length: 400 }, () => '245 90 60').join('\\n'),
+    'ascii'
+  );
+  const outputPath = join(dir, 'rendered.png');
+
+  try {
+    await renderNewsImage({
+      imageBuffer: input,
+      title: 'Students Celebrate a New Achievement',
+      sourceDomain: 'example.com',
+      photoCredit: 'Test Creator / Test Source / CC0',
+      outputPath
+    });
+
+    const identify = await execFileAsync('convert', [
+      outputPath,
+      '-format',
+      '%wx%h %[mean]',
+      'info:'
+    ]);
+    const parts = identify.stdout.trim().split(/\\s+/);
+    assert.equal(parts[0], '1080x1350');
+    assert.ok(Number(parts[1]) > 10, 'rendered image should not be effectively black');
+    const bytes = await readFile(outputPath);
+    assert.ok(bytes.length > 5000);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test('news post runner is importable', () => {
