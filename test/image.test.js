@@ -72,7 +72,7 @@ test('short headline uses the larger production font size', () => {
 
 test('branding icon sits to the left of the brand text', () => {
   const svg = buildSvg({ imageText: 'Keep going.' });
-  assert.match(svg, /translate\(-116 \$\{box\.y \+ 4\}\)/);
+  assert.match(svg, /translate\(-116 1160\)/);
   assert.match(svg, /<text x="-70"[^>]*text-anchor="start"/);
 });
 
