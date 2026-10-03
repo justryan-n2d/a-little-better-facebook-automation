@@ -311,4 +311,6 @@ export function getDailyPost(date = getPhilippineDate(), history = [], analytics
   {"id":"casual-010","category":"casual","imageText":"Maybe today\nyou just need a little peace.","caption":"Not every problem needs an immediate answer.\n\nTake a breath. Put down what can wait. Let yourself have a quiet moment.\n\n💛 Follow A Little Better for gentle daily reminders.\n\nSave this for a peaceful reminder."},
   {"id":"casual-011","category":"casual","imageText":"A tiny win\nis still a win.","caption":"You replied to the message. You finished the task. You got out of bed. You kept your promise to yourself.\n\nSmall wins deserve to be noticed too.\n\n💛 Follow A Little Better for daily reminders to notice the good.\n\nWhat is your tiny win today?"},
   {"id":"casual-012","category":"casual","imageText":"You do not need\na productive day to have a good day.","caption":"Some good days are full of progress. Others are simply full of rest, laughter, or time with people you care about.\n\nBoth can matter.\n\n💛 Follow A Little Better for gentle reminders every day.\n\nWhat made today a little better?"},
+];
+
 export const contentBank = POSTS;
