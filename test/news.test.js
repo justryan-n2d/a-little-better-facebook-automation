@@ -767,7 +767,7 @@ test('fresh news runner stores deterministic source and final visual verificatio
   }
 });
 
-test('Fresh News workflow uses the free deterministic visual gate', async () => {
+test('Fresh News workflow uses the free deterministic visual gate and runs three times weekly', async () => {
   const workflow = await readFile(
     '.github/workflows/a-little-better-fresh-news.yml',
     'utf8'
@@ -776,6 +776,7 @@ test('Fresh News workflow uses the free deterministic visual gate', async () => 
   assert.doesNotMatch(workflow, /OPENAI_API_KEY/);
   assert.doesNotMatch(workflow, /OPENAI_VISION_MODEL/);
   assert.doesNotMatch(workflow, /Resolve visual verification mode/);
+  assert.match(workflow, /cron: "0 11 \* \* 2,4,6"/);
   assert.match(workflow, /Generate fresh news post/);
 });
 
