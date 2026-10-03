@@ -158,7 +158,8 @@ export async function searchGdelt({
 
 function decodeXmlEntities(value) {
   return String(value ?? '')
-    .replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/gi, '$1')
+    .replaceAll('<![CDATA[', '')
+    .replaceAll(']]>', '')
     .replace(/&amp;/gi, '&')
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
