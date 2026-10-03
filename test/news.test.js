@@ -67,11 +67,17 @@ test('requires a clear A Little Better topic', () => {
   assert.equal(getLittleBetterTopic('Students win scholarship awards')?.name, 'education-growth');
 });
 
-test('builds a concise display headline for long source headlines', () => {
+test('builds complete display headlines without ellipses', () => {
   assert.equal(
     buildDisplayHeadline('Bay Area author discusses skills students need for success beyond grades, test scores and college admissions - KCRA'),
     'Students Need More Than Good Grades'
   );
+
+  const current = buildDisplayHeadline(
+    'FAU graduate student uses Miss Fort Lauderdale crown to turn science into action - WPTV'
+  );
+  assert.equal(current, 'FAU Graduate Uses Her Crown for Coastal Conservation');
+  assert.doesNotMatch(current, /\.\.\./);
 });
 
 test('rejects infographic-like Openverse assets', () => {
