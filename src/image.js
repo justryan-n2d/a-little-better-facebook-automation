@@ -16,12 +16,12 @@ const SAFE = 108;
 
 const LAYOUTS = {
   mint: {
-    headline: { x: 126, y: 340, width: 816, height: 440 },
+    headline: { x: 150, y: 350, width: 780, height: 420 },
     support: { x: 150, y: 865, width: 780, height: 90 },
     brand: { x: 360, y: 1160, width: 360, height: 60 }
   },
   alternate: {
-    headline: { x: 146, y: 340, width: 788, height: 450 },
+    headline: { x: 166, y: 350, width: 748, height: 430 },
     support: { x: 160, y: 885, width: 760, height: 90 },
     brand: { x: 360, y: 1160, width: 360, height: 60 }
   }
@@ -36,7 +36,7 @@ function escapeXml(value) {
     .replaceAll("'", '&apos;');
 }
 
-export function wrapLines(text, maxChars = 24) {
+export function wrapLines(text, maxChars = 20) {
   return String(text)
     .split(/\r?\n/)
     .flatMap(line => {
@@ -46,6 +46,17 @@ export function wrapLines(text, maxChars = 24) {
       let current = '';
 
       for (const word of words) {
+        if (word.length > maxChars) {
+          if (current) {
+            lines.push(current);
+            current = '';
+          }
+          for (let i = 0; i < word.length; i += maxChars) {
+            lines.push(word.slice(i, i + maxChars));
+          }
+          continue;
+        }
+
         const next = current ? `${current} ${word}` : word;
         if (next.length > maxChars && current) {
           lines.push(current);
@@ -60,24 +71,37 @@ export function wrapLines(text, maxChars = 24) {
     });
 }
 
-export function calculateFontSize(lineCount, boxHeight, {
-  max = 42,
-  min = 24,
+export function estimateTextWidth(text, fontSize) {
+  let units = 0;
+  for (const char of String(text)) {
+    if ('ilIjtfr'.includes(char)) units += 0.28;
+    else if ('mwMW@#%&'.includes(char)) units += 0.95;
+    else if ('ABCDEFGHIJKLMNOPQRSTUVWXYZ'.includes(char)) units += 0.66;
+    else if ('0123456789'.includes(char)) units += 0.60;
+    else if ('.,:;!|'.includes(char)) units += 0.30;
+    else units += 0.52;
+  }
+  return units * fontSize;
+}
+
+export function calculateFontSize(lines, boxWidth, boxHeight, {
+  max = 38,
+  min = 22,
   lineHeightRatio = 1.18
 } = {}) {
-  if (lineCount <= 0) return max;
+  if (!lines.length) return max;
 
   let size = max;
-  while (
-    size > min &&
-    size + Math.max(0, lineCount - 1) * size * lineHeightRatio > boxHeight
-  ) {
-    size -= 1;
-  }
+  const fits = candidate => {
+    const totalHeight = candidate + Math.max(0, lines.length - 1) * candidate * lineHeightRatio;
+    const maxWidth = Math.max(...lines.map(line => estimateTextWidth(line, candidate)));
+    return totalHeight <= boxHeight && maxWidth <= boxWidth;
+  };
 
-  const totalHeight = size + Math.max(0, lineCount - 1) * size * lineHeightRatio;
-  if (totalHeight > boxHeight) {
-    throw new Error(`Headline cannot fit in its bounding box: ${lineCount} lines.`);
+  while (size > min && !fits(size)) size -= 1;
+
+  if (!fits(size)) {
+    throw new Error(`Headline cannot fit in its bounding box: ${lines.length} lines.`);
   }
 
   return size;
@@ -143,22 +167,24 @@ function buildHeadline({ lines, box, fontSize }) {
 function buildBrand(layout) {
   const box = layout.brand;
   return `
-    <g transform="translate(${box.x + 8} ${box.y + 4})" stroke="${COLORS.white}" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M32 38 C32 20 43 10 58 7 C58 24 49 38 32 38Z"/>
-      <path d="M32 38 C22 23 12 20 3 21 C7 34 17 41 32 38Z"/>
-      <path d="M32 38 V55"/>
-    </g>
-    <text x="${box.x + 78}" y="${box.y + 40}" class="brand">A LITTLE BETTER</text>`;
+    <g transform="translate(${CANVAS.width / 2} 0)">
+      <g transform="translate(-166 ${box.y + 2})" stroke="${COLORS.white}" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M32 38 C32 20 43 10 58 7 C58 24 49 38 32 38Z"/>
+        <path d="M32 38 C22 23 12 20 3 21 C7 34 17 41 32 38Z"/>
+        <path d="M32 38 V55"/>
+      </g>
+      <text x="-86" y="${box.y + 38}" text-anchor="start" class="brand">A LITTLE BETTER</text>
+    </g>`;
 }
 
 function buildMintSvg({ imageText }) {
   const layout = LAYOUTS.mint;
   validateLayout(layout);
 
-  const lines = wrapLines(imageText, 24).filter(Boolean);
-  const fontSize = calculateFontSize(lines.length, layout.headline.height, {
-    max: 42,
-    min: 24
+  const lines = wrapLines(imageText, 20).filter(Boolean);
+  const fontSize = calculateFontSize(lines, layout.headline.width - 36, layout.headline.height, {
+    max: 38,
+    min: 22
   });
 
   const body = buildHeadline({ lines, box: layout.headline, fontSize });
@@ -191,7 +217,7 @@ function buildMintSvg({ imageText }) {
     }
     .brand {
       font-family: 'DejaVu Sans';
-      font-size: 20px;
+      font-size: 19px;
       font-weight: 700;
       letter-spacing: 5px;
       fill: ${COLORS.white};
@@ -204,10 +230,10 @@ function buildAlternateSvg({ imageText }) {
   const layout = LAYOUTS.alternate;
   validateLayout(layout);
 
-  const lines = wrapLines(imageText, 24).filter(Boolean);
-  const fontSize = calculateFontSize(lines.length, layout.headline.height, {
-    max: 40,
-    min: 22
+  const lines = wrapLines(imageText, 20).filter(Boolean);
+  const fontSize = calculateFontSize(lines, layout.headline.width - 36, layout.headline.height, {
+    max: 36,
+    min: 21
   });
 
   const body = buildHeadline({ lines, box: layout.headline, fontSize });
@@ -233,7 +259,7 @@ function buildAlternateSvg({ imageText }) {
     }
     .support {
       font-family: 'DejaVu Sans';
-      font-size: 25px;
+      font-size: 24px;
       font-weight: 400;
     }
     .brand {
