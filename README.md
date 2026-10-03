@@ -11,7 +11,27 @@ Schedule:
 
 The first version is intentionally free of paid AI APIs. It selects from an original local content bank and renders the image locally on the GitHub runner. An AI generator can be added later without changing the Facebook publishing layer.
 
-GitHub Secrets
+## Growth system
+
+The repository now also runs a measurement and learning loop around the daily publisher:
+
+- 6:00 PM Asia/Manila daily: collect recent post reactions, comments, shares, available Meta insight metrics, and follower snapshots
+- Sunday 8:00 PM Asia/Manila: create a weekly GitHub Issue growth report
+- The report identifies top-performing posts, category performance, follower change when available, a Reel-ready draft, and practical manual distribution actions
+- Analytics are stored in `data/growth-analytics.json`
+- The collector keeps a bounded history so the repository does not grow without limit
+- The existing watchdog keeps the daily publisher protected and now alerts when the content bank reaches 5, 2, or 0 unused posts
+- The existing Meta data-access reminder remains at 7, 5, 2, 1, and 0 days
+
+The growth report uses a simple comparison score for post-level engagement:
+
+`reactions + 2 x comments + 3 x shares`
+
+Reach is shown only when the configured Meta insight is returned successfully. The system does not assume a missing reach metric is zero.
+
+Reels and group/community distribution remain manual actions. The weekly report prepares the Reel draft and tells you what to test without automatically spamming communities or publishing unreviewed video.
+
+## GitHub Secrets
 
 Create these repository secrets under Settings -> Secrets and variables -> Actions:
 
@@ -23,22 +43,26 @@ A Page access token with the Meta permissions required to publish to your Page.
 
 Never put the access token in source code or a normal repository file.
 
-Meta setup
+## Meta setup
 
-Create and configure a Meta app and obtain a Page access token that is authorized to publish to the Page. The current v26.0 Page Photos documentation lists pages_manage_posts, pages_read_engagement, and pages_show_list for photo creation, and the person requesting the Page token must have the CREATE_CONTENT task on the Page. The workflow is pinned to Graph API v26.0. The version is configurable in the workflow if your app needs another supported version.
+Create and configure a Meta app and obtain a Page access token that is authorized to publish to the Page. The current workflow is pinned to Graph API v26.0. The version is configurable in the workflow if your app needs another supported version.
+
+The analytics collector uses the same Page credentials. If a configured insight metric is unavailable for the token or API version, that metric is recorded as unavailable instead of stopping the collection of the other engagement data.
 
 References:
 - https://developers.facebook.com/docs/graph-api/
 - https://developers.facebook.com/docs/pages-api/
 - https://developers.facebook.com/terms/
 
-Testing
+## Testing
 
 1. Add the two secrets.
 2. Open Actions -> Daily A Little Better Facebook Post -> Run workflow.
 3. Leave dry_run enabled.
 4. Confirm the job generates the image and skips Facebook.
 5. Run it again with dry_run disabled after the Meta credentials are ready.
+6. Run the Facebook Growth Analytics workflow manually to confirm the Page token can read the available metrics.
+7. Run the weekly growth report workflow manually after at least one analytics collection.
 
 Scheduled runs use dry_run=false, so after setup the workflow will publish automatically each day.
 
@@ -55,6 +79,7 @@ Safety behavior:
 - FORCE_POST=true is required to intentionally override that protection
 - only a successful Facebook publish is written to posting history
 - history is capped at 500 records to avoid unbounded repository growth
+- analytics history is bounded separately in data/growth-analytics.json
 
 Content rotation:
 Monday: motivation
