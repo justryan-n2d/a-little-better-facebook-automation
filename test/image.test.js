@@ -84,5 +84,5 @@ test('branding is centered at the bottom', () => {
   assert.match(svg, /class="brand-lockup"/);
   assert.match(svg, /A LITTLE BETTER/);
   assert.match(svg, /font-size: 21px/);
-  assert.match(svg, /BRAND_LOCKUP_X/);
+  assert.ok(svg.includes('translate(198.5 0)'));
 });
