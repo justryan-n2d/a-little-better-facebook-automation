@@ -78,6 +78,25 @@ function containsTerm(text, term) {
   return new RegExp('\\b' + escaped + '\\b', 'i').test(text);
 }
 
+const HEARTWARMING_HUMAN_CONTEXT = [
+  'stranger', 'neighbor', 'family', 'survivor', 'journalist', 'child', 'children',
+  'woman', 'man', 'person', 'people', 'worker', 'customer', 'parent', 'mother', 'father'
+];
+
+const HEARTWARMING_HUMAN_ACTIONS = [
+  'kindness', 'helped', 'helping', 'offered', 'shared', 'gave', 'gifted',
+  'comforted', 'supported', 'donated', 'reunited', 'surprised', 'paid',
+  'bought', 'food', 'meal', 'groceries', 'care', 'compassion', 'generosity',
+  'embraced', 'welcomed', 'checked on'
+];
+
+export function isHeartwarmingHumanStory(title) {
+  const lower = cleanText(title).toLowerCase();
+  const hasHuman = HEARTWARMING_HUMAN_CONTEXT.some(term => containsTerm(lower, term));
+  const hasAction = HEARTWARMING_HUMAN_ACTIONS.some(term => containsTerm(lower, term));
+  return hasHuman && hasAction && !BLOCKED_TERMS.some(term => containsTerm(lower, term));
+}
+
 export function getLittleBetterTopic(title) {
   const lower = cleanText(title).toLowerCase();
   if (!lower || BLOCKED_TERMS.some(term => containsTerm(lower, term))) return null;
@@ -464,8 +483,15 @@ export function selectFreshStory(articles, {
       delete candidate.sourceDomains;
       delete candidate.ranks;
       const topic = getLittleBetterTopic(candidate.title);
+      const heartwarmingHuman = isHeartwarmingHumanStory(candidate.title);
       const brandScore = Math.min(24, (topic?.matches.length || 0) * 8);
-      return { ...candidate, topic: topic?.name || null, score: scoreCandidate(candidate, now) + brandScore };
+      const heartwarmingBonus = heartwarmingHuman ? 80 : 0;
+      return {
+        ...candidate,
+        topic: topic?.name || null,
+        heartwarmingHuman,
+        score: scoreCandidate(candidate, now) + brandScore + heartwarmingBonus
+      };
     })
     .sort((a, b) =>
       b.score - a.score ||
@@ -474,11 +500,11 @@ export function selectFreshStory(articles, {
     );
 
   const multiSourceHeartwarming = ranked.find(
-    item => item.sourceCount >= 2 && item.topic === 'human-kindness'
+    item => item.sourceCount >= 2 && item.heartwarmingHuman
   );
   if (multiSourceHeartwarming) return multiSourceHeartwarming;
 
-  const heartwarming = ranked.find(item => item.topic === 'human-kindness');
+  const heartwarming = ranked.find(item => item.heartwarmingHuman);
   if (heartwarming) return heartwarming;
 
   const multiSource = ranked.find(item => item.sourceCount >= 2);
@@ -868,7 +894,7 @@ export async function downloadImage(url, { fetchImpl = fetch } = {}) {
 
 export function buildNewsAngle(title) {
   const lower = cleanText(title).toLowerCase();
-  if (/(kindness|kind|stranger|neighbor|helped|helping|offered|shared|gave|comforted|donated|food|meal|groceries|compassion|generosity)/.test(lower) && /(person|people|family|survivor|journalist|child|woman|man|neighbor|stranger)/.test(lower)) {
+  if (isHeartwarmingHumanStory(title)) {
     return 'Small acts of care can make a hard day feel a little lighter.';
   }
   if (/(student|school|education|scholarship|award)/.test(lower)) {
@@ -891,7 +917,7 @@ export function buildNewsAngle(title) {
 
 export function buildNewsHook(title) {
   const lower = cleanText(title).toLowerCase();
-  if (/(kindness|kind|stranger|neighbor|helped|helping|offered|shared|gave|comforted|donated|food|meal|groceries|compassion|generosity)/.test(lower) && /(person|people|family|survivor|journalist|child|woman|man|neighbor|stranger)/.test(lower)) {
+  if (isHeartwarmingHumanStory(title)) {
     return 'A simple act of kindness is reminding people what matters.';
   }
   if (/(surviv|rescued|saved|survive)/.test(lower)) {
