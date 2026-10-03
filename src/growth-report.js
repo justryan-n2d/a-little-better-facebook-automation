@@ -4,7 +4,8 @@ import {
   getFollowerDelta,
   getLatestPostSnapshots,
   summarizeCategoryPerformance,
-  summarizeExperimentPerformance
+  summarizeExperimentPerformance,
+  summarizePublishHourPerformance
 } from './analytics.js';
 import { contentBank } from './content.js';
 
@@ -50,6 +51,22 @@ function formatExperimentGroup(title, groups) {
       `- ${group.value}: ${group.posts} post(s), average engagement ${formatNumber(group.averageEngagement)}, average engagement rate ${group.averageEngagementRate === null ? 'n/a' : `${(group.averageEngagementRate * 100).toFixed(2)}%`}`
     )
   ].join('\n');
+}
+
+function formatHour(hour) {
+  const numericHour = Number(hour);
+  if (!Number.isInteger(numericHour) || numericHour < 0 || numericHour > 23) return 'n/a';
+  const suffix = numericHour >= 12 ? 'PM' : 'AM';
+  const displayHour = numericHour % 12 || 12;
+  return `${displayHour}:00 ${suffix}`;
+}
+
+function formatPublishHourPerformance(groups) {
+  if (!groups.length) return 'No publish-time analytics are available yet.';
+
+  return groups.map(group =>
+    `- ${formatHour(group.publishHour)}: ${group.posts} post(s), average engagement ${formatNumber(group.averageEngagement)}, average engagement rate ${group.averageEngagementRate === null ? 'n/a' : `${(group.averageEngagementRate * 100).toFixed(2)}%`}`
+  ).join('\n');
 }
 
 function buildReelDraft(topPost) {
@@ -138,6 +155,11 @@ export function buildGrowthReport({
           `- ${category.category}: ${category.posts} post(s), average engagement ${formatNumber(category.averageEngagement)}, total engagement ${formatNumber(category.totalEngagement)}`
         ).join('\n')
       : 'No category analytics are available yet.',
+    '',
+    '## Publish time performance',
+    formatPublishHourPerformance(
+      summarizePublishHourPerformance(enriched)
+    ),
     '',
     '## Experiment performance',
     formatExperimentGroup(
