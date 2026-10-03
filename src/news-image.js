@@ -143,7 +143,7 @@ export function calculateNewsLayout(template = '4:5') {
   );
 
   const brand = rect(
-    148 * scale,
+    (width - brandWidth) / 2,
     headline.y - 98 * scale,
     brandWidth,
     brandHeight,
