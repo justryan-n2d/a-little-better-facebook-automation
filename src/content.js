@@ -276,6 +276,6 @@ export function getDailyPost(date = getPhilippineDate(), history = [], analytics
       contentTraits: getContentExperimentMetadata(selected)
     }
   };
-}}
+}
 
 export const contentBank = POSTS;
