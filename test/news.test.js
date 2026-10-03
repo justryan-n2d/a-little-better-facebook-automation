@@ -232,10 +232,12 @@ test('uses the exact source article image and rejects unrelated image hosts', as
         calls.push({ url, redirect: init.redirect });
 
         if (url === 'https://news.google.com/rss/articles/example') {
-          return new Response('', {
+          return {
+            ok: true,
             status: 200,
-            url: 'https://community.triblive.com/news/example-story'
-          });
+            url: 'https://community.triblive.com/news/example-story',
+            text: async () => ''
+          };
         }
 
         if (url === 'https://community.triblive.com/news/example-story') {
