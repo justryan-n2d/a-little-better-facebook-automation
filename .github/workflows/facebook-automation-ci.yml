@@ -43,7 +43,7 @@ jobs:
 
       - name: Validate workflow YAML
         run: |
-          ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_file(f); puts "YAML OK: #{f}" }' .github/workflows/daily-facebook-post.yml .github/workflows/facebook-workflow-watchdog.yml .github/workflows/facebook-automation-ci.yml
+          ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_file(f); puts "YAML OK: #{f}" }' .github/workflows/daily-facebook-post.yml .github/workflows/facebook-workflow-watchdog.yml .github/workflows/facebook-automation-ci.yml .github/workflows/a-little-better-fresh-news.yml
 
   live-watchdog-check:
     name: Live GitHub Actions API check

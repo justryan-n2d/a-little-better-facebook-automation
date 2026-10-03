@@ -1,0 +1,72 @@
+name: A Little Better Fresh News
+
+on:
+  schedule:
+    - cron: "0 11 * * *"
+      timezone: "Asia/Manila"
+  workflow_dispatch:
+    inputs:
+      auto_publish:
+        description: "Publish the selected news post to Facebook"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: a-little-better-fresh-news
+  cancel-in-progress: false
+
+jobs:
+  fresh-news:
+    env:
+      NEWS_AUTO_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.auto_publish || vars.NEWS_AUTO_PUBLISH || 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install ImageMagick
+        run: sudo apt-get update && sudo apt-get install -y imagemagick
+
+      - name: Run tests
+        run: npm test
+
+      - name: Generate fresh news post
+        env:
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
+          META_GRAPH_VERSION: v26.0
+          NEWS_HISTORY_PATH: data/news-history.json
+        run: node src/news-post.js
+
+      - name: Upload fresh news draft
+        uses: actions/upload-artifact@v4
+        with:
+          name: a-little-better-fresh-news
+          path: |
+            artifacts/fresh-news-*.png
+            artifacts/fresh-news-*.json
+            artifacts/fresh-news-status.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Record fresh news history
+        if: ${{ success() }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/news-history.json
+          git diff --cached --quiet || git commit -m "chore: record fresh news post"
+          git push
