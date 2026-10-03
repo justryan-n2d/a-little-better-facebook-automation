@@ -275,7 +275,27 @@ export async function downloadImage(url, { fetchImpl = fetch } = {}) {
   return Buffer.from(arrayBuffer);
 }
 
-export function buildNewsAngle(title) {\n  const lower = cleanText(title).toLowerCase();\n  if (/(student|school|education|scholarship|award)/.test(lower)) {\n    return 'Small achievements can become big reasons for people to keep going.';\n  }\n  if (/(science|discovery|breakthrough|innovation|technology)/.test(lower)) {\n    return 'Progress often starts with one new idea, question, or discovery.';\n  }\n  if (/(kindness|charity|volunteer|community|donat)/.test(lower)) {\n    return 'One helpful action can reach much farther than the moment it started.';\n  }\n  if (/(surviv|rescued|saved|survive)/.test(lower)) {\n    return 'Unexpected moments can remind us how quickly life can change.';\n  }\n  if (/(record|milestone|achievement|comeback|champion)/.test(lower)) {\n    return 'A milestone is more than a headline. It shows what persistence can build.';\n  }\n  return 'Sometimes one story stands out because it gives people something to think about.';\n}\n\nexport function buildNewsHook(title) {
+export function buildNewsAngle(title) {
+  const lower = cleanText(title).toLowerCase();
+  if (/(student|school|education|scholarship|award)/.test(lower)) {
+    return 'Small achievements can become big reasons for people to keep going.';
+  }
+  if (/(science|discovery|breakthrough|innovation|technology)/.test(lower)) {
+    return 'Progress often starts with one new idea, question, or discovery.';
+  }
+  if (/(kindness|charity|volunteer|community|donat)/.test(lower)) {
+    return 'One helpful action can reach much farther than the moment it started.';
+  }
+  if (/(surviv|rescued|saved|survive)/.test(lower)) {
+    return 'Unexpected moments can remind us how quickly life can change.';
+  }
+  if (/(record|milestone|achievement|comeback|champion)/.test(lower)) {
+    return 'A milestone is more than a headline. It shows what persistence can build.';
+  }
+  return 'Sometimes one story stands out because it gives people something to think about.';
+}
+
+export function buildNewsHook(title) {
   const lower = cleanText(title).toLowerCase();
   if (/(surviv|rescued|saved|survive)/.test(lower)) {
     return 'An unexpected moment is making headlines today.';
@@ -300,6 +320,7 @@ export function buildNewsCaption({
   sourceDomain,
   sourceUrl,
   hook,
+  angle,
   photoCredit
 }) {
   return [
@@ -308,6 +329,8 @@ export function buildNewsCaption({
     hook,
     '',
     title,
+    '',
+    `A Little Better angle: ${angle}`,
     '',
     `This story is being widely reported today. Read the full report from ${sourceDomain} for the complete details.`,
     '',
