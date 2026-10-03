@@ -545,7 +545,7 @@ function photoCandidateScore(item) {
 function stockSnapDirectImageUrl(landingUrl) {
   try {
     const url = new URL(landingUrl);
-    const match = url.pathname.match(/^\\/photo\\/([^/]+)-([A-Za-z0-9]+)$/);
+    const match = url.pathname.match(/^\/photo\/([^/]+)-([A-Za-z0-9]+)$/);
     if (!match) return null;
     const slug = match[1];
     const id = match[2].toUpperCase();
