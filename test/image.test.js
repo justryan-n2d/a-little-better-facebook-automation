@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import * as imageModule from '../src/image.js';
 import { promisify } from 'node:util';
 import {
   renderPostImage,
@@ -11,6 +12,35 @@ import {
 } from '../src/image.js';
 
 const execFileAsync = promisify(execFile);
+
+
+test('selects deterministic visual variants across content', () => {
+  assert.equal(typeof imageModule.selectImageVariant, 'function');
+
+  const variants = new Set(
+    [
+      'motivation-001',
+      'motivation-002',
+      'mindset-001',
+      'mindset-002',
+      'bible-001',
+      'student-001',
+      'self-001',
+      'casual-001'
+    ].map(contentId => imageModule.selectImageVariant({ contentId }))
+  );
+
+  assert.ok(variants.size >= 3);
+});
+
+test('builds distinct visual treatments beyond the original layouts', () => {
+  const minimal = buildSvg({ imageText: 'Keep going.', variant: 'minimal' });
+  const framed = buildSvg({ imageText: 'Keep going.', variant: 'framed' });
+
+  assert.notEqual(minimal, buildSvg({ imageText: 'Keep going.', variant: 'mint' }));
+  assert.notEqual(framed, buildSvg({ imageText: 'Keep going.', variant: 'alternate' }));
+});
+
 
 test('renders the daily post as a Facebook-ready PNG', async () => {
   const png = await renderPostImage({
@@ -55,6 +85,14 @@ test('image renderer can find ImageMagick on the runner', async () => {
   } catch {
     await execFileAsync('convert', ['-version']);
   }
+});
+
+
+
+test('publisher renders using the selected visual variant', async () => {
+  const indexSource = await import('node:fs/promises').then(fs => fs.readFile('src/index.js', 'utf8'));
+  assert.match(indexSource, /const imageStyle = post\.experiment\?\.contentTraits\?\.visualVariant \|\| 'mint';/);
+  assert.match(indexSource, /renderPostImage\(\{ imageText: post\.imageText, variant: imageStyle \}\)/);
 });
 
 

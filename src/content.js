@@ -1,4 +1,5 @@
 import { getLatestContentPerformance, performanceScore } from './analytics.js';
+import { selectImageVariant } from './image.js';
 
 const EXPLORATION_INTERVAL_DAYS = 4;
 
@@ -227,7 +228,12 @@ export function getContentExperimentMetadata(post = {}) {
           : 'follow';
 
   const textLength = imageText.length <= 180 ? 'short' : imageText.length <= 320 ? 'medium' : 'long';
-  return { hookType, ctaType, textLength };
+  return {
+    hookType,
+    ctaType,
+    textLength,
+    visualVariant: selectImageVariant({ contentId: post?.id })
+  };
 }
 
 function selectCandidate(candidates, performanceByContentId, dayIndex) {

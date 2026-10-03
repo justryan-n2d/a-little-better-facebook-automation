@@ -37,7 +37,7 @@ if (hasPostedOnDate(history, date) && !isTrue('FORCE_POST') && !dryRun) {
 const post = getDailyPost(date, history.posts, analytics);
 console.log(`Selected ${post.category} content: ${post.contentId}`);
 
-const imageStyle = post.category === 'bible' ? 'alternate' : 'mint';
+const imageStyle = post.experiment?.contentTraits?.visualVariant || 'mint';
 const image = await renderPostImage({ imageText: post.imageText, variant: imageStyle });
 console.log(`Generated ${Math.round(image.length / 1024)} KB PNG.`);
 const previewDir = resolve('artifacts');

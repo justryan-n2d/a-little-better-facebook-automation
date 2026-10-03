@@ -31,6 +31,8 @@ When post reach is available, the collector also records engagement rate plus re
 
 The daily selector now uses the latest performance data to prefer stronger eligible content after a 28-day reuse cooldown. New or unmeasured content remains eligible, so the system can still explore instead of repeating the same winner every day.
 
+Generated images now rotate among four deterministic visual treatments: mint, alternate, minimal, and framed. The treatment is derived from the content ID and is recorded in experiment metadata, so the same content always gets the same visual treatment.
+
 On every 4th eligible publishing day, the selector deliberately gives an unmeasured eligible post a chance. This creates a controlled 1-in-4 exploration cadence while the other days favor measured performance.
 
 Reels and group/community distribution remain manual actions. The weekly report prepares the Reel draft and tells you what to test without automatically spamming communities or publishing unreviewed video.
