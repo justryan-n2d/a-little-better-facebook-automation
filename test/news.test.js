@@ -814,6 +814,19 @@ test('fresh news runner stores source and final visual verification results', as
   }
 });
 
+test('Fresh News workflow exposes the visual verification configuration', async () => {
+  const workflow = await readFile(
+    '.github/workflows/a-little-better-fresh-news.yml',
+    'utf8'
+  );
+
+  assert.match(workflow, /name: Resolve visual verification mode/);
+  assert.match(workflow, /OPENAI_API_KEY:/);
+  assert.match(workflow, /NEWS_VISUAL_VERIFY_MODE:/);
+  assert.match(workflow, /mode=required/);
+  assert.match(workflow, /mode=metadata/);
+});
+
 test('news post runner is importable', () => {
   assert.equal(typeof runNewsPost, 'function');
 });
