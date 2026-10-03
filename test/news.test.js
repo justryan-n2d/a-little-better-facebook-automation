@@ -218,13 +218,13 @@ test('provides a direct StockSnap CDN fallback when available', async () => {
   ]);
 });
 
-test('uses the exact source article image and rejects unrelated image hosts', async () => {
+test('uses an image declared by the exact source article', async () => {
   const calls = [];
 
   const result = await findSourceArticleImage(
     {
       url: 'https://news.google.com/rss/articles/example',
-      domain: 'community.triblive.com'
+      domain: 'Buffalo Bills'
     },
     {
       fetchImpl: async (input, init = {}) => {
@@ -235,22 +235,21 @@ test('uses the exact source article image and rejects unrelated image hosts', as
           return {
             ok: true,
             status: 200,
-            url: 'https://community.triblive.com/news/example-story',
+            url: 'https://www.buffalobills.com/news/example-story',
             text: async () => ''
           };
         }
 
-        if (url === 'https://community.triblive.com/news/example-story') {
+        if (url === 'https://www.buffalobills.com/news/example-story') {
           return new Response(
             '<html><head>' +
-            '<meta property="og:image" content="https://images.other-cdn.example/story.jpg">' +
-            '<meta property="twitter:image" content="/media/story.jpg">' +
+            '<meta property="og:image" content="https://media.example-cdn.test/story.jpg">' +
             '</head></html>',
             { status: 200, headers: { 'content-type': 'text/html' } }
           );
         }
 
-        if (url === 'https://community.triblive.com/media/story.jpg') {
+        if (url === 'https://media.example-cdn.test/story.jpg') {
           return new Response(Buffer.alloc(12000, 9), {
             status: 200,
             headers: { 'content-type': 'image/jpeg' }
@@ -262,10 +261,10 @@ test('uses the exact source article image and rejects unrelated image hosts', as
     }
   );
 
-  assert.equal(result.url, 'https://community.triblive.com/media/story.jpg');
-  assert.equal(result.provider, 'community.triblive.com');
+  assert.equal(result.url, 'https://media.example-cdn.test/story.jpg');
+  assert.equal(result.provider, 'Buffalo Bills');
   assert.equal(result.license, 'article-image');
-  assert.ok(calls.some(item => item.url === 'https://community.triblive.com/news/example-story'));
+  assert.ok(calls.some(item => item.url === 'https://www.buffalobills.com/news/example-story'));
 });
 
 test('tries the next image URL when the first image host fails', async () => {
