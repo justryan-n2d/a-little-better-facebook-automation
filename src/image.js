@@ -134,11 +134,9 @@ function buildHeadline({ lines, box, fontSize }) {
   const lineGap = Math.round(fontSize * 1.18);
   const totalHeight = fontSize + Math.max(0, lines.length - 1) * lineGap;
   const firstBaseline = box.y + (box.height - totalHeight) / 2 + fontSize * 0.84;
-  const textWidth = box.width - 24;
-
   return lines.map((line, i) => {
     const y = firstBaseline + i * lineGap;
-    return `<text x="${box.x + box.width / 2}" y="${y}" text-anchor="middle" class="headline" font-size="${fontSize}" textLength="${textWidth}" lengthAdjust="spacingAndGlyphs">${escapeXml(line || ' ')}</text>`;
+    return `<text x="${box.x + box.width / 2}" y="${y}" text-anchor="middle" class="headline" font-size="${fontSize}">${escapeXml(line || ' ')}</text>`;
   }).join('\n');
 }
 
