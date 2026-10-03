@@ -204,7 +204,7 @@ export function calculateNewsLayout(template = '4:5') {
     10 * scale
   );
 
-  const brandWidth = 360 * scale;
+  const brandWidth = 430 * scale;
   const brandHeight = 72 * scale;
   const source = rect(
     NEWS_SAFE * scale,
@@ -229,8 +229,8 @@ export function calculateNewsLayout(template = '4:5') {
   );
 
   const brand = rect(
-    (width - brandWidth) / 2,
-    headline.y - 116 * scale,
+    275 * scale,
+    headline.y - 124 * scale,
     brandWidth,
     brandHeight,
     'branding',
@@ -299,20 +299,30 @@ function renderHeadline({ box, title, fitOverride = null }) {
   const x = box.x + box.width / 2;
 
   const lines = fit.lines.map((line, lineIndex) => {
-    const parts = line.split(/(\s+)/);
-    const tspans = parts.map(part => {
-      const isWord = /\S/.test(part);
-      const cleaned = part.replace(/[^A-Za-z0-9]/g, '');
-      const highlighted = isWord && highlights.includes(cleaned);
-      return '<tspan fill="' + (highlighted ? NEWS_PRIMARY : NEWS_WHITE) + '" font-weight="800">' +
-        escapeXml(part) +
-        '</tspan>';
-    }).join('');
-
-    return '<text x="' + x + '" y="' + (yStart + lineIndex * lineGap) +
+    const words = line.split(/\s+/).filter(Boolean);
+    const baseline = yStart + lineIndex * lineGap;
+    const base = '<text x="' + x + '" y="' + baseline +
       '" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="' + fit.fontSize +
-      '" font-weight="800" letter-spacing="-0.7">' + tspans + '</text>';
-  }).join('\n');
+      '" font-weight="800" letter-spacing="-0.7" fill="' + NEWS_WHITE + '">' +
+      escapeXml(line) + '</text>';
+    const overlays = highlights
+      .filter(word => words.some(part => part.replace(/[^A-Za-z0-9]/g, '') === word))
+      .map(word => {
+        const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const match = line.match(new RegExp('(^|\\s)' + escaped + '(?=\\s|$)', 'i'));
+        if (!match) return '';
+        const prefix = line.slice(0, match.index + (match[1] ? 1 : 0));
+        const beforeWidth = estimateWidth(prefix, fit.fontSize);
+        const wordWidth = estimateWidth(word, fit.fontSize);
+        const wordX = x - estimateWidth(line, fit.fontSize) / 2 + beforeWidth + wordWidth / 2;
+        return '<text x="' + wordX + '" y="' + baseline +
+          '" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="' + fit.fontSize +
+          '" font-weight="800" letter-spacing="-0.7" fill="' + NEWS_PRIMARY + '">' +
+          escapeXml(word) + '</text>';
+      }).join('');
+
+    return base + overlays;
+  }).join('');
 
   return { svg: lines, fit };
 }
@@ -447,7 +457,7 @@ export async function renderNewsImage({
   template = '4:5'
 }) {
   const dir = await mkdtemp('/tmp/a-little-better-news-');
-  const inputPath = join(dir, 'source-input');
+  const inputPath = join(dir, 'source.jpg');
   const backgroundPath = join(dir, 'background.jpg');
   const insetPath = join(dir, 'inset-circle.png');
   const composedPath = join(dir, 'composed.png');
