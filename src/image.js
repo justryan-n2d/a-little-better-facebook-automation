@@ -16,12 +16,12 @@ const SAFE = 108;
 
 const LAYOUTS = {
   mint: {
-    headline: { x: 120, y: 300, width: 840, height: 500 },
+    headline: { x: 126, y: 300, width: 816, height: 500 },
     support: { x: 150, y: 865, width: 780, height: 90 },
     brand: { x: 360, y: 1156, width: 360, height: 60 }
   },
   alternate: {
-    headline: { x: 125, y: 300, width: 830, height: 500 },
+    headline: { x: 126, y: 300, width: 810, height: 500 },
     support: { x: 150, y: 875, width: 780, height: 90 },
     brand: { x: 360, y: 1156, width: 360, height: 60 }
   }
