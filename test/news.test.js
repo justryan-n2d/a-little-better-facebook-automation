@@ -90,12 +90,69 @@ test('rejects infographic-like Openverse assets', () => {
   }), true);
 });
 
-test('builds topic-aware image search fallbacks', () => {
-  const queries = buildImageQueries('Students win a national scholarship award', 'education-growth');
-  assert.equal(queries[0], 'Students national scholarship award');
+test('builds story-specific image search queries before broad fallbacks', () => {
+  const queries = buildImageQueries(
+    'FAU graduate student uses Miss Fort Lauderdale crown to turn science into action',
+    'education-growth'
+  );
+  assert.equal(queries[0], 'woman marine scientist fieldwork');
+  assert.ok(queries.includes('student scientist laboratory'));
   assert.ok(queries.includes('students achievement education'));
-  assert.ok(queries.includes('students celebrating success'));
+  assert.ok(queries.includes('FAU graduate student Miss Fort Lauderdale crown'));
   assert.ok(queries.includes('people community inspiration'));
+});
+
+test('keeps scholarship image queries relevant without truncating the story', () => {
+  const queries = buildImageQueries('Students win a national scholarship award', 'education-growth');
+  assert.ok(queries.includes('student receiving scholarship'));
+  assert.ok(queries.includes('college scholarship student'));
+  assert.ok(queries.includes('students achievement education'));
+  assert.ok(queries.includes('Students national scholarship award'));
+});
+
+test('prefers story-relevant Openverse photos over unrelated exact-query results', async () => {
+  const image = await findOpenverseImage(
+    [
+      'FAU graduate student Miss Fort Lauderdale crown turn science',
+      'woman marine scientist fieldwork'
+    ],
+    {
+      fetchImpl: async url => {
+        const parsed = new URL(String(url));
+        const q = parsed.searchParams.get('q');
+
+        if (q === 'FAU graduate student Miss Fort Lauderdale crown turn science') {
+          return new Response(JSON.stringify({
+            results: [{
+              url: 'https://images.example/painting.jpg',
+              title: 'The Blue Gown oil painting',
+              width: 3000,
+              height: 2200,
+              license: 'cc0',
+              creator: 'Artist',
+              provider: 'wikimedia'
+            }]
+          }), { status: 200 });
+        }
+
+        return new Response(JSON.stringify({
+          results: [{
+            url: 'https://images.example/scientist.jpg',
+            title: 'Woman marine scientist fieldwork',
+            description: 'Scientist doing environmental field research',
+            width: 1600,
+            height: 1067,
+            license: 'cc0',
+            creator: 'Scientist Photographer',
+            provider: 'flickr'
+          }]
+        }), { status: 200 });
+      }
+    }
+  );
+
+  assert.equal(image?.url, 'https://images.example/scientist.jpg');
+  assert.equal(image?.searchQuery, 'woman marine scientist fieldwork');
 });
 
 test('tries multiple Openverse queries before giving up', async () => {
