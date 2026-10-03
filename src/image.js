@@ -16,14 +16,14 @@ const SAFE = 108;
 
 const LAYOUTS = {
   mint: {
-    headline: { x: 150, y: 350, width: 780, height: 420 },
+    headline: { x: 120, y: 300, width: 840, height: 500 },
     support: { x: 150, y: 865, width: 780, height: 90 },
-    brand: { x: 360, y: 1160, width: 360, height: 60 }
+    brand: { x: 360, y: 1156, width: 360, height: 60 }
   },
   alternate: {
-    headline: { x: 166, y: 350, width: 748, height: 430 },
-    support: { x: 160, y: 885, width: 760, height: 90 },
-    brand: { x: 360, y: 1160, width: 360, height: 60 }
+    headline: { x: 125, y: 300, width: 830, height: 500 },
+    support: { x: 150, y: 875, width: 780, height: 90 },
+    brand: { x: 360, y: 1156, width: 360, height: 60 }
   }
 };
 
@@ -155,7 +155,7 @@ export function validateLayout(layout) {
 }
 
 function buildHeadline({ lines, box, fontSize }) {
-  const lineGap = Math.round(fontSize * 1.18);
+  const lineGap = Math.round(fontSize * 1.12);
   const totalHeight = fontSize + Math.max(0, lines.length - 1) * lineGap;
   const firstBaseline = box.y + (box.height - totalHeight) / 2 + fontSize * 0.84;
   return lines.map((line, i) => {
@@ -168,23 +168,23 @@ function buildBrand(layout) {
   const box = layout.brand;
   return `
     <g transform="translate(${CANVAS.width / 2} 0)">
-      <g transform="translate(-166 ${box.y + 2})" stroke="${COLORS.white}" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M32 38 C32 20 43 10 58 7 C58 24 49 38 32 38Z"/>
-        <path d="M32 38 C22 23 12 20 3 21 C7 34 17 41 32 38Z"/>
-        <path d="M32 38 V55"/>
+      <g transform="translate(-165 ${box.y + 4})" stroke="${COLORS.white}" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M0 40 C0 23 11 10 27 7 C27 24 18 39 0 40Z"/>
+        <path d="M1 40 C-10 26 -19 21 -32 22 C-28 36 -17 43 1 40Z"/>
+        <path d="M1 40 V54"/>
       </g>
-      <text x="-86" y="${box.y + 38}" text-anchor="start" class="brand">A LITTLE BETTER</text>
+      <text x="31" y="${box.y + 39}" text-anchor="middle" class="brand">A LITTLE BETTER</text>
     </g>`;
 }
-
 function buildMintSvg({ imageText }) {
   const layout = LAYOUTS.mint;
   validateLayout(layout);
 
-  const lines = wrapLines(imageText, 20).filter(Boolean);
-  const fontSize = calculateFontSize(lines, layout.headline.width - 36, layout.headline.height, {
-    max: 38,
-    min: 22
+  const lines = wrapLines(imageText, 24).filter(Boolean);
+  const fontSize = calculateFontSize(lines, layout.headline.width - 28, layout.headline.height, {
+    max: 52,
+    min: 26,
+    lineHeightRatio: 1.12
   });
 
   const body = buildHeadline({ lines, box: layout.headline, fontSize });
@@ -217,9 +217,9 @@ function buildMintSvg({ imageText }) {
     }
     .brand {
       font-family: 'DejaVu Sans';
-      font-size: 19px;
+      font-size: 21px;
       font-weight: 700;
-      letter-spacing: 5px;
+      letter-spacing: 4px;
       fill: ${COLORS.white};
     }
   </style>
@@ -230,10 +230,11 @@ function buildAlternateSvg({ imageText }) {
   const layout = LAYOUTS.alternate;
   validateLayout(layout);
 
-  const lines = wrapLines(imageText, 20).filter(Boolean);
-  const fontSize = calculateFontSize(lines, layout.headline.width - 36, layout.headline.height, {
-    max: 36,
-    min: 21
+  const lines = wrapLines(imageText, 24).filter(Boolean);
+  const fontSize = calculateFontSize(lines, layout.headline.width - 28, layout.headline.height, {
+    max: 50,
+    min: 25,
+    lineHeightRatio: 1.12
   });
 
   const body = buildHeadline({ lines, box: layout.headline, fontSize });
@@ -264,9 +265,9 @@ function buildAlternateSvg({ imageText }) {
     }
     .brand {
       font-family: 'DejaVu Sans';
-      font-size: 20px;
+      font-size: 21px;
       font-weight: 700;
-      letter-spacing: 5px;
+      letter-spacing: 4px;
       fill: ${COLORS.white};
     }
   </style>
