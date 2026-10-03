@@ -1,3 +1,11 @@
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { contentBank } from './content.js';
+import {
+  getContentBankStatus,
+  getExpirationWarning,
+  getThresholdWarning
+} from './maintenance.js';
 export const DEFAULT_MAX_ATTEMPTS = 3;
 
 const ACTIVE_STATUSES = new Set(['queued', 'in_progress', 'waiting', 'requested', 'pending']);
@@ -107,6 +115,38 @@ function truncate(value, max = 7000) {
   return value.length <= max ? value : `${value.slice(0, max)}...`;
 }
 
+function formatDateTimeManila(value) {
+  return new Intl.DateTimeFormat('en-PH', {
+    timeZone: 'Asia/Manila',
+    dateStyle: 'long',
+    timeStyle: 'short'
+  }).format(new Date(value));
+}
+
+function envIntList(name, fallback) {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+
+  const values = raw
+    .split(',')
+    .map(item => Number.parseInt(item.trim(), 10))
+    .filter(Number.isFinite);
+
+  return values.length ? values : fallback;
+}
+
+async function readPostingHistory() {
+  try {
+    const path = resolve(process.env.HISTORY_PATH || 'data/posting-history.json');
+    const content = await readFile(path, 'utf8');
+    const parsed = JSON.parse(content);
+    return Array.isArray(parsed?.posts) ? parsed.posts : [];
+  } catch (error) {
+    console.warn(`Unable to read posting history for maintenance monitoring: ${error.message}`);
+    return [];
+  }
+}
+
 function envInt(name, fallback) {
   const value = Number.parseInt(process.env[name] ?? '', 10);
   return Number.isFinite(value) ? value : fallback;
@@ -137,6 +177,107 @@ async function githubRequest({ apiUrl, token, path, method = 'GET', body }) {
   }
 
   return payload;
+}
+
+async function hasOpenIssue({ apiUrl, token, repository, title }) {
+  const searchQuery = encodeURIComponent(`repo:${repository} is:issue is:open in:title [Facebook Watchdog] ${title}`);
+  const existing = await githubRequest({
+    apiUrl,
+    token,
+    path: `/search/issues?q=${searchQuery}&per_page=1`
+  });
+  return Number(existing.total_count || 0) > 0;
+}
+
+async function createIssueIfMissing({ apiUrl, token, repository, title, body }) {
+  if (await hasOpenIssue({ apiUrl, token, repository, title })) {
+    console.log(`An open watchdog issue already exists for: ${title}`);
+    return false;
+  }
+
+  await githubRequest({
+    apiUrl,
+    token,
+    method: 'POST',
+    path: `/repos/${repository}/issues`,
+    body: { title, body: truncate(body) }
+  });
+
+  console.log(`Created watchdog maintenance issue: ${title}`);
+  return true;
+}
+
+async function runMaintenanceChecks({ apiUrl, token, repository, now }) {
+  const history = await readPostingHistory();
+  const contentStatus = getContentBankStatus(contentBank, history);
+  const contentThresholds = envIntList('WATCHDOG_CONTENT_ALERT_THRESHOLDS', [5]);
+
+  console.log(
+    `Content bank: ${contentStatus.remaining}/${contentStatus.total} unique posts remaining.`
+  );
+
+  const contentWarning = getThresholdWarning(contentStatus.remaining, contentThresholds);
+  if (contentWarning) {
+    const title = `Content bank low - ${contentStatus.remaining} posts left`;
+    await createIssueIfMissing({
+      apiUrl,
+      token,
+      repository,
+      title,
+      body: [
+        'The A Little Better Facebook content bank is running low.',
+        '',
+        `Remaining unique posts: ${contentStatus.remaining}`,
+        `Total unique posts: ${contentStatus.total}`,
+        `Used unique posts: ${contentStatus.used}`,
+        '',
+        'Add more original content to src/content.js before the bank is exhausted.'
+      ].join('\n')
+    });
+  }
+
+  const expiryValue = process.env.META_DATA_ACCESS_EXPIRES_AT?.trim();
+  if (!expiryValue) {
+    console.log('Meta data-access expiry monitoring is not configured yet.');
+    return;
+  }
+
+  const tokenThresholds = envIntList('WATCHDOG_TOKEN_ALERT_THRESHOLDS', [7, 5, 2, 1, 0]);
+  const warning = getExpirationWarning({
+    now,
+    expiresAt: expiryValue,
+    thresholds: tokenThresholds
+  });
+
+  if (!warning) {
+    console.log('Meta data-access expiry is not within the configured warning thresholds.');
+    return;
+  }
+
+  const expiryText = formatDateTimeManila(warning.expiresAt);
+  const daysText = warning.expired
+    ? 'expired'
+    : `${warning.daysLeft} ${warning.daysLeft === 1 ? 'day' : 'days'} left`;
+  const title = warning.expired
+    ? 'Meta data access - expired'
+    : `Meta data access - ${warning.daysLeft} ${warning.daysLeft === 1 ? 'day' : 'days'} left`;
+
+  await createIssueIfMissing({
+    apiUrl,
+    token,
+    repository,
+    title,
+    body: [
+      'The Meta access token data-access period needs attention.',
+      '',
+      `Status: ${daysText}`,
+      `Data access expires: ${expiryText} (Asia/Manila)`,
+      '',
+      'The access token itself may show "Expires: Never" while data access has a separate expiration time. Check Meta Access Token Debugger and reauthorize or refresh the required access when needed.',
+      '',
+      'This reminder is based on the META_DATA_ACCESS_EXPIRES_AT repository variable.'
+    ].join('\n')
+  });
 }
 
 async function main() {
@@ -209,6 +350,13 @@ async function main() {
   });
 
   console.log(`Watchdog ${today}: ${action.type} (${action.reason})${action.runId ? ` run=${action.runId}` : ''}`);
+
+  await runMaintenanceChecks({
+    apiUrl,
+    token,
+    repository,
+    now: now.toISOString()
+  });
 
   if (action.type === 'wait' || action.type === 'healthy') return;
 
