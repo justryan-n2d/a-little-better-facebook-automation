@@ -56,10 +56,7 @@ export async function runNewsPost({
   today,
   autoPublish,
   fetchImpl = fetch,
-  historyPath = 'data/news-history.json',
-  visualVerificationMode = process.env.NEWS_VISUAL_VERIFY_MODE || 'optional',
-  openaiApiKey = process.env.OPENAI_API_KEY || '',
-  openaiVisionModel = process.env.OPENAI_VISION_MODEL || undefined
+  historyPath = 'data/news-history.json'
 } = {}) {
   const date = today || new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Manila'
@@ -77,10 +74,7 @@ export async function runNewsPost({
   }
 
   const imageMeta = await findSourceArticleImage(story, {
-    fetchImpl,
-    visualVerificationMode,
-    openaiApiKey,
-    openaiVisionModel
+    fetchImpl
   });
   const imageBuffer = await downloadImage(imageMeta.urlCandidates || imageMeta.url, { fetchImpl });
   const hook = buildNewsHook(story.title);
@@ -107,11 +101,7 @@ export async function runNewsPost({
     imageBuffer: renderedImage,
     storyTitle: story.title,
     sourceDomain,
-    displayHeadline,
-    mode: visualVerificationMode,
-    apiKey: openaiApiKey,
-    model: openaiVisionModel,
-    fetchImpl
+    displayHeadline
   });
 
   if (graphicVerification.verified === false) {
