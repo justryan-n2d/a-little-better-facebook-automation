@@ -164,16 +164,26 @@ function buildHeadline({ lines, box, fontSize }) {
   }).join('\n');
 }
 
+const BRAND_TEXT = 'A LITTLE BETTER';
+const BRAND_FONT_SIZE = 21;
+const BRAND_LETTER_SPACING = 4;
+const BRAND_TEXT_WIDTH = 250;
+const BRAND_ICON_WIDTH = 59;
+const BRAND_GAP = 14;
+
 function buildBrand(layout) {
   const box = layout.brand;
+  const lockupWidth = BRAND_ICON_WIDTH + BRAND_GAP + BRAND_TEXT_WIDTH;
+  const lockupLeft = (box.width - lockupWidth) / 2;
+
   return `
-    <g transform="translate(${CANVAS.width / 2} 0)">
-      <g transform="translate(-170 ${box.y + 4})" stroke="${COLORS.white}" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g transform="translate(${box.x + lockupLeft} 0)" class="brand-lockup">
+      <g transform="translate(0 ${box.y + 4})" stroke="${COLORS.white}" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
         <path d="M0 40 C0 23 11 10 27 7 C27 24 18 39 0 40Z"/>
         <path d="M1 40 C-10 26 -19 21 -32 22 C-28 36 -17 43 1 40Z"/>
         <path d="M1 40 V54"/>
       </g>
-      <text x="0" y="${box.y + 39}" text-anchor="middle" class="brand">A LITTLE BETTER</text>
+      <text x="${BRAND_ICON_WIDTH + BRAND_GAP}" y="${box.y + 39}" text-anchor="start" class="brand">${BRAND_TEXT}</text>
     </g>`;
 }
 function buildMintSvg({ imageText }) {
