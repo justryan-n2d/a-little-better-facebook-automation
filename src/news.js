@@ -677,6 +677,81 @@ export async function findOpenverseImage(query, {
   };
 }
 
+function sameSourceDomain(imageUrl, sourceDomain, articleUrl) {
+  try {
+    const imageHost = new URL(imageUrl).hostname.replace(/^www\\./i, '').toLowerCase();
+    const sourceHost = String(sourceDomain || '').replace(/^www\\./i, '').toLowerCase();
+    const articleHost = new URL(articleUrl).hostname.replace(/^www\\./i, '').toLowerCase();
+    const matches = host => Boolean(host) && (host === imageHost || host.endsWith('.' + imageHost) || imageHost.endsWith('.' + host));
+    return matches(sourceHost) || matches(articleHost);
+  } catch {
+    return false;
+  }
+}
+
+function extractMetaImages(html) {
+  return [...String(html || '').matchAll(/<meta\\b[^>]*>/gi)].map(match => {
+    const tag = match[0];
+    const property = tag.match(/(?:property|name)\\s*=\\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
+    const content = tag.match(/content\\s*=\\s*["']([^"']+)["']/i)?.[1];
+    return { property, content: decodeXmlEntities(content || '').trim() };
+  });
+}
+
+function extractArticleImageUrls(html, articleUrl) {
+  const tags = extractMetaImages(html);
+  const values = tags
+    .filter(item => ['og:image', 'og:image:url', 'twitter:image', 'twitter:image:src'].includes(item.property) && item.content)
+    .map(item => item.content);
+  values.push(...[...String(html || '').matchAll(/"image"\\s*:\\s*"([^"]+)"/gi)].map(match => match[1]));
+  return [...new Set(values.map(value => {
+    try { return new URL(value, articleUrl).toString(); } catch { return null; }
+  }).filter(Boolean))];
+}
+
+async function resolveArticleUrl(url, { fetchImpl = fetch } = {}) {
+  const response = await fetchImpl(url, {
+    redirect: 'follow',
+    headers: { 'user-agent': 'A-Little-Better-News/1.0' }
+  });
+  if (!response.ok) throw new Error('Article URL HTTP ' + response.status);
+  return response.url || url;
+}
+
+export async function findSourceArticleImage(story, { fetchImpl = fetch } = {}) {
+  const articleUrl = await resolveArticleUrl(story?.url, { fetchImpl });
+  const sourceDomain = story?.domain || domainFromUrl(articleUrl);
+  const response = await fetchImpl(articleUrl, {
+    headers: { 'user-agent': 'A-Little-Better-News/1.0' }
+  });
+  if (!response.ok) throw new Error('Source article HTTP ' + response.status);
+  const html = await response.text();
+  const imageUrls = extractArticleImageUrls(html, articleUrl)
+    .filter(url => sameSourceDomain(url, sourceDomain, articleUrl));
+  if (!imageUrls.length) throw new Error('Source article did not expose an image from the same source: ' + sourceDomain);
+
+  for (const imageUrl of imageUrls) {
+    try {
+      await downloadImage(imageUrl, { fetchImpl });
+      return {
+        url: imageUrl,
+        urlCandidates: [imageUrl],
+        title: 'Source article image',
+        creator: sourceDomain,
+        license: 'article-image',
+        licenseVersion: null,
+        licenseUrl: null,
+        landingUrl: articleUrl,
+        provider: sourceDomain,
+        searchQuery: 'source article image'
+      };
+    } catch (error) {
+      console.log('Source article image failed for ' + imageUrl + ': ' + (error instanceof Error ? error.message : String(error)));
+    }
+  }
+  throw new Error('All source article images failed to download for: ' + sourceDomain);
+}
+
 export async function downloadImage(url, { fetchImpl = fetch } = {}) {
   const candidates = Array.isArray(url) ? url : [url];
   const errors = [];
