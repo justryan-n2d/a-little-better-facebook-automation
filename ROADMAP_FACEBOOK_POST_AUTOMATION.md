@@ -354,9 +354,11 @@ A user should understand the basic story even when seeing only the image in the 
 - [x] Same-context image matching
 - [x] Reject unrelated artwork/graphics
 - [ ] Support more publisher-specific article formats
-- [ ] Stronger semantic image/story matching
-- [ ] Automatic visual relevance score
-- [ ] Automatic visual QA before artifact upload
+- [x] Stronger semantic image/story matching
+- [x] Automatic visual relevance score
+- [x] Automatic visual QA before artifact upload
+
+The remaining Phase 4 gap is publisher-specific article parsing. True visual verification is enabled when OPENAI_API_KEY is configured; otherwise the workflow deliberately uses the deterministic metadata-only path.
 
 ## Phase 5 — A Little Better Content Identity 🚧
 
