@@ -23,7 +23,7 @@ on:
       - facebook_watchdog_recovery
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: a-little-better-facebook-post
@@ -82,7 +82,9 @@ jobs:
 
   record:
     needs: publish
-    if: ${{ needs.publish.result == 'success' && env.DRY_RUN != 'true' }}
+    if: ${{ needs.publish.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.dry_run != true) }}
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
