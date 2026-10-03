@@ -82,10 +82,12 @@ export function getFollowerDelta(snapshots = []) {
 export function normalizeAnalyticsStore(data = {}) {
   const snapshots = Array.isArray(data.snapshots) ? data.snapshots : [];
   const followerSnapshots = Array.isArray(data.followerSnapshots) ? data.followerSnapshots : [];
+  const collectorRuns = Array.isArray(data.collectorRuns) ? data.collectorRuns : [];
 
   return {
     version: 1,
     snapshots: snapshots.slice(-DEFAULT_SNAPSHOTS_LIMIT),
-    followerSnapshots: followerSnapshots.slice(-1000)
+    followerSnapshots: followerSnapshots.slice(-1000),
+    collectorRuns: collectorRuns.slice(-180)
   };
 }
