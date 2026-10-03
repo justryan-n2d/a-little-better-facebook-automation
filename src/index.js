@@ -19,7 +19,9 @@ const date = getPhilippineDate();
 const historyPath = resolve(process.env.HISTORY_PATH || 'data/posting-history.json');
 const history = await loadHistory(historyPath);
 
-if (hasPostedOnDate(history, date) && !isTrue('FORCE_POST')) {
+const dryRun = isTrue('DRY_RUN');
+
+if (hasPostedOnDate(history, date) && !isTrue('FORCE_POST') && !dryRun) {
   console.log(`Already posted for ${date}. Nothing to do.`);
   process.exit(0);
 }
@@ -36,7 +38,7 @@ const previewPath = resolve(previewDir, `a-little-better-${post.date}-${post.con
 await writeFile(previewPath, image);
 console.log(`Saved preview image: ${previewPath}`);
 
-if (isTrue('DRY_RUN')) {
+if (dryRun) {
   console.log('DRY_RUN=true, so Facebook publishing is skipped.');
   console.log(JSON.stringify({ date: post.date, contentId: post.contentId, category: post.category }, null, 2));
   process.exit(0);
