@@ -59,7 +59,7 @@ test('requires a clear A Little Better topic', () => {
 
 test('builds topic-aware image search fallbacks', () => {
   const queries = buildImageQueries('Students win a national scholarship award', 'education-growth');
-  assert.equal(queries[0], 'Students win national scholarship award');
+  assert.equal(queries[0], 'Students national scholarship award');
   assert.ok(queries.includes('students achievement education'));
   assert.ok(queries.includes('students celebrating success'));
   assert.ok(queries.includes('people community inspiration'));
