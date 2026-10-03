@@ -1,0 +1,55 @@
+import { resolve } from 'node:path';
+import { getDailyPost, getPhilippineDate } from './content.js';
+import { renderPostImage } from './image.js';
+import { publishPhoto } from './facebook.js';
+import { addPost, hasPostedOnDate, loadHistory, saveHistory } from './history.js';
+
+function requiredEnv(name) {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} is required.`);
+  return value;
+}
+
+function isTrue(name) {
+  return ['1', 'true', 'yes', 'on'].includes((process.env[name] || '').toLowerCase());
+}
+
+const date = getPhilippineDate();
+const historyPath = resolve(process.env.HISTORY_PATH || 'data/posting-history.json');
+const history = await loadHistory(historyPath);
+
+if (hasPostedOnDate(history, date) && !isTrue('FORCE_POST')) {
+  console.log(`Already posted for ${date}. Nothing to do.`);
+  process.exit(0);
+}
+
+const post = getDailyPost(date, history.posts);
+console.log(`Selected ${post.category} content: ${post.contentId}`);
+
+const image = await renderPostImage({ imageText: post.imageText });
+console.log(`Generated ${Math.round(image.length / 1024)} KB PNG.`);
+
+if (isTrue('DRY_RUN')) {
+  console.log('DRY_RUN=true, so Facebook publishing is skipped.');
+  console.log(JSON.stringify({ date: post.date, contentId: post.contentId, category: post.category }, null, 2));
+  process.exit(0);
+}
+
+const result = await publishPhoto({
+  pageId: requiredEnv('FB_PAGE_ID'),
+  pageAccessToken: requiredEnv('FB_PAGE_ACCESS_TOKEN'),
+  message: post.caption,
+  image,
+  graphVersion: process.env.META_GRAPH_VERSION || 'v26.0'
+});
+
+const updatedHistory = addPost(history, {
+  date: post.date,
+  contentId: post.contentId,
+  category: post.category,
+  facebookPostId: result.postId,
+  publishedAt: new Date().toISOString()
+});
+await saveHistory(historyPath, updatedHistory);
+
+console.log(`Published successfully. Facebook post/photo id: ${result.postId}`);
