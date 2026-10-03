@@ -27,19 +27,16 @@ function escapeXml(value) {
 }
 
 function estimateWidth(text, size) {
-  return String(text || '').length * size * 0.56;
+  return String(text || '').length * size * 0.66;
 }
 
-export function wrapTextToBox(text, {
-  fontSize,
-  maxWidth
-} = {}) {
+export function wrapTextToBox(text, { fontSize, maxWidth } = {}) {
   const words = String(text || '').trim().split(/\s+/).filter(Boolean);
   const lines = [];
   let current = '';
 
   for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
+    const next = current ? current + ' ' + word : word;
     if (current && estimateWidth(next, fontSize) > maxWidth) {
       lines.push(current);
       current = word;
@@ -55,27 +52,94 @@ export function wrapTextToBox(text, {
 export function fitTextToBox(text, {
   maxWidth,
   maxHeight,
-  maxFontSize = 72,
+  maxFontSize = 68,
   minFontSize = 34,
-  lineHeight = 1.08,
-  maxLines = 5
+  lineHeight = 1.16,
+  maxLines = 4
 } = {}) {
   for (let fontSize = maxFontSize; fontSize >= minFontSize; fontSize -= 1) {
     const lines = wrapTextToBox(text, { fontSize, maxWidth });
     const width = Math.max(...lines.map(line => estimateWidth(line, fontSize)), 0);
     const height = lines.length * fontSize * lineHeight;
 
-    if (
-      lines.length <= maxLines &&
-      width <= maxWidth &&
-      height <= maxHeight
-    ) {
+    if (lines.length <= maxLines && width <= maxWidth && height <= maxHeight) {
       return { fontSize, lineHeight, lines, width, height };
     }
   }
 
   throw new Error(
-    `Text cannot fit in allocated box: "${String(text || '').slice(0, 100)}"`
+    'Text cannot fit in allocated box: "' + String(text || '').slice(0, 100) + '"'
+  );
+}
+
+async function measureRenderedLine(command, text, fontSize) {
+  const { stdout } = await execFileAsync(command, [
+    '-background', 'none',
+    '-font', 'DejaVu-Sans-Bold',
+    '-pointsize', String(fontSize),
+    'label:' + String(text || ''),
+    '-trim',
+    '-format', '%wx%h',
+    'info:'
+  ]);
+
+  const match = stdout.trim().match(/^(\d+)x(\d+)$/);
+  if (!match) throw new Error('Unable to measure rendered headline text.');
+  return { width: Number(match[1]), height: Number(match[2]) };
+}
+
+async function fitRenderedHeadline(command, text, box) {
+  let fit = fitTextToBox(text, {
+    maxWidth: box.width - box.padding * 2,
+    maxHeight: box.height - box.padding * 2,
+    maxFontSize: 68,
+    minFontSize: 34,
+    lineHeight: 1.16,
+    maxLines: 4
+  });
+
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const measurements = await Promise.all(
+      fit.lines.map(line => measureRenderedLine(command, line, fit.fontSize))
+    );
+
+    const maxMeasuredWidth = Math.max(...measurements.map(item => item.width), 0);
+    const actualLineHeight = Math.max(
+      fit.fontSize * fit.lineHeight,
+      Math.max(...measurements.map(item => item.height), 0) * 1.16
+    );
+    const totalHeight = fit.lines.length * actualLineHeight;
+
+    if (
+      fit.lines.length <= 4 &&
+      maxMeasuredWidth <= box.width - box.padding * 2 &&
+      totalHeight <= box.height - box.padding * 2
+    ) {
+      return {
+        ...fit,
+        lineHeight: actualLineHeight / fit.fontSize,
+        width: maxMeasuredWidth,
+        height: totalHeight
+      };
+    }
+
+    const nextFontSize = fit.fontSize - 2;
+    if (nextFontSize < 34) break;
+
+    fit = {
+      ...fitTextToBox(text, {
+        maxWidth: box.width - box.padding * 2,
+        maxHeight: box.height - box.padding * 2,
+        maxFontSize: nextFontSize,
+        minFontSize: 34,
+        lineHeight: 1.16,
+        maxLines: 4
+      })
+    };
+  }
+
+  throw new Error(
+    'Rendered headline could not fit safely inside its allocated zone.'
   );
 }
 
@@ -123,9 +187,9 @@ export function calculateNewsLayout(template = '4:5') {
     NEWS_SAFE * scale,
     28 * scale,
     width - NEWS_SAFE * 2 * scale,
-    32 * scale,
+    30 * scale,
     'photo-credit',
-    8 * scale
+    6 * scale
   );
 
   const circleRadius = 178 * scale;
@@ -140,34 +204,37 @@ export function calculateNewsLayout(template = '4:5') {
     10 * scale
   );
 
-  const brandWidth = 300 * scale;
-  const brandHeight = 64 * scale;
-  const brandY = template === '1:1' ? height * 0.59 : height * 0.625;
-  const brand = rect(
-    (width - brandWidth) / 2,
-    brandY,
-    brandWidth,
-    brandHeight,
-    'branding',
-    12 * scale
+  const brandWidth = 360 * scale;
+  const brandHeight = 72 * scale;
+  const source = rect(
+    NEWS_SAFE * scale,
+    height - 70 * scale,
+    width - NEWS_SAFE * 2 * scale,
+    34 * scale,
+    'source',
+    6 * scale
   );
 
+  const headlineHeight = Math.min(
+    380 * scale,
+    Math.max(240 * scale, height * 0.23)
+  );
   const headline = rect(
     NEWS_SAFE * scale,
-    height * 0.705,
+    source.y - 58 * scale - headlineHeight,
     width - NEWS_SAFE * 2 * scale,
-    height * 0.205,
+    headlineHeight,
     'headline',
     18 * scale
   );
 
-  const source = rect(
-    NEWS_SAFE * scale,
-    height * 0.955,
-    width - NEWS_SAFE * 2 * scale,
-    height * 0.025,
-    'source',
-    8 * scale
+  const brand = rect(
+    (width - brandWidth) / 2,
+    headline.y - 116 * scale,
+    brandWidth,
+    brandHeight,
+    'branding',
+    6 * scale
   );
 
   const zones = [photoCredit, photoInset, brand, headline, source];
@@ -176,9 +243,8 @@ export function calculateNewsLayout(template = '4:5') {
       const a = zones[i];
       const b = zones[j];
       if (rectanglesOverlap(a, b)) {
-        // The inset intentionally overlaps the background only. All text zones must stay isolated.
         if (a.name === 'photo-inset' || b.name === 'photo-inset') continue;
-        throw new Error(`Layout collision: ${a.name} overlaps ${b.name}`);
+        throw new Error('Layout collision: ' + a.name + ' overlaps ' + b.name);
       }
     }
   }
@@ -201,26 +267,29 @@ function renderBrandLockup({ box }) {
   const w = box.width;
   const h = box.height;
   const centerY = y + h / 2;
+  const fontSize = Math.max(15, Math.min(18, (w - 112) / 13.5));
 
-  return `
-    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${h / 2}" fill="${NEWS_PRIMARY}"/>
-    <g>
-      <path d="M${x + 34} ${centerY + 7} C${x + 34} ${centerY - 18} ${x + 51} ${centerY - 31} ${x + 69} ${centerY - 32} C${x + 68} ${centerY - 11} ${x + 57} ${centerY + 4} ${x + 34} ${centerY + 7}Z" fill="${NEWS_DARK}"/>
-      <path d="M${x + 36} ${centerY + 6} C${x + 25} ${centerY - 5} ${x + 17} ${centerY - 8} ${x + 8} ${centerY - 7} C${x + 11} ${centerY + 6} ${x + 21} ${centerY + 12} ${x + 36} ${centerY + 6}Z" fill="${NEWS_DARK}"/>
-      <path d="M${x + 36} ${centerY + 6} V${centerY + 22}" stroke="${NEWS_DARK}" stroke-width="3" stroke-linecap="round"/>
-      <text x="${x + 88}" y="${centerY + 7}" fill="${NEWS_DARK}" font-family="DejaVu Sans, sans-serif" font-size="${20 * (w / 300)}" font-weight="800" letter-spacing="2.5">A LITTLE BETTER</text>
-    </g>
-  `;
+  return [
+    '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="' + h / 2 + '" fill="' + NEWS_PRIMARY + '"/>',
+    '<g>',
+    '<path d="M' + (x + 34) + ' ' + (centerY + 7) + ' C' + (x + 34) + ' ' + (centerY - 18) + ' ' + (x + 51) + ' ' + (centerY - 31) + ' ' + (x + 69) + ' ' + (centerY - 32) + ' C' + (x + 68) + ' ' + (centerY - 11) + ' ' + (x + 57) + ' ' + (centerY + 4) + ' ' + (x + 34) + ' ' + (centerY + 7) + 'Z" fill="' + NEWS_DARK + '"/>',
+    '<path d="M' + (x + 36) + ' ' + (centerY + 6) + ' C' + (x + 25) + ' ' + (centerY - 5) + ' ' + (x + 17) + ' ' + (centerY - 8) + ' ' + (x + 8) + ' ' + (centerY - 7) + ' C' + (x + 11) + ' ' + (centerY + 6) + ' ' + (x + 21) + ' ' + (centerY + 12) + ' ' + (x + 36) + ' ' + (centerY + 6) + 'Z" fill="' + NEWS_DARK + '"/>',
+    '<path d="M' + (x + 36) + ' ' + (centerY + 6) + ' V' + (centerY + 22) + '" stroke="' + NEWS_DARK + '" stroke-width="3" stroke-linecap="round"/>',
+    '<text x="' + (x + 88) + '" y="' + (centerY + 7) + '" fill="' + NEWS_DARK + '" font-family="DejaVu Sans, sans-serif" font-size="' + fontSize + '" font-weight="800" letter-spacing="2">',
+    'A LITTLE BETTER',
+    '</text>',
+    '</g>'
+  ].join('');
 }
 
-function renderHeadline({ box, title }) {
-  const fit = fitTextToBox(title, {
+function renderHeadline({ box, title, fitOverride = null }) {
+  const fit = fitOverride || fitTextToBox(title, {
     maxWidth: box.width - box.padding * 2,
     maxHeight: box.height - box.padding * 2,
-    maxFontSize: 72,
-    minFontSize: 36,
-    lineHeight: 1.07,
-    maxLines: 5
+    maxFontSize: 68,
+    minFontSize: 34,
+    lineHeight: 1.16,
+    maxLines: 4
   });
 
   const highlights = chooseHighlights(fit.lines);
@@ -231,19 +300,18 @@ function renderHeadline({ box, title }) {
 
   const lines = fit.lines.map((line, lineIndex) => {
     const parts = line.split(/(\s+)/);
-    const totalWidth = estimateWidth(line, fit.fontSize);
-    let cursor = x - totalWidth / 2;
-
     const tspans = parts.map(part => {
       const isWord = /\S/.test(part);
       const cleaned = part.replace(/[^A-Za-z0-9]/g, '');
       const highlighted = isWord && highlights.includes(cleaned);
-      const out = `<tspan fill="${highlighted ? NEWS_PRIMARY : NEWS_WHITE}" font-weight="800">${escapeXml(part)}</tspan>`;
-      cursor += estimateWidth(part, fit.fontSize);
-      return out;
+      return '<tspan fill="' + (highlighted ? NEWS_PRIMARY : NEWS_WHITE) + '" font-weight="800">' +
+        escapeXml(part) +
+        '</tspan>';
     }).join('');
 
-    return `<text x="${x}" y="${yStart + lineIndex * lineGap}" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="${fit.fontSize}" font-weight="800">${tspans}</text>`;
+    return '<text x="' + x + '" y="' + (yStart + lineIndex * lineGap) +
+      '" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="' + fit.fontSize +
+      '" font-weight="800" letter-spacing="-0.7">' + tspans + '</text>';
   }).join('\n');
 
   return { svg: lines, fit };
@@ -256,66 +324,116 @@ export function buildNewsSvg({
   sourceDomain,
   angle,
   photoCredit,
-  template = '4:5'
+  template = '4:5',
+  headlineFit = null
 }) {
   const layout = calculateNewsLayout(template);
-  const headline = renderHeadline({ box: layout.headline, title });
+  const headline = renderHeadline({ box: layout.headline, title, fitOverride: headlineFit });
+  const scale = layout.width / 1080;
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}">
-  <defs>
-    <linearGradient id="bottomFade" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
-      <stop offset="48%" stop-color="#000000" stop-opacity="0.02"/>
-      <stop offset="72%" stop-color="#000000" stop-opacity="0.46"/>
-      <stop offset="100%" stop-color="#000000" stop-opacity="0.96"/>
-    </linearGradient>
-    <radialGradient id="bottomRightFade" cx="100%" cy="100%" r="72%">
-      <stop offset="0%" stop-color="#000000" stop-opacity="0.30"/>
-      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="topPhotoFade" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#000000" stop-opacity="0.16"/>
-      <stop offset="55%" stop-color="#000000" stop-opacity="0"/>
-      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
-    </linearGradient>
-    <clipPath id="photoCircle">
-      <circle cx="${layout.photoInset.x + layout.photoInset.width / 2}" cy="${layout.photoInset.y + layout.photoInset.height / 2}" r="${layout.photoInset.width / 2 - 10 * (layout.width / 1080)}"/>
-    </clipPath>
-  </defs>
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<svg xmlns="http://www.w3.org/2000/svg" width="' + layout.width + '" height="' + layout.height + '" viewBox="0 0 ' + layout.width + ' ' + layout.height + '">',
+    '<defs>',
+    '<linearGradient id="bottomFade" x1="0" y1="0" x2="0" y2="1">',
+    '<stop offset="0%" stop-color="#000000" stop-opacity="0"/>',
+    '<stop offset="50%" stop-color="#000000" stop-opacity="0.02"/>',
+    '<stop offset="70%" stop-color="#000000" stop-opacity="0.28"/>',
+    '<stop offset="85%" stop-color="#000000" stop-opacity="0.68"/>',
+    '<stop offset="100%" stop-color="#000000" stop-opacity="0.96"/>',
+    '</linearGradient>',
+    '<radialGradient id="bottomRightFade" cx="100%" cy="100%" r="70%">',
+    '<stop offset="0%" stop-color="#000000" stop-opacity="0.34"/>',
+    '<stop offset="55%" stop-color="#000000" stop-opacity="0.14"/>',
+    '<stop offset="100%" stop-color="#000000" stop-opacity="0"/>',
+    '</radialGradient>',
+    '</defs>',
+    '<rect width="' + layout.width + '" height="' + layout.height + '" fill="url(#bottomFade)"/>',
+    '<rect width="' + layout.width + '" height="' + layout.height + '" fill="url(#bottomRightFade)"/>',
+    '<circle cx="' + (layout.photoInset.x + layout.photoInset.width / 2) +
+      '" cy="' + (layout.photoInset.y + layout.photoInset.height / 2) +
+      '" r="' + (layout.photoInset.width / 2) +
+      '" fill="none" stroke="' + NEWS_PRIMARY + '" stroke-width="' + (10 * scale) + '"/>',
+    '<text x="' + layout.photoCredit.x + '" y="' + (layout.photoCredit.y + 21 * scale) +
+      '" fill="' + NEWS_WHITE + '" font-family="DejaVu Sans, sans-serif" font-size="' + (16 * scale) +
+      '" font-weight="700">',
+    'Photo credit: ' + escapeXml(photoCredit),
+    '</text>',
+    renderBrandLockup({ box: layout.brand }),
+    '<g>' + headline.svg + '</g>',
+    '<text x="' + (layout.source.x + layout.source.width / 2) +
+      '" y="' + (layout.source.y + 22 * scale) +
+      '" text-anchor="middle" fill="' + NEWS_WHITE +
+      '" font-family="DejaVu Sans, sans-serif" font-size="' + (16 * scale) +
+      '" font-weight="700">',
+    'Source: ' + escapeXml(sourceDomain),
+    '</text>',
+    '</svg>'
+  ].join('\n');
+}
 
-  <rect width="${layout.width}" height="${layout.height}" fill="${NEWS_DARK}"/>
-  <image href="data:image/jpeg;base64,${imageDataBase64}" x="0" y="0" width="${layout.width}" height="${layout.height}" preserveAspectRatio="xMidYMid slice"/>
-  <rect x="0" y="0" width="${layout.width}" height="${layout.height}" fill="url(#topPhotoFade)"/>
-  <rect x="0" y="0" width="${layout.width}" height="${layout.height}" fill="url(#bottomFade)"/>
-  <rect x="0" y="0" width="${layout.width}" height="${layout.height}" fill="url(#bottomRightFade)"/>
+async function resolveMagickCommand() {
+  for (const command of ['magick', 'convert']) {
+    try {
+      await execFileAsync(command, ['-version']);
+      return command;
+    } catch {
+      // Try the next executable.
+    }
+  }
+  throw new Error('ImageMagick is required to render Fresh News images.');
+}
 
-  <g>
-    <image href="data:image/jpeg;base64,${imageDataBase64}" x="${layout.photoInset.x}" y="${layout.photoInset.y}" width="${layout.photoInset.width}" height="${layout.photoInset.height}" preserveAspectRatio="xMidYMid slice" clip-path="url(#photoCircle)"/>
-    <circle
-      cx="${layout.photoInset.x + layout.photoInset.width / 2}"
-      cy="${layout.photoInset.y + layout.photoInset.height / 2}"
-      r="${layout.photoInset.width / 2}"
-      fill="none"
-      stroke="${NEWS_PRIMARY}"
-      stroke-width="${10 * (layout.width / 1080)}"
-    />
-  </g>
+async function prepareBackground(command, inputPath, outputPath, width, height) {
+  await execFileAsync(command, [
+    inputPath,
+    '-auto-orient',
+    '-resize', width + 'x' + height + '^',
+    '-gravity', 'center',
+    '-extent', width + 'x' + height,
+    '-strip',
+    '-quality', '92',
+    outputPath
+  ]);
+}
 
-  <text x="${layout.photoCredit.x}" y="${layout.photoCredit.y + 22 * (layout.width / 1080)}" fill="${NEWS_WHITE}" font-family="DejaVu Sans, sans-serif" font-size="${17 * (layout.width / 1080)}" font-weight="700">
-    Photo credit: ${escapeXml(photoCredit)}
-  </text>
+async function prepareCircularInset(command, inputPath, outputPath, size, innerRadius) {
+  const dir = await mkdtemp('/tmp/a-little-better-inset-');
+  const squarePath = join(dir, 'square.jpg');
+  const maskPath = join(dir, 'mask.png');
 
-  ${renderBrandLockup({ box: layout.brand })}
+  try {
+    await execFileAsync(command, [
+      inputPath,
+      '-auto-orient',
+      '-resize', size + 'x' + size + '^',
+      '-gravity', 'center',
+      '-extent', size + 'x' + size,
+      '-strip',
+      '-quality', '92',
+      squarePath
+    ]);
 
-  <g>
-    ${headline.svg}
-  </g>
+    await execFileAsync(command, [
+      '-size', size + 'x' + size,
+      'xc:none',
+      '-fill', 'white',
+      '-draw', 'circle ' + (size / 2) + ',' + (size / 2) + ' ' + (size / 2) + ',' + (size / 2 - innerRadius),
+      maskPath
+    ]);
 
-  <text x="${layout.source.x + layout.source.width / 2}" y="${layout.source.y + 19 * (layout.width / 1080)}" text-anchor="middle" fill="${NEWS_WHITE}" font-family="DejaVu Sans, sans-serif" font-size="${17 * (layout.width / 1080)}" font-weight="700">
-    Source: ${escapeXml(sourceDomain)}
-  </text>
-</svg>`;
+    await execFileAsync(command, [
+      squarePath,
+      maskPath,
+      '-alpha', 'off',
+      '-compose', 'CopyOpacity',
+      '-composite',
+      '-strip',
+      outputPath
+    ]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 }
 
 export async function renderNewsImage({
@@ -329,36 +447,87 @@ export async function renderNewsImage({
   template = '4:5'
 }) {
   const dir = await mkdtemp('/tmp/a-little-better-news-');
-  const inputPath = join(dir, 'source.jpg');
-  const svgPath = join(dir, 'post.svg');
+  const inputPath = join(dir, 'source-input');
+  const backgroundPath = join(dir, 'background.jpg');
+  const insetPath = join(dir, 'inset-circle.png');
+  const composedPath = join(dir, 'composed.png');
+  const overlaySvgPath = join(dir, 'overlay.svg');
+  const overlayPngPath = join(dir, 'overlay.png');
 
   try {
     await writeFile(inputPath, imageBuffer);
-    const base64 = imageBuffer.toString('base64');
 
-    await writeFile(svgPath, buildNewsSvg({
-      imageDataBase64: base64,
+    const command = await resolveMagickCommand();
+    const layout = calculateNewsLayout(template);
+
+    await prepareBackground(
+      command,
+      inputPath,
+      backgroundPath,
+      layout.width,
+      layout.height
+    );
+
+    const insetSize = Math.round(layout.photoInset.width);
+    const innerRadius = Math.max(1, insetSize / 2 - Math.round(10 * (layout.width / 1080)));
+
+    await prepareCircularInset(
+      command,
+      inputPath,
+      insetPath,
+      insetSize,
+      innerRadius
+    );
+
+    await execFileAsync(command, [
+      backgroundPath,
+      insetPath,
+      '-geometry', '+' + Math.round(layout.photoInset.x) + '+' + Math.round(layout.photoInset.y),
+      '-compose', 'Over',
+      '-composite',
+      composedPath
+    ]);
+
+    const headlineFit = await fitRenderedHeadline(command, title, layout.headline);
+
+    const overlaySvg = buildNewsSvg({
+      imageDataBase64: '',
       hook,
       title,
       sourceDomain,
       angle,
       photoCredit,
-      template
-    }), 'utf8');
+      template,
+      headlineFit
+    });
 
-    let command = 'magick';
-    try {
-      await execFileAsync(command, ['-version']);
-    } catch {
-      command = 'convert';
-    }
+    await writeFile(overlaySvgPath, overlaySvg, 'utf8');
 
     await execFileAsync(command, [
-      svgPath,
-      '-background', NEWS_DARK,
-      '-resize', `${TEMPLATES[template]?.width || NEWS_CANVAS.width}x${TEMPLATES[template]?.height || NEWS_CANVAS.height}!`,
+      overlaySvgPath,
+      '-background', 'none',
+      '-alpha', 'on',
+      overlayPngPath
+    ]);
+
+    await execFileAsync(command, [
+      composedPath,
+      overlayPngPath,
+      '-compose', 'Over',
+      '-composite',
       outputPath
     ]);
+
+    const { stdout } = await execFileAsync(command, [
+      outputPath,
+      '-format', '%wx%h',
+      'info:'
+    ]);
+
+    const expected = layout.width + 'x' + layout.height;
+    if (stdout.trim() !== expected) {
+      throw new Error('Rendered image dimensions are ' + stdout.trim() + ', expected ' + expected + '.');
+    }
 
     return await readFile(outputPath);
   } finally {

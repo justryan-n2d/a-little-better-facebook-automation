@@ -21,6 +21,12 @@ const BLOCKED_TERMS = [
   'election', 'campaign', 'politician', 'partisan'
 ];
 
+const BLOCKED_IMAGE_TERMS = [
+  'infographic', 'diagram', 'chart', 'graph', 'screenshot', 'screen capture',
+  'slide', 'slides', 'presentation', 'poster', 'flyer', 'worksheet',
+  'logo', 'icon', 'map', 'textbook', 'document', 'online learning'
+];
+
 const STOPWORDS = new Set([
   'a','an','and','are','as','at','be','by','for','from','has','have','how',
   'in','is','it','its','of','on','or','that','the','their','this','to','was',
@@ -456,6 +462,29 @@ export function extractImageQuery(title) {
   return [...new Set(words)].slice(0, 4).join(' ');
 }
 
+export function buildDisplayHeadline(title) {
+  let text = cleanText(title)
+    .replace(/\s+-\s+[^-]{2,80}$/i, '')
+    .trim();
+
+  if (/discusses skills students need for success beyond grades/i.test(text)) {
+    return 'Students Need More Than Good Grades';
+  }
+
+  if (text.length <= 68) return text;
+
+  const clauses = text
+    .split(/[:,;]/)
+    .map(part => part.trim())
+    .filter(part => part.length >= 24 && part.length <= 68);
+
+  if (clauses.length > 0) return clauses[0];
+
+  const words = text.split(/\s+/);
+  const shortened = words.slice(0, 10).join(' ');
+  return shortened + (words.length > 10 ? '...' : '');
+}
+
 export function buildImageQueries(title, topic) {
   const exact = extractImageQuery(title);
   const topicQueries = {
@@ -469,6 +498,48 @@ export function buildImageQueries(title, topic) {
 
   const fallbacks = topicQueries[topic] || ['positive people community', 'uplifting people'];
   return [...new Set([exact, ...fallbacks, 'people community inspiration'].filter(Boolean))];
+}
+
+function imageTextForFiltering(item) {
+  const tags = Array.isArray(item?.tags)
+    ? item.tags.map(tag => typeof tag === 'string' ? tag : tag?.name || '').join(' ')
+    : '';
+
+  return [
+    item?.title,
+    item?.description,
+    item?.alt_text,
+    item?.caption,
+    tags
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+export function isPhotoLikeOpenverseImage(item) {
+  if (!item?.url || item.watermarked) return false;
+
+  const width = Number(item.width || 0);
+  const height = Number(item.height || 0);
+  if (width < 700 || height < 500) return false;
+
+  const text = imageTextForFiltering(item);
+  if (BLOCKED_IMAGE_TERMS.some(term => containsTerm(text, term))) return false;
+
+  return true;
+}
+
+function photoCandidateScore(item) {
+  const width = Number(item?.width || 0);
+  const height = Number(item?.height || 0);
+  const ratio = height ? width / height : 1;
+  let score = Math.min(12, (width * height) / 500000);
+
+  if (ratio >= 1.2 && ratio <= 2.2) score += 8;
+  if (ratio >= 0.8 && ratio <= 1.8) score += 2;
+
+  const text = imageTextForFiltering(item);
+  if (/photo|photograph|portrait/i.test(text)) score += 4;
+
+  return score;
 }
 
 export async function findOpenverseImage(query, {
@@ -488,14 +559,12 @@ export async function findOpenverseImage(query, {
       try {
         const payload = await fetchJson(url, { fetchImpl });
         const results = Array.isArray(payload?.results) ? payload.results : [];
-        const candidate = results.find(item =>
-          item &&
-          item.url &&
-          !item.watermarked &&
-          Number(item.width || 0) >= 700 &&
-          Number(item.height || 0) >= 500 &&
-          ['cc0', 'pdm', 'by'].includes(String(item.license || license).toLowerCase())
-        );
+        const candidate = results
+          .filter(item =>
+            isPhotoLikeOpenverseImage(item) &&
+            ['cc0', 'pdm', 'by'].includes(String(item.license || license).toLowerCase())
+          )
+          .sort((a, b) => photoCandidateScore(b) - photoCandidateScore(a))[0];
         if (candidate) {
           return {
             url: candidate.url,
