@@ -56,3 +56,10 @@ test('image renderer can find ImageMagick on the runner', async () => {
     await execFileAsync('convert', ['-version']);
   }
 });
+
+
+test('dry-run mode is allowed to preview even when a date is already posted', async () => {
+  const indexSource = await import('node:fs/promises').then(fs => fs.readFile('src/index.js', 'utf8'));
+  assert.match(indexSource, /&& !isTrue\('FORCE_POST'\) && !dryRun/);
+  assert.match(indexSource, /if \(dryRun\)/);
+});
