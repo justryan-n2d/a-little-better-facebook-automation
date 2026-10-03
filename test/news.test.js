@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildNewsHook,
   buildNewsAngle,
+  buildDisplayHeadline,
   buildImageQueries,
   extractGdeltArticles,
   extractGoogleNewsRssArticles,
@@ -10,6 +11,7 @@ import {
   searchFreshNews,
   searchGoogleNewsTopStoriesRss,
   findOpenverseImage,
+  isPhotoLikeOpenverseImage,
   isSafeNewsCandidate,
   isLittleBetterTopic,
   getLittleBetterTopic,
@@ -55,6 +57,29 @@ test('requires a clear A Little Better topic', () => {
   assert.equal(isLittleBetterTopic('Student protests rattle France'), false);
   assert.equal(isLittleBetterTopic('Student wins scholarship awards'), true);
   assert.equal(getLittleBetterTopic('Students win scholarship awards')?.name, 'education-growth');
+});
+
+test('builds a concise display headline for long source headlines', () => {
+  assert.equal(
+    buildDisplayHeadline('Bay Area author discusses skills students need for success beyond grades, test scores and college admissions - KCRA'),
+    'Students Need More Than Good Grades'
+  );
+});
+
+test('rejects infographic-like Openverse assets', () => {
+  assert.equal(isPhotoLikeOpenverseImage({
+    url: 'https://images.example/graphic.jpg',
+    title: '7 Measures of Quality in Online Learning',
+    width: 1200,
+    height: 900
+  }), false);
+
+  assert.equal(isPhotoLikeOpenverseImage({
+    url: 'https://images.example/photo.jpg',
+    title: 'Students celebrating an achievement',
+    width: 1200,
+    height: 900
+  }), true);
 });
 
 test('builds topic-aware image search fallbacks', () => {
@@ -286,6 +311,7 @@ test('news SVG contains the brand, source, and original angle', () => {
   assert.match(svg, /Source: example.com/);
   assert.match(svg, /Photo credit:/);
   assert.match(svg, /bottomFade/);
+  assert.doesNotMatch(svg, /<image\b/);
   assert.equal(NEWS_PRIMARY, '#A3D4C0');
   assert.match(svg, /#A3D4C0/);
 });
