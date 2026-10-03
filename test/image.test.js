@@ -70,10 +70,10 @@ test('short headline uses the larger production font size', () => {
   assert.match(svg, /font-size="52"/);
 });
 
-test('branding icon sits to the left of the brand text', () => {
+test('branding icon sits beside the centered brand text', () => {
   const svg = buildSvg({ imageText: 'Keep going.' });
-  assert.match(svg, /translate\(-116 1160\)/);
-  assert.match(svg, /<text x="-70"[^>]*text-anchor="start"/);
+  assert.match(svg, /translate\\(-170 1160\\)/);
+  assert.match(svg, /<text x="0" y="1195" text-anchor="middle" class="brand">A LITTLE BETTER<\\/text>/);
 });
 
 test('branding is centered at the bottom', () => {
