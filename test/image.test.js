@@ -43,7 +43,7 @@ test('layout validation rejects collisions and accepts the production layout', (
   }), true);
 
   assert.throws(() => validateLayout({
-    headline: { x: 120, y: 330, width: 840, height: 470 },
+    headline: { x: 126, y: 340, width: 816, height: 440 },
     support: { x: 150, y: 700, width: 780, height: 90 },
     brand: { x: 360, y: 1185, width: 360, height: 60 }
   }), /collision/i);
