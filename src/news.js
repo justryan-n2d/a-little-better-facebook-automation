@@ -462,6 +462,29 @@ export function extractImageQuery(title) {
   return [...new Set(words)].slice(0, 4).join(' ');
 }
 
+export function buildDisplayHeadline(title) {
+  let text = cleanText(title)
+    .replace(/\s+-\s+[^-]{2,80}$/i, '')
+    .trim();
+
+  if (/discusses skills students need for success beyond grades/i.test(text)) {
+    return 'Students Need More Than Good Grades';
+  }
+
+  if (text.length <= 68) return text;
+
+  const clauses = text
+    .split(/[:,;]/)
+    .map(part => part.trim())
+    .filter(part => part.length >= 24 && part.length <= 68);
+
+  if (clauses.length > 0) return clauses[0];
+
+  const words = text.split(/\s+/);
+  const shortened = words.slice(0, 10).join(' ');
+  return shortened + (words.length > 10 ? '...' : '');
+}
+
 export function buildImageQueries(title, topic) {
   const exact = extractImageQuery(title);
   const topicQueries = {
