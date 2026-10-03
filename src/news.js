@@ -844,10 +844,7 @@ async function resolveArticleUrl(url, { fetchImpl = fetch } = {}) {
 }
 
 export async function findSourceArticleImage(story, {
-  fetchImpl = fetch,
-  visualVerificationMode = process.env.NEWS_VISUAL_VERIFY_MODE || 'optional',
-  openaiApiKey = process.env.OPENAI_API_KEY || '',
-  openaiVisionModel = process.env.OPENAI_VISION_MODEL || undefined
+  fetchImpl = fetch
 } = {}) {
   const articleUrl = await resolveArticleUrl(story?.url, { fetchImpl });
   const sourceDomain = story?.domain || domainFromUrl(articleUrl);
@@ -874,10 +871,8 @@ export async function findSourceArticleImage(story, {
         storyTitle: story?.title,
         sourceDomain,
         candidateContext: candidate.context,
-        mode: visualVerificationMode,
-        apiKey: openaiApiKey,
-        model: openaiVisionModel,
-        fetchImpl
+        candidateUrl: candidate.url,
+        candidateKind: candidate.kind
       });
 
       if (visualVerification.verified === false) {
@@ -903,9 +898,6 @@ export async function findSourceArticleImage(story, {
         visualVerification
       };
     } catch (error) {
-      if (String(visualVerificationMode).toLowerCase() === 'required') {
-        throw error;
-      }
       console.log(
         'Source article image candidate failed for ' + candidate.url + ': ' +
         (error instanceof Error ? error.message : String(error))
