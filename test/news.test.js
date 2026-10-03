@@ -18,6 +18,7 @@ import {
   searchFreshNews,
   searchGoogleNewsTopStoriesRss,
   findOpenverseImage,
+  downloadImage,
   isPhotoLikeOpenverseImage,
   isSafeNewsCandidate,
   isLittleBetterTopic,
@@ -124,6 +125,55 @@ test('tries multiple Openverse queries before giving up', async () => {
 
   assert.equal(image?.url, 'https://images.example/good.jpg');
   assert.ok(calls.length > 1);
+});
+
+test('provides a direct StockSnap CDN fallback when available', async () => {
+  const image = await findOpenverseImage(['education graduation'], {
+    fetchImpl: async url => {
+      return new Response(JSON.stringify({
+        results: [{
+          url: 'https://cdn.example/blocked.jpg',
+          thumbnail: 'https://cdn.example/thumb.jpg',
+          foreign_landing_url: 'https://stocksnap.io/photo/education-graduation-XAL3MIM3OC',
+          creator: 'Candace McDaniel',
+          provider: 'stocksnap',
+          license: 'cc0',
+          width: 4752,
+          height: 3168
+        }]
+      }), { status: 200 });
+    }
+  });
+
+  assert.deepEqual(image?.urlCandidates, [
+    'https://cdn.example/blocked.jpg',
+    'https://cdn.example/thumb.jpg',
+    'https://cdn.stocksnap.io/img-thumbs/960w/education-graduation_XAL3MIM3OC.jpg'
+  ]);
+});
+
+test('tries the next image URL when the first image host fails', async () => {
+  const calls = [];
+  const payload = Buffer.alloc(12000, 7);
+
+  const result = await downloadImage(
+    ['https://images.example/blocked.jpg', 'https://cdn.example/good.jpg'],
+    {
+      fetchImpl: async url => {
+        calls.push(String(url));
+        if (String(url).includes('blocked')) {
+          return new Response('nope', { status: 403 });
+        }
+        return new Response(payload, {
+          status: 200,
+          headers: { 'content-type': 'image/jpeg' }
+        });
+      }
+    }
+  );
+
+  assert.equal(calls.length, 2);
+  assert.equal(result.length, payload.length);
 });
 
 test('extracts GDELT article list', () => {
