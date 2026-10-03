@@ -677,6 +677,14 @@ export async function findOpenverseImage(query, {
   };
 }
 
+function extractMetaImages(html) {
+  return [...String(html || '').matchAll(/<meta\b[^>]*>/gi)].map(match => {
+    const tag = match[0];
+    const property = tag.match(/(?:property|name)\s*=\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
+    const content = tag.match(/content\s*=\s*["']([^"']+)["']/i)?.[1];
+    return { property, content: decodeXmlEntities(content || '').trim() };
+  });
+}
 function articleImageCandidates(html, articleUrl) {
   const values = [];
   for (const item of extractMetaImages(html)) {
