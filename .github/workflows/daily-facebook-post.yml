@@ -6,6 +6,8 @@ on:
   schedule:
     - cron: "0 9 * * *"
       timezone: "Asia/Manila"
+    - cron: "0 18 * * 3"
+      timezone: "Asia/Manila"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -36,9 +38,12 @@ env:
   DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
   FORCE_POST: ${{ github.event_name == 'workflow_dispatch' && inputs.force_post || false }}
   WATCHDOG_RECOVERY: ${{ github.event_name == 'repository_dispatch' }}
+  SCHEDULED_RUN: ${{ github.event_name == 'schedule' }}
 
 jobs:
   publish:
+    outputs:
+      did_publish: ${{ steps.publish_result.outputs.did_publish }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -62,6 +67,15 @@ jobs:
       - name: Generate and publish
         run: npm start
 
+      - name: Read publish result
+        id: publish_result
+        run: |
+          if [ -f artifacts/publish-status.json ]; then
+            node -e 'const fs = require("fs"); const value = JSON.parse(fs.readFileSync("artifacts/publish-status.json", "utf8")); fs.appendFileSync(process.env.GITHUB_OUTPUT, `did_publish=${value.published ? "true" : "false"}\n`);'
+          else
+            echo "did_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Upload dry-run image preview
         if: ${{ success() && env.DRY_RUN == 'true' }}
         uses: actions/upload-artifact@v4
@@ -72,7 +86,7 @@ jobs:
           retention-days: 3
 
       - name: Upload posting state for record job
-        if: ${{ success() && env.DRY_RUN != 'true' }}
+        if: ${{ success() && env.DRY_RUN != 'true' && steps.publish_result.outputs.did_publish == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: a-little-better-posting-state
@@ -82,7 +96,7 @@ jobs:
 
   record:
     needs: publish
-    if: ${{ needs.publish.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.dry_run != true) }}
+    if: ${{ needs.publish.result == 'success' && needs.publish.outputs.did_publish == 'true' && (github.event_name != 'workflow_dispatch' || inputs.dry_run != true) }}
     permissions:
       contents: write
     runs-on: ubuntu-latest

@@ -4,6 +4,7 @@ import { getDailyPost, getPhilippineDate } from './content.js';
 import { renderPostImage } from './image.js';
 import { publishPhoto } from './facebook.js';
 import { addPost, hasPostedOnDate, loadHistory, saveHistory } from './history.js';
+import { shouldPublishAtHour } from './timing.js';
 
 function requiredEnv(name) {
   const value = process.env[name]?.trim();
@@ -28,6 +29,18 @@ try {
 }
 
 const dryRun = isTrue('DRY_RUN');
+const scheduledRun = isTrue('SCHEDULED_RUN');
+const enforceTiming = scheduledRun || isTrue('WATCHDOG_RECOVERY');
+
+if (enforceTiming && !dryRun && !shouldPublishAtHour(new Date().toISOString())) {
+  await mkdir(resolve('artifacts'), { recursive: true });
+  await writeFile(
+    resolve('artifacts/publish-status.json'),
+    JSON.stringify({ published: false, reason: 'timing-slot', date }, null, 2)
+  );
+  console.log(`Timing experiment slot: ${date} is scheduled for a different publishing hour. Skipping.`);
+  process.exit(0);
+}
 
 if (hasPostedOnDate(history, date) && !isTrue('FORCE_POST') && !dryRun) {
   console.log(`Already posted for ${date}. Nothing to do.`);
@@ -69,5 +82,10 @@ const updatedHistory = addPost(history, {
   publishedAt: new Date().toISOString()
 });
 await saveHistory(historyPath, updatedHistory);
+await mkdir(resolve('artifacts'), { recursive: true });
+await writeFile(
+  resolve('artifacts/publish-status.json'),
+  JSON.stringify({ published: true, date: post.date, contentId: post.contentId, facebookPostId: result.postId }, null, 2)
+);
 
 console.log(`Published successfully. Facebook post/photo id: ${result.postId}`);
