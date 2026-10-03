@@ -53,22 +53,6 @@ function containsTerm(text, term) {
   const escaped = String(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp('\\b' + escaped + '\\b', 'i').test(text);
 }
-export function getLittleBetterTopic(title) {
-  const lower = cleanText(title).toLowerCase();
-  if (!lower || BLOCKED_TERMS.some(term => lower.includes(term))) return null;
-
-  const matches = LITTLE_BETTER_TOPIC_GROUPS
-    .map(group => ({
-      name: group.name,
-      matches: group.keywords.filter(keyword => lower.includes(keyword))
-    }))
-    .filter(group => group.matches.length > 0)
-    .sort((a, b) => b.matches.length - a.matches.length || a.name.localeCompare(b.name));
-
-  return matches[0] || null;
-}');
-  return new RegExp('\\b' + escaped + '\\b', 'i').test(text);
-}
 
 export function getLittleBetterTopic(title) {
   const lower = cleanText(title).toLowerCase();
@@ -88,6 +72,7 @@ export function getLittleBetterTopic(title) {
 export function isLittleBetterTopic(title) {
   return Boolean(getLittleBetterTopic(title));
 }
+
 
 
 function cleanText(value) {
