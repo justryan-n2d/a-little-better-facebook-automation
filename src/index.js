@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { getDailyPost, getPhilippineDate } from './content.js';
 import { renderPostImage } from './image.js';
 import { publishPhoto } from './facebook.js';
@@ -19,6 +19,14 @@ const date = getPhilippineDate();
 const historyPath = resolve(process.env.HISTORY_PATH || 'data/posting-history.json');
 const history = await loadHistory(historyPath);
 
+const analyticsPath = resolve(process.env.ANALYTICS_PATH || 'data/growth-analytics.json');
+let analytics = {};
+try {
+  analytics = JSON.parse(await readFile(analyticsPath, 'utf8'));
+} catch {
+  analytics = {};
+}
+
 const dryRun = isTrue('DRY_RUN');
 
 if (hasPostedOnDate(history, date) && !isTrue('FORCE_POST') && !dryRun) {
@@ -26,7 +34,7 @@ if (hasPostedOnDate(history, date) && !isTrue('FORCE_POST') && !dryRun) {
   process.exit(0);
 }
 
-const post = getDailyPost(date, history.posts);
+const post = getDailyPost(date, history.posts, analytics);
 console.log(`Selected ${post.category} content: ${post.contentId}`);
 
 const imageStyle = post.category === 'bible' ? 'alternate' : 'mint';
