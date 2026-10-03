@@ -43,22 +43,22 @@ const TOKEN_GROUPS = [
 ];
 
 function cleanText(value) {
-  return String(value ?? '').replace(/\\s+/g, ' ').trim();
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
 
 function normalizeTokens(value) {
   return [...new Set(
     cleanText(value)
       .toLowerCase()
-      .replace(/[^a-z0-9\\s]/g, ' ')
-      .split(/\\s+/)
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
       .map(token => token.trim())
       .filter(token => token.length >= 4 && !STOPWORDS.has(token))
   )];
 }
 
 function containsTerm(text, term) {
-  const normalized = ' ' + cleanText(text).toLowerCase().replace(/[^a-z0-9\\s]/g, ' ').replace(/\\s+/g, ' ').trim() + ' ';
+  const normalized = ' ' + cleanText(text).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
   return normalized.includes(' ' + String(term).toLowerCase() + ' ');
 }
 
