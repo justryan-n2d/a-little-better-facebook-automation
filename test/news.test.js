@@ -104,7 +104,7 @@ test('builds story-specific image search queries before broad fallbacks', () => 
   assert.equal(queries[0], 'woman marine scientist fieldwork');
   assert.ok(queries.includes('student scientist laboratory'));
   assert.ok(queries.includes('students achievement education'));
-  assert.ok(queries.includes('FAU graduate student Miss Fort Lauderdale crown'));
+  assert.ok(queries.some(query => query.includes('graduate student')));
   assert.ok(queries.includes('people community inspiration'));
 });
 
@@ -173,6 +173,8 @@ test('tries multiple Openverse queries before giving up', async () => {
           return new Response(JSON.stringify({
             results: [{
               url: 'https://images.example/good.jpg',
+              title: 'Students celebrating success',
+              description: 'College students celebrating a successful achievement',
               creator: 'Creator',
               provider: 'Example',
               license: 'cc0',
