@@ -18,12 +18,12 @@ const LAYOUTS = {
   mint: {
     headline: { x: 126, y: 340, width: 816, height: 440 },
     support: { x: 150, y: 865, width: 780, height: 90 },
-    brand: { x: 360, y: 1185, width: 360, height: 60 }
+    brand: { x: 360, y: 1160, width: 360, height: 60 }
   },
   alternate: {
     headline: { x: 146, y: 340, width: 788, height: 450 },
     support: { x: 160, y: 885, width: 760, height: 90 },
-    brand: { x: 360, y: 1185, width: 360, height: 60 }
+    brand: { x: 360, y: 1160, width: 360, height: 60 }
   }
 };
 
