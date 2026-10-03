@@ -71,7 +71,7 @@ References:
 6. Run the Facebook Growth Analytics workflow manually to confirm the Page token can read the available metrics.
 7. Run the weekly growth report workflow manually after at least one analytics collection.
 
-Scheduled runs use dry_run=false, so after setup the workflow will publish automatically each day.
+Scheduled Fresh News runs occur Tuesday, Thursday, and Saturday. The regular content publisher keeps its existing daily schedule.
 
 Local requirements:
 - Node.js 20+
