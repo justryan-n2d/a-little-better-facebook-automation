@@ -91,7 +91,8 @@ test('image renderer can find ImageMagick on the runner', async () => {
 
 test('publisher renders using the selected visual variant', async () => {
   const indexSource = await import('node:fs/promises').then(fs => fs.readFile('src/index.js', 'utf8'));
-  assert.match(indexSource, /renderPostImage\(\{ imageText: post\.imageText, variant: post\.experiment\.contentTraits\.visualVariant \}\)/);
+  assert.match(indexSource, /const imageStyle = post\.experiment\?\.contentTraits\?\.visualVariant \|\| 'mint';/);
+  assert.match(indexSource, /renderPostImage\(\{ imageText: post\.imageText, variant: imageStyle \}\)/);
 });
 
 
