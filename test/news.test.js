@@ -72,7 +72,8 @@ test('tries multiple Openverse queries before giving up', async () => {
     {
       fetchImpl: async url => {
         calls.push(String(url));
-        if (String(url).includes('students%20celebrating%20success') && String(url).includes('license=cc0')) {
+        const parsed = new URL(String(url));
+        if (parsed.searchParams.get('q') === 'students celebrating success' && parsed.searchParams.get('license') === 'cc0') {
           return new Response(JSON.stringify({
             results: [{
               url: 'https://images.example/good.jpg',
