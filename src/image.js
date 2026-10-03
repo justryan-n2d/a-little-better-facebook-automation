@@ -16,12 +16,12 @@ const SAFE = 108;
 
 const LAYOUTS = {
   mint: {
-    headline: { x: 120, y: 330, width: 840, height: 470 },
+    headline: { x: 126, y: 340, width: 816, height: 440 },
     support: { x: 150, y: 865, width: 780, height: 90 },
     brand: { x: 360, y: 1185, width: 360, height: 60 }
   },
   alternate: {
-    headline: { x: 140, y: 330, width: 800, height: 500 },
+    headline: { x: 146, y: 340, width: 788, height: 450 },
     support: { x: 160, y: 885, width: 760, height: 90 },
     brand: { x: 360, y: 1185, width: 360, height: 60 }
   }
@@ -61,8 +61,8 @@ export function wrapLines(text, maxChars = 24) {
 }
 
 export function calculateFontSize(lineCount, boxHeight, {
-  max = 48,
-  min = 26,
+  max = 42,
+  min = 24,
   lineHeightRatio = 1.18
 } = {}) {
   if (lineCount <= 0) return max;
@@ -159,8 +159,8 @@ function buildMintSvg({ imageText }) {
 
   const lines = wrapLines(imageText, 24).filter(Boolean);
   const fontSize = calculateFontSize(lines.length, layout.headline.height, {
-    max: 48,
-    min: 26
+    max: 42,
+    min: 24
   });
 
   const body = buildHeadline({ lines, box: layout.headline, fontSize });
@@ -188,7 +188,7 @@ function buildMintSvg({ imageText }) {
     }
     .support {
       font-family: 'DejaVu Sans';
-      font-size: 26px;
+      font-size: 24px;
       font-weight: 400;
     }
     .brand {
@@ -208,8 +208,8 @@ function buildAlternateSvg({ imageText }) {
 
   const lines = wrapLines(imageText, 24).filter(Boolean);
   const fontSize = calculateFontSize(lines.length, layout.headline.height, {
-    max: 44,
-    min: 24
+    max: 40,
+    min: 22
   });
 
   const body = buildHeadline({ lines, box: layout.headline, fontSize });
