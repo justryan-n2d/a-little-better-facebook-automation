@@ -61,8 +61,8 @@ export function wrapLines(text, maxChars = 24) {
 }
 
 export function calculateFontSize(lineCount, boxHeight, {
-  max = 58,
-  min = 32,
+  max = 48,
+  min = 26,
   lineHeightRatio = 1.18
 } = {}) {
   if (lineCount <= 0) return max;
@@ -159,8 +159,8 @@ function buildMintSvg({ imageText }) {
 
   const lines = wrapLines(imageText, 24).filter(Boolean);
   const fontSize = calculateFontSize(lines.length, layout.headline.height, {
-    max: 58,
-    min: 32
+    max: 48,
+    min: 26
   });
 
   const body = buildHeadline({ lines, box: layout.headline, fontSize });
@@ -188,7 +188,7 @@ function buildMintSvg({ imageText }) {
     }
     .support {
       font-family: 'DejaVu Sans';
-      font-size: 29px;
+      font-size: 26px;
       font-weight: 400;
     }
     .brand {
@@ -208,8 +208,8 @@ function buildAlternateSvg({ imageText }) {
 
   const lines = wrapLines(imageText, 24).filter(Boolean);
   const fontSize = calculateFontSize(lines.length, layout.headline.height, {
-    max: 52,
-    min: 30
+    max: 44,
+    min: 24
   });
 
   const body = buildHeadline({ lines, box: layout.headline, fontSize });
@@ -235,7 +235,7 @@ function buildAlternateSvg({ imageText }) {
     }
     .support {
       font-family: 'DejaVu Sans';
-      font-size: 27px;
+      font-size: 25px;
       font-weight: 400;
     }
     .brand {
