@@ -70,15 +70,16 @@ test('short headline uses the larger production font size', () => {
   assert.match(svg, /font-size="52"/);
 });
 
-test('branding icon sits beside the centered brand text', () => {
+test('branding icon and text are a single centered lockup', () => {
   const svg = buildSvg({ imageText: 'Keep going.' });
-  assert.ok(svg.includes('translate(-170 1160)'));
-  assert.ok(svg.includes('<text x="0" y="1195" text-anchor="middle" class="brand">A LITTLE BETTER</text>'));
+  assert.ok(svg.includes('class="brand-lockup"'));
+  assert.ok(svg.includes('translate(378.5 0)'));
+  assert.ok(svg.includes('<text x="73" y="1195" text-anchor="start" class="brand">A LITTLE BETTER</text>'));
 });
 
 test('branding is centered at the bottom', () => {
   const svg = buildSvg({ imageText: 'Keep going.' });
-  assert.match(svg, /translate\(540 0\)/);
+  assert.match(svg, /class="brand-lockup"/);
   assert.match(svg, /A LITTLE BETTER/);
   assert.match(svg, /font-size: 21px/);
 });
