@@ -679,7 +679,7 @@ test('rejects a semantically wrong top-ranked article image and accepts the veri
             '<html><head>' +
             '<meta property="og:image" content="https://cdn.example/football.jpg">' +
             '</head><body>' +
-            '<img src="https://cdn.example/family.jpg" alt="Neighbor helps family with groceries and carries food">' +
+            '<img src="https://cdn.example/family.jpg" alt="A person helps another person">' +
             '</body></html>',
             { status: 200, headers: { 'content-type': 'text/html' } }
           );
@@ -713,13 +713,17 @@ test('fresh news runner stores source and final visual verification results', as
   const tempDir = await mkdtemp('/tmp/a-little-better-phase4-');
   const historyPath = join(tempDir, 'history.json');
   const outputDate = '2099-12-31';
-  const visual = await sharp({
-    create: {
-      width: 500,
-      height: 400,
-      channels: 3,
-      background: { r: 190, g: 130, b: 80 }
+  const raw = Buffer.alloc(500 * 400 * 3);
+  for (let y = 0; y < 400; y += 1) {
+    for (let x = 0; x < 500; x += 1) {
+      const index = (y * 500 + x) * 3;
+      raw[index] = (x * 3) % 256;
+      raw[index + 1] = (y * 4) % 256;
+      raw[index + 2] = (x + y) % 256;
     }
+  }
+  const visual = await sharp(raw, {
+    raw: { width: 500, height: 400, channels: 3 }
   }).png().toBuffer();
 
   let storyUrlCalls = 0;
