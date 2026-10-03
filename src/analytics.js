@@ -148,6 +148,8 @@ export function summarizeExperimentPerformance(snapshots = [], dimension) {
 }
 
 export function getPhilippineHour(input) {
+  if (input === null || input === undefined || input === '') return null;
+
   const date = new Date(input);
   if (Number.isNaN(date.getTime())) return null;
 
