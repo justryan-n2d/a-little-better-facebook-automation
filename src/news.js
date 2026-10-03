@@ -854,6 +854,9 @@ export function buildNewsCaption({
 }
 
 export function buildPhotoCredit(image) {
+  if (String(image?.license || '').toLowerCase() === 'article-image') {
+    return `Source article image / ${cleanText(image?.provider || 'news source')}`;
+  }
   const license = String(image?.license || '').toUpperCase();
   const creator = cleanText(image?.creator || 'Unknown creator');
   const provider = cleanText(image?.provider || 'Openverse');
