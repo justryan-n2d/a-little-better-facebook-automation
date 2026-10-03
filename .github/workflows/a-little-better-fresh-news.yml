@@ -46,12 +46,28 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Resolve visual verification mode
+        id: visual_mode
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -n "${OPENAI_API_KEY:-}" ]; then
+            echo "mode=required" >> "$GITHUB_OUTPUT"
+            echo "Vision verification enabled in required mode."
+          else
+            echo "mode=metadata" >> "$GITHUB_OUTPUT"
+            echo "::warning::OPENAI_API_KEY is not configured; using metadata-only visual checks."
+          fi
+
       - name: Generate fresh news post
         env:
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
           META_GRAPH_VERSION: v26.0
           NEWS_HISTORY_PATH: data/news-history.json
+          NEWS_VISUAL_VERIFY_MODE: ${{ steps.visual_mode.outputs.mode }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_VISION_MODEL: ${{ vars.OPENAI_VISION_MODEL || 'gpt-5-mini' }}
         run: node src/news-post.js
 
       - name: Upload fresh news draft
