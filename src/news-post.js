@@ -78,7 +78,7 @@ export async function runNewsPost({
     throw new Error(`No eligible Openverse image found. Tried: ${imageQueries.join(' | ')}`);
   }
 
-  const imageBuffer = await downloadImage(imageMeta.url, { fetchImpl });
+  const imageBuffer = await downloadImage(imageMeta.urlCandidates || imageMeta.url, { fetchImpl });
   const hook = buildNewsHook(story.title);
   const angle = buildNewsAngle(story.title);
   const photoCredit = buildPhotoCredit(imageMeta);

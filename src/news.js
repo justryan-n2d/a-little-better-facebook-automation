@@ -542,6 +542,19 @@ function photoCandidateScore(item) {
   return score;
 }
 
+function stockSnapDirectImageUrl(landingUrl) {
+  try {
+    const url = new URL(landingUrl);
+    const match = url.pathname.match(/^\/photo\/([^/]+)-([A-Za-z0-9]+)$/);
+    if (!match) return null;
+    const slug = match[1];
+    const id = match[2].toUpperCase();
+    return 'https://cdn.stocksnap.io/img-thumbs/960w/' + slug + '_' + id + '.jpg';
+  } catch {
+    return null;
+  }
+}
+
 export async function findOpenverseImage(query, {
   licenses = ['cc0', 'pdm', 'by'],
   fetchImpl = fetch
@@ -566,16 +579,26 @@ export async function findOpenverseImage(query, {
           )
           .sort((a, b) => photoCandidateScore(b) - photoCandidateScore(a))[0];
         if (candidate) {
+          const landingUrl = candidate.foreign_landing_url || candidate.url;
+          const provider = cleanText(candidate.provider || candidate.source || 'Openverse');
+          const providerFallback = /stocksnap/i.test(provider) ? stockSnapDirectImageUrl(landingUrl) : null;
+          const urlCandidates = [...new Set([
+            candidate.url,
+            candidate.thumbnail,
+            providerFallback
+          ].filter(Boolean))];
+
           return {
-            url: candidate.url,
+            url: urlCandidates[0] || candidate.url,
+            urlCandidates,
             thumbnail: candidate.thumbnail || null,
             title: cleanText(candidate.title || ''),
             creator: cleanText(candidate.creator || candidate.author || 'Unknown creator'),
             license: String(candidate.license || license).toLowerCase(),
             licenseVersion: candidate.license_version || null,
             licenseUrl: candidate.license_url || null,
-            landingUrl: candidate.foreign_landing_url || candidate.url,
-            provider: cleanText(candidate.provider || candidate.source || 'Openverse'),
+            landingUrl,
+            provider,
             searchQuery
           };
         }
@@ -589,17 +612,38 @@ export async function findOpenverseImage(query, {
 }
 
 export async function downloadImage(url, { fetchImpl = fetch } = {}) {
-  const response = await fetchImpl(url, {
-    headers: { 'user-agent': 'A-Little-Better-News/1.0' }
-  });
-  if (!response.ok) throw new Error(`Image download failed: HTTP ${response.status}`);
-  const contentType = response.headers.get('content-type') || '';
-  if (!contentType.startsWith('image/')) {
-    throw new Error(`Image URL did not return image data: ${contentType || 'unknown content type'}`);
+  const candidates = Array.isArray(url) ? url : [url];
+  const errors = [];
+
+  for (const candidate of candidates.filter(Boolean)) {
+    try {
+      const response = await fetchImpl(candidate, {
+        headers: {
+          'user-agent': 'A-Little-Better-News/1.0',
+          'accept': 'image/avif,image/webp,image/jpeg,image/png;q=0.9,*/*;q=0.5'
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.toLowerCase().startsWith('image/')) {
+        throw new Error(`not an image response (${contentType || 'unknown content type'})`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      if (arrayBuffer.byteLength < 10000) {
+        throw new Error('image response is unexpectedly small');
+      }
+
+      return Buffer.from(arrayBuffer);
+    } catch (error) {
+      errors.push(`${candidate}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
-  const arrayBuffer = await response.arrayBuffer();
-  if (arrayBuffer.byteLength < 10000) throw new Error('Downloaded image is unexpectedly small.');
-  return Buffer.from(arrayBuffer);
+
+  throw new Error('All image download candidates failed: ' + errors.join(' | '));
 }
 
 export function buildNewsAngle(title) {
