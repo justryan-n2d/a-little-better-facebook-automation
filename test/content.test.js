@@ -5,7 +5,7 @@ import { getDailyPost, getPhilippineDate } from '../src/content.js';
 const history = [];
 
 test('adds experiment metadata to each selected post', () => {
-  const post = getDailyPost('2026-10-03', []);
+  const post = getDailyPost('2026-10-06', []);
 
   assert.deepEqual(post.experiment, {
     selectionMode: 'explore',
