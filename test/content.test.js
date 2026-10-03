@@ -12,7 +12,8 @@ test('adds experiment metadata to each selected post', () => {
     contentTraits: {
       hookType: 'direct-statement',
       ctaType: 'question',
-      textLength: 'short'
+      textLength: 'short',
+      visualVariant: 'mint'
     }
   });
 });
