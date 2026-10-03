@@ -40,7 +40,7 @@ const LITTLE_BETTER_TOPIC_GROUPS = [
   },
   {
     name: 'science-innovation',
-    context: ['science', 'scientist', 'research', 'technology', 'innovation', 'inventor', 'invention'],
+    context: ['science', 'scientist', 'scientists', 'research', 'technology', 'innovation', 'inventor', 'invention'],
     positive: ['discovery', 'discovered', 'breakthrough', 'innovation', 'innovative', 'invention', 'inventor', 'milestone', 'progress']
   },
   {
