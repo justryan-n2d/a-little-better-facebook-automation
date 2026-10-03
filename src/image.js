@@ -170,14 +170,16 @@ const BRAND_LETTER_SPACING = 4;
 const BRAND_TEXT_WIDTH = 250;
 const BRAND_ICON_WIDTH = 59;
 const BRAND_GAP = 14;
+const BRAND_SHIFT_X = -180;
 
 function buildBrand(layout) {
   const box = layout.brand;
   const lockupWidth = BRAND_ICON_WIDTH + BRAND_GAP + BRAND_TEXT_WIDTH;
   const lockupLeft = (box.width - lockupWidth) / 2;
+  const lockupX = box.x + lockupLeft + BRAND_SHIFT_X;
 
   return `
-    <g transform="translate(${box.x + lockupLeft} 0)" class="brand-lockup">
+    <g transform="translate(${lockupX} 0)" class="brand-lockup">
       <g transform="translate(32 ${box.y + 4})" stroke="${COLORS.white}" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
         <path d="M0 40 C0 23 11 10 27 7 C27 24 18 39 0 40Z"/>
         <path d="M1 40 C-10 26 -19 21 -32 22 C-28 36 -17 43 1 40Z"/>
