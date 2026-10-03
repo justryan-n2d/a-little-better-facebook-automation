@@ -1,0 +1,19 @@
+{
+  "timezone": "Asia/Manila",
+  "dailyPostTime": "09:00",
+  "weeklyRotation": {
+    "monday": "motivation",
+    "tuesday": "mindset",
+    "wednesday": "bible",
+    "thursday": "student-struggles",
+    "friday": "self-improvement",
+    "saturday": "casual",
+    "sunday": "encouragement"
+  },
+  "image": {
+    "width": 1080,
+    "height": 1350,
+    "format": "png",
+    "aspectRatio": "4:5"
+  }
+}
