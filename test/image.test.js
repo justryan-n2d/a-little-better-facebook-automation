@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
+import sharp from 'sharp';
 import * as imageModule from '../src/image.js';
 import { promisify } from 'node:util';
 import {
@@ -10,9 +10,7 @@ import {
   validateLayout,
   buildSvg
 } from '../src/image.js';
-
-const execFileAsync = promisify(execFile);
-
+ 
 
 test('selects deterministic visual variants across content', () => {
   assert.equal(typeof imageModule.selectImageVariant, 'function');
@@ -79,12 +77,21 @@ test('layout validation rejects collisions and accepts the production layout', (
   }), /collision/i);
 });
 
-test('image renderer can find ImageMagick on the runner', async () => {
-  try {
-    await execFileAsync('magick', ['-version']);
-  } catch {
-    await execFileAsync('convert', ['-version']);
-  }
+test('image renderer has its required Sharp runtime', async () => {
+  const input = await sharp({
+    create: {
+      width: 2,
+      height: 2,
+      channels: 3,
+      background: { r: 40, g: 120, b: 80 }
+    }
+  }).png().toBuffer();
+
+  const output = await sharp(input).resize(4, 4).png().toBuffer();
+  const metadata = await sharp(output).metadata();
+
+  assert.equal(metadata.width, 4);
+  assert.equal(metadata.height, 4);
 });
 
 
