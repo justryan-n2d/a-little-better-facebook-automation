@@ -30,9 +30,9 @@ test('long text wraps, fits width, and reduces font size instead of overflowing'
     'You do not have to have everything figured out. Take it one day at a time.',
     20
   );
-  const fontSize = calculateFontSize(lines, 744, 420, { max: 38, min: 22 });
+  const fontSize = calculateFontSize(lines, 812, 500, { max: 52, min: 26, lineHeightRatio: 1.12 });
   assert.ok(lines.length >= 3);
-  assert.ok(fontSize <= 38);
+  assert.ok(fontSize <= 52);
 });
 
 test('layout validation rejects collisions and accepts the production layout', () => {
@@ -65,8 +65,14 @@ test('dry-run mode is allowed to preview even when a date is already posted', as
 });
 
 
+test('short headline uses the larger production font size', () => {
+  const svg = buildSvg({ imageText: 'Keep going.\\nSmall steps count.' });
+  assert.match(svg, /font-size="52"/);
+});
+
 test('branding is centered at the bottom', () => {
   const svg = buildSvg({ imageText: 'Keep going.' });
   assert.match(svg, /translate\(540 0\)/);
   assert.match(svg, /A LITTLE BETTER/);
+  assert.match(svg, /font-size: 21px/);
 });
