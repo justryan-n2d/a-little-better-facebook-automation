@@ -9,7 +9,7 @@ Schedule:
 - Facebook Page publishing through Meta Graph API
 - posting history recorded after a successful publish
 
-The first version is intentionally free of paid AI APIs. It selects from an original local content bank and renders the image locally on the GitHub runner. An AI generator can be added later without changing the Facebook publishing layer.
+The base automation can run without an AI API. Fresh News selects a real news story, resolves the original article image, and renders the post locally on the GitHub runner. When OPENAI_API_KEY is configured, Fresh News also uses OpenAI vision to check that the source photo matches the story and that the final graphic remains relevant and readable. Without the key, the workflow keeps the deterministic metadata-only safety checks.
 
 ## Growth system
 
@@ -47,7 +47,10 @@ The Facebook Page ID.
 FB_PAGE_ACCESS_TOKEN
 A Page access token with the Meta permissions required to publish to your Page.
 
-Never put the access token in source code or a normal repository file.
+OPENAI_API_KEY
+Optional OpenAI API key used by the Fresh News visual and semantic verification gate. When this secret exists, the workflow runs vision checks in required mode and refuses a candidate or final graphic that fails the thresholds.
+
+Never put either secret in source code or a normal repository file.
 
 ## Meta setup
 
@@ -67,7 +70,8 @@ References:
 3. Leave dry_run enabled.
 4. Confirm the job generates the image and skips Facebook.
 5. Run it again with dry_run disabled after the Meta credentials are ready.
-6. Run the Facebook Growth Analytics workflow manually to confirm the Page token can read the available metrics.
+6. Add OPENAI_API_KEY under Actions secrets to enable required vision verification. Without it, the workflow automatically uses metadata-only visual checks.
+7. Run the Facebook Growth Analytics workflow manually to confirm the Page token can read the available metrics.
 7. Run the weekly growth report workflow manually after at least one analytics collection.
 
 Scheduled runs use dry_run=false, so after setup the workflow will publish automatically each day.
