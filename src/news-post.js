@@ -14,6 +14,7 @@ import {
   selectFreshStory
 } from './news.js';
 import { renderNewsImage } from './news-image.js';
+import { verifyRenderedNewsGraphic } from './visual-verify.js';
 
 function isTrue(value) {
   return ['1', 'true', 'yes', 'on'].includes(String(value ?? '').toLowerCase());
@@ -55,7 +56,10 @@ export async function runNewsPost({
   today,
   autoPublish,
   fetchImpl = fetch,
-  historyPath = 'data/news-history.json'
+  historyPath = 'data/news-history.json',
+  visualVerificationMode = process.env.NEWS_VISUAL_VERIFY_MODE || 'optional',
+  openaiApiKey = process.env.OPENAI_API_KEY || '',
+  openaiVisionModel = process.env.OPENAI_VISION_MODEL || undefined
 } = {}) {
   const date = today || new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Manila'
@@ -72,7 +76,12 @@ export async function runNewsPost({
     throw new Error('No safe fresh news story was found.');
   }
 
-  const imageMeta = await findSourceArticleImage(story, { fetchImpl });
+  const imageMeta = await findSourceArticleImage(story, {
+    fetchImpl,
+    visualVerificationMode,
+    openaiApiKey,
+    openaiVisionModel
+  });
   const imageBuffer = await downloadImage(imageMeta.urlCandidates || imageMeta.url, { fetchImpl });
   const hook = buildNewsHook(story.title);
   const angle = buildNewsAngle(story.title);
@@ -84,7 +93,7 @@ export async function runNewsPost({
   const imagePath = resolve('artifacts', `fresh-news-${date}.png`);
   const metadataPath = resolve('artifacts', `fresh-news-${date}.json`);
 
-  await renderNewsImage({
+  const renderedImage = await renderNewsImage({
     imageBuffer,
     hook,
     title: displayHeadline,
@@ -93,6 +102,24 @@ export async function runNewsPost({
     photoCredit,
     outputPath: imagePath
   });
+
+  const graphicVerification = await verifyRenderedNewsGraphic({
+    imageBuffer: renderedImage,
+    storyTitle: story.title,
+    sourceDomain,
+    displayHeadline,
+    mode: visualVerificationMode,
+    apiKey: openaiApiKey,
+    model: openaiVisionModel,
+    fetchImpl
+  });
+
+  if (graphicVerification.verified === false) {
+    throw new Error(
+      'Final Fresh News visual QA rejected the rendered graphic: ' +
+      graphicVerification.reason
+    );
+  }
 
   const record = {
     date,
@@ -113,6 +140,10 @@ export async function runNewsPost({
       licenseVersion: imageMeta.licenseVersion,
       licenseUrl: imageMeta.licenseUrl,
       landingUrl: imageMeta.landingUrl
+    },
+    visualVerification: {
+      source: imageMeta.visualVerification || null,
+      graphic: graphicVerification
     },
     hook,
     angle,
@@ -170,7 +201,8 @@ export async function runNewsPost({
     imageCredit: photoCredit,
     score: story.score,
     sourceCount: story.sourceCount,
-    facebookPostId: publishedPostId
+    facebookPostId: publishedPostId,
+    visualVerification: record.visualVerification
   };
 }
 
