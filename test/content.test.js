@@ -1,24 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getDailyPost, getPhilippineDate, getContentExperimentMetadata } from '../src/content.js';
+import { getDailyPost, getPhilippineDate } from '../src/content.js';
 
 const history = [];
 
-test('classifies content traits for experiment tracking', () => {
-  assert.deepEqual(
-    getContentExperimentMetadata({
-      category: 'motivation',
-      imageText: 'Start before you feel ready.\nClarity often comes after action.',
-      caption: 'Take one useful step today.\n\n💛 Follow A Little Better for daily motivation.\n\nSave this for later.'
-    }),
-    {
-      hookType: 'imperative',
-      ctaType: 'save',
+test('adds experiment metadata to each selected post', () => {
+  const post = getDailyPost('2026-10-03', []);
+
+  assert.deepEqual(post.experiment, {
+    selectionMode: 'explore',
+    contentTraits: {
+      hookType: 'direct-statement',
+      ctaType: 'question',
       textLength: 'short'
     }
-  );
+  });
 });
-
 
 test('generates a complete daily post with CTA', () => {
   const post = getDailyPost('2026-10-03', history);
