@@ -4,6 +4,9 @@ import {
   buildNewsHook,
   buildNewsAngle,
   extractGdeltArticles,
+  extractGoogleNewsRssArticles,
+  searchGdelt,
+  searchFreshNews,
   isSafeNewsCandidate,
   selectFreshStory
 } from '../src/news.js';
@@ -14,6 +17,28 @@ test('rejects unsafe or obviously graphic headlines', () => {
   assert.equal(isSafeNewsCandidate('Woman survives an unexpected roof fall'), true);
   assert.equal(isSafeNewsCandidate('Graphic murder scene shocks city'), false);
   assert.equal(isSafeNewsCandidate('Tiny update'), false);
+});
+
+test('uses one combined GDELT request for all content themes', async () => {
+  const calls = [];
+  const result = await searchGdelt({
+    queries: ['(student OR school) success', '(science OR innovation) discovery'],
+    fetchImpl: async url => {
+      calls.push(String(url));
+      return new Response(JSON.stringify({
+        articles: [{
+          title: 'Student wins science award',
+          url: 'https://example.com/story',
+          domain: 'example.com',
+          seendate: '20261003030000'
+        }]
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+  });
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /student/i);
+  assert.match(calls[0], /science/i);
+  assert.equal(result.length, 1);
 });
 
 test('extracts GDELT article list', () => {
@@ -69,6 +94,31 @@ test('avoids previously used title fingerprints', () => {
     now: new Date('2026-10-03T04:00:00Z')
   });
   assert.equal(selected, null);
+});
+
+test('parses Google News RSS fallback articles', () => {
+  const xml = '<rss><channel><item><title><![CDATA[Student wins national science award]]></title><link>https://example.com/story</link><pubDate>Sat, 03 Oct 2026 03:00:00 GMT</pubDate><source>Example News</source></item></channel></rss>';
+  const items = extractGoogleNewsRssArticles(xml);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].title, 'Student wins national science award');
+  assert.equal(items[0].domain, 'Example News');
+});
+
+test('falls back to Google News RSS after a GDELT failure', async () => {
+  const calls = [];
+  const result = await searchFreshNews({
+    queries: ['student success'],
+    fetchImpl: async url => {
+      calls.push(String(url));
+      if (String(url).includes('gdeltproject.org')) {
+        return new Response('rate limited', { status: 429 });
+      }
+      return new Response('<rss><channel><item><title>Student wins national science award</title><link>https://example.com/story</link><pubDate>Sat, 03 Oct 2026 03:00:00 GMT</pubDate><source>Example News</source></item></channel></rss>', { status: 200, headers: { 'content-type': 'application/rss+xml' } });
+    }
+  });
+  assert.equal(result.provider, 'google-news-rss');
+  assert.equal(result.articles.length, 1);
+  assert.equal(calls.filter(url => url.includes('gdeltproject.org')).length, 1);
 });
 
 test('builds a category-aware hook and original angle', () => {
