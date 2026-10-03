@@ -1,5 +1,7 @@
 name: Daily A Little Better Facebook Post
 
+run-name: A Little Better Facebook Post${{ github.event_name == 'repository_dispatch' && ' [watchdog recovery]' || '' }}
+
 on:
   schedule:
     - cron: "0 9 * * *"
@@ -16,20 +18,29 @@ on:
         required: false
         default: false
         type: boolean
+  repository_dispatch:
+    types:
+      - facebook_watchdog_recovery
 
 permissions:
   contents: write
+
+concurrency:
+  group: a-little-better-facebook-post
+  cancel-in-progress: false
+
+env:
+  FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+  FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
+  META_GRAPH_VERSION: v26.0
+  DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+  FORCE_POST: ${{ github.event_name == 'workflow_dispatch' && inputs.force_post || false }}
+  WATCHDOG_RECOVERY: ${{ github.event_name == 'repository_dispatch' }}
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-      FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
-      META_GRAPH_VERSION: v26.0
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
-      FORCE_POST: ${{ github.event_name == 'workflow_dispatch' && inputs.force_post || false }}
 
     steps:
       - name: Checkout repository
@@ -60,8 +71,34 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-      - name: Commit posting history
+      - name: Upload posting state for record job
         if: ${{ success() && env.DRY_RUN != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: a-little-better-posting-state
+          path: data
+          if-no-files-found: error
+          retention-days: 14
+
+  record:
+    needs: publish
+    if: ${{ needs.publish.result == 'success' && env.DRY_RUN != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download posting state
+        uses: actions/download-artifact@v5
+        with:
+          name: a-little-better-posting-state
+          path: .
+
+      - name: Commit posting history
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
