@@ -8,7 +8,7 @@ test('publishes a photo to the configured Facebook Page endpoint', async () => {
   const fakeFetch = async (url, options) => {
     calledUrl = url;
     calledBody = options.body;
-    return new Response(JSON.stringify({ id: '123_456' }), {
+    return new Response(JSON.stringify({ id: '123_456', post_id: 'post_789' }), {
       status: 200,
       headers: { 'content-type': 'application/json' }
     });
@@ -23,10 +23,11 @@ test('publishes a photo to the configured Facebook Page endpoint', async () => {
     fetchImpl: fakeFetch
   });
 
-  assert.equal(result.postId, '123_456');
+  assert.equal(result.postId, 'post_789');
   assert.equal(calledUrl, 'https://graph.facebook.com/v26.0/page-123/photos');
   assert.ok(calledBody instanceof FormData);
-  assert.equal(calledBody.get('message'), 'Hello from A Little Better');
+  assert.equal(calledBody.get('caption'), 'Hello from A Little Better');
+  assert.equal(calledBody.get('published'), 'true');
   assert.equal(calledBody.get('access_token'), 'token');
   assert.ok(calledBody.get('source') instanceof Blob);
 });
