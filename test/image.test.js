@@ -37,9 +37,9 @@ test('long text wraps, fits width, and reduces font size instead of overflowing'
 
 test('layout validation rejects collisions and accepts the production layout', () => {
   assert.equal(validateLayout({
-    headline: { x: 150, y: 350, width: 780, height: 420 },
+    headline: { x: 120, y: 300, width: 840, height: 500 },
     support: { x: 150, y: 865, width: 780, height: 90 },
-    brand: { x: 360, y: 1160, width: 360, height: 60 }
+    brand: { x: 360, y: 1156, width: 360, height: 60 }
   }), true);
 
   assert.throws(() => validateLayout({
@@ -66,7 +66,7 @@ test('dry-run mode is allowed to preview even when a date is already posted', as
 
 
 test('short headline uses the larger production font size', () => {
-  const svg = buildSvg({ imageText: 'Keep going.\\nSmall steps count.' });
+  const svg = buildSvg({ imageText: 'Keep going.\nSmall steps count.' });
   assert.match(svg, /font-size="52"/);
 });
 
