@@ -7,7 +7,7 @@ import {
   buildNewsAngle,
   buildPhotoCredit,
   downloadImage,
-  extractImageQuery,
+  buildImageQueries,
   findOpenverseImage,
   searchFreshNews,
   selectFreshStory
@@ -71,10 +71,10 @@ export async function runNewsPost({
     throw new Error('No safe fresh news story was found.');
   }
 
-  const imageQuery = extractImageQuery(story.title);
-  const imageMeta = await findOpenverseImage(imageQuery || 'people community inspiration', { fetchImpl });
+  const imageQueries = buildImageQueries(story.title, story.topic);
+  const imageMeta = await findOpenverseImage(imageQueries, { fetchImpl });
   if (!imageMeta) {
-    throw new Error(`No eligible Openverse image found for query: ${imageQuery}`);
+    throw new Error(`No eligible Openverse image found. Tried: ${imageQueries.join(' | ')}`);
   }
 
   const imageBuffer = await downloadImage(imageMeta.url, { fetchImpl });
@@ -103,6 +103,7 @@ export async function runNewsPost({
     url: story.url,
     sourceDomain,
     provider: discovery.provider,
+    topic: story.topic,
     sourceCount: story.sourceCount,
     discoveryScore: story.score,
     published: false,

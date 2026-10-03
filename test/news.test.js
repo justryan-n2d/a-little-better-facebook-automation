@@ -3,11 +3,13 @@ import assert from 'node:assert/strict';
 import {
   buildNewsHook,
   buildNewsAngle,
+  buildImageQueries,
   extractGdeltArticles,
   extractGoogleNewsRssArticles,
   searchGdelt,
   searchFreshNews,
   searchGoogleNewsTopStoriesRss,
+  findOpenverseImage,
   isSafeNewsCandidate,
   isLittleBetterTopic,
   getLittleBetterTopic,
@@ -50,7 +52,46 @@ test('requires a clear A Little Better topic', () => {
   assert.equal(isLittleBetterTopic('Scientists announce a new breakthrough'), true);
   assert.equal(isLittleBetterTopic('Volunteers organize a community donation drive'), true);
   assert.equal(isLittleBetterTopic('Random celebrity spotted at an event'), false);
+  assert.equal(isLittleBetterTopic('Student protests rattle France'), false);
+  assert.equal(isLittleBetterTopic('Student wins scholarship awards'), true);
   assert.equal(getLittleBetterTopic('Students win scholarship awards')?.name, 'education-growth');
+});
+
+test('builds topic-aware image search fallbacks', () => {
+  const queries = buildImageQueries('Students win a national scholarship award', 'education-growth');
+  assert.equal(queries[0], 'Students national scholarship award');
+  assert.ok(queries.includes('students achievement education'));
+  assert.ok(queries.includes('students celebrating success'));
+  assert.ok(queries.includes('people community inspiration'));
+});
+
+test('tries multiple Openverse queries before giving up', async () => {
+  const calls = [];
+  const image = await findOpenverseImage(
+    ['Student Protests Rattle France', 'students celebrating success'],
+    {
+      fetchImpl: async url => {
+        calls.push(String(url));
+        const parsed = new URL(String(url));
+        if (parsed.searchParams.get('q') === 'students celebrating success' && parsed.searchParams.get('license') === 'cc0') {
+          return new Response(JSON.stringify({
+            results: [{
+              url: 'https://images.example/good.jpg',
+              creator: 'Creator',
+              provider: 'Example',
+              license: 'cc0',
+              width: 1200,
+              height: 900
+            }]
+          }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ results: [] }), { status: 200 });
+      }
+    }
+  );
+
+  assert.equal(image?.url, 'https://images.example/good.jpg');
+  assert.ok(calls.length > 1);
 });
 
 test('extracts GDELT article list', () => {
