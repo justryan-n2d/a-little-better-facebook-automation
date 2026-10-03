@@ -24,6 +24,7 @@ import {
   isSafeNewsCandidate,
   isLittleBetterTopic,
   getLittleBetterTopic,
+  isHeartwarmingHumanStory,
   selectFreshStory
 } from '../src/news.js';
 import { buildNewsSvg, calculateNewsLayout, fitTextToBox, NEWS_PRIMARY, rectanglesOverlap, renderNewsImage } from '../src/news-image.js';
@@ -436,6 +437,52 @@ test('parses Google News Top Stories RSS', async () => {
     fetchImpl: async () => new Response(xml, { status: 200 })
   });
   assert.equal(items.length, 1);
+});
+
+test('classifies human kindness stories directly', () => {
+  assert.equal(
+    isHeartwarmingHumanStory('Journalist tears up after flood survivor offers her something to eat'),
+    true
+  );
+  assert.equal(
+    isHeartwarmingHumanStory('Buffalo Bills win Cannes Corporate Media award'),
+    false
+  );
+});
+
+test('prioritizes simple human kindness stories for A Little Better', () => {
+  const selected = selectFreshStory([
+    {
+      title: 'Journalist tears up after flood survivor offers her something to eat',
+      url: 'https://kind.example/story',
+      domain: 'Kind News',
+      seendate: '20261003030000',
+      rank: 4
+    },
+    {
+      title: 'Buffalo Bills win Cannes Corporate Media award',
+      url: 'https://sports.example/story',
+      domain: 'Sports News',
+      seendate: '20261003020000',
+      rank: 1
+    }
+  ], {
+    now: new Date('2026-10-03T04:00:00Z')
+  });
+
+  assert.equal(selected.title, 'Journalist tears up after flood survivor offers her something to eat');
+  assert.equal(selected.topic, 'human-kindness');
+});
+
+test('human kindness stories get a warm hook and relatable angle', () => {
+  const title = 'Journalist tears up after flood survivor offers her something to eat';
+  assert.match(buildNewsHook(title), /act of kindness/i);
+  assert.match(buildNewsAngle(title), /hard day feel a little lighter/i);
+});
+
+test('does not prioritize achievement-only stories over human kindness', () => {
+  const title = 'Buffalo Bills become first NFL team to win Cannes Corporate Media award';
+  assert.notEqual(getLittleBetterTopic(title)?.name, 'human-kindness');
 });
 
 test('builds a category-aware hook and original angle', () => {

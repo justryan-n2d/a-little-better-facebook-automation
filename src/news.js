@@ -2,11 +2,11 @@ const GDELT_BASE = 'https://api.gdeltproject.org/api/v2/doc/doc';
 const OPENVERSE_BASE = 'https://api.openverse.org/v1/images/';
 
 export const NEWS_QUERIES = [
-  '(inspiring OR heartwarming OR kindness OR uplifting) (story OR people OR community)',
-  '(student OR education) (achievement OR success OR award OR scholarship)',
-  '(science OR technology OR innovation) (discovery OR breakthrough OR milestone)',
-  '(community OR volunteer OR rescue OR donation OR charity) (helps OR saves OR support)',
-  '(artist OR athlete OR creator) (achievement OR comeback OR inspiring OR record)'
+  '(heartwarming OR kindness OR compassion OR generosity) (stranger OR neighbor OR family OR survivor OR journalist OR child) (helped OR helping OR offered OR shared OR gave OR comforted OR supported)',
+  '(good samaritan OR kind stranger OR random act of kindness OR act of kindness) (food OR meal OR gift OR groceries OR help OR support)',
+  '(emotional OR tearful OR touching OR inspiring) (kindness OR helped OR donated OR reunited OR surprised OR comforted)',
+  '(volunteer OR community OR charity) (helps OR helping OR donated OR delivers OR supports) (families OR children OR seniors OR neighbors)',
+  '(student OR teacher OR school) (scholarship OR mentorship OR kindness OR helping OR inspiring) (family OR student OR community)'
 ];
 
 const BLOCKED_TERMS = [
@@ -36,6 +36,11 @@ const STOPWORDS = new Set([
 ]);
 
 const LITTLE_BETTER_TOPIC_GROUPS = [
+  {
+    name: 'human-kindness',
+    context: ['person', 'people', 'stranger', 'neighbor', 'family', 'survivor', 'journalist', 'child', 'children', 'woman', 'man', 'worker', 'customer'],
+    positive: ['kindness', 'help', 'helping', 'helps', 'helped', 'offer', 'offers', 'offered', 'share', 'shares', 'shared', 'give', 'gives', 'gave', 'gift', 'gifted', 'comforted', 'supports', 'supported', 'donates', 'donated', 'reunited', 'surprised', 'paid', 'bought', 'feed', 'feeding', 'food', 'meal', 'groceries', 'care', 'compassion', 'generosity', 'embraced', 'welcomed']
+  },
   {
     name: 'kindness-community',
     context: ['community', 'people', 'neighborhood', 'local', 'volunteer', 'volunteers', 'charity'],
@@ -71,6 +76,27 @@ const LITTLE_BETTER_TOPIC_GROUPS = [
 function containsTerm(text, term) {
   const escaped = String(term).replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
   return new RegExp('\\b' + escaped + '\\b', 'i').test(text);
+}
+
+const HEARTWARMING_HUMAN_CONTEXT = [
+  'stranger', 'neighbor', 'family', 'survivor', 'journalist', 'child', 'children',
+  'woman', 'man', 'person', 'people', 'worker', 'customer', 'parent', 'mother', 'father'
+];
+
+const HEARTWARMING_HUMAN_ACTIONS = [
+  'kindness', 'helped', 'helping', 'help', 'offer', 'offers', 'offered',
+  'share', 'shares', 'shared', 'give', 'gives', 'gave', 'gift', 'gifted',
+  'comforted', 'supported', 'donated', 'reunited', 'surprised', 'paid',
+  'bought', 'feed', 'feeding', 'food', 'meal', 'groceries', 'care',
+  'compassion', 'generosity', 'embraced', 'welcomed', 'checked on',
+  'eat', 'eats', 'eating'
+];
+
+export function isHeartwarmingHumanStory(title) {
+  const lower = cleanText(title).toLowerCase();
+  const hasHuman = HEARTWARMING_HUMAN_CONTEXT.some(term => containsTerm(lower, term));
+  const hasAction = HEARTWARMING_HUMAN_ACTIONS.some(term => containsTerm(lower, term));
+  return hasHuman && hasAction && !BLOCKED_TERMS.some(term => containsTerm(lower, term));
 }
 
 export function getLittleBetterTopic(title) {
@@ -179,7 +205,23 @@ export function scoreCandidate(candidate, now = new Date()) {
   const recencyScore = Math.max(0, 30 - recencyHours);
   const multiSourceScore = Math.min(36, Math.max(1, Number(candidate.sourceCount) || 1) * 12);
   const rankScore = Math.max(0, 24 - (Math.max(1, Number(candidate.rank) || 1) - 1) * 2);
-  return recencyScore + multiSourceScore + rankScore;
+  const title = cleanText(candidate?.title || '').toLowerCase();
+
+  const humanTerms = ['stranger', 'neighbor', 'family', 'survivor', 'journalist', 'child', 'children', 'woman', 'man', 'person', 'people'];
+  const kindnessTerms = ['kindness', 'helped', 'helping', 'offered', 'shared', 'gave', 'gifted', 'comforted', 'supported', 'donated', 'reunited', 'surprised', 'paid', 'food', 'meal', 'groceries', 'compassion', 'generosity'];
+  const awardTerms = ['award', 'awards', 'winner', 'wins', 'won', 'record', 'champion', 'medal', 'prize'];
+
+  const humanCount = humanTerms.filter(term => containsTerm(title, term)).length;
+  const kindnessCount = kindnessTerms.filter(term => containsTerm(title, term)).length;
+  const awardCount = awardTerms.filter(term => containsTerm(title, term)).length;
+
+  let humanHeartScore = 0;
+  if (humanCount >= 1 && kindnessCount >= 1) humanHeartScore += 24;
+  if (humanCount >= 2 && kindnessCount >= 2) humanHeartScore += 18;
+  if (kindnessCount >= 2) humanHeartScore += 12;
+  if (awardCount >= 1 && kindnessCount === 0) humanHeartScore -= 18;
+
+  return recencyScore + multiSourceScore + rankScore + humanHeartScore;
 }
 
 async function fetchJson(url, { timeoutMs = 15000, fetchImpl = fetch } = {}) {
@@ -433,6 +475,28 @@ export function selectFreshStory(articles, {
     groups.set(key, group);
   }
 
+  const heartwarmingGroups = [...groups.values()]
+    .filter(group => isHeartwarmingHumanStory(group.title))
+    .sort((a, b) => {
+      const aHours = hoursOld(a.seendate, now);
+      const bHours = hoursOld(b.seendate, now);
+      return aHours - bHours || a.ranks[0] - b.ranks[0];
+    });
+
+  if (heartwarmingGroups.length > 0) {
+    const group = heartwarmingGroups[0];
+    const candidate = {
+      ...group,
+      sourceCount: group.sourceDomains.size,
+      rank: Math.min(...group.ranks),
+      topic: 'human-kindness',
+      heartwarmingHuman: true
+    };
+    delete candidate.sourceDomains;
+    delete candidate.ranks;
+    return candidate;
+  }
+
   const ranked = [...groups.values()]
     .map(group => {
       const candidate = {
@@ -443,14 +507,29 @@ export function selectFreshStory(articles, {
       delete candidate.sourceDomains;
       delete candidate.ranks;
       const topic = getLittleBetterTopic(candidate.title);
+      const heartwarmingHuman = isHeartwarmingHumanStory(candidate.title);
       const brandScore = Math.min(24, (topic?.matches.length || 0) * 8);
-      return { ...candidate, topic: topic?.name || null, score: scoreCandidate(candidate, now) + brandScore };
+      const heartwarmingBonus = heartwarmingHuman ? 80 : 0;
+      return {
+        ...candidate,
+        topic: topic?.name || null,
+        heartwarmingHuman,
+        score: scoreCandidate(candidate, now) + brandScore + heartwarmingBonus
+      };
     })
     .sort((a, b) =>
       b.score - a.score ||
       b.sourceCount - a.sourceCount ||
       String(a.title).localeCompare(String(b.title))
     );
+
+  const multiSourceHeartwarming = ranked.find(
+    item => item.sourceCount >= 2 && item.heartwarmingHuman
+  );
+  if (multiSourceHeartwarming) return multiSourceHeartwarming;
+
+  const heartwarming = ranked.find(item => item.heartwarmingHuman);
+  if (heartwarming) return heartwarming;
 
   const multiSource = ranked.find(item => item.sourceCount >= 2);
   return multiSource || ranked[0] || null;
@@ -839,6 +918,9 @@ export async function downloadImage(url, { fetchImpl = fetch } = {}) {
 
 export function buildNewsAngle(title) {
   const lower = cleanText(title).toLowerCase();
+  if (isHeartwarmingHumanStory(title)) {
+    return 'Small acts of care can make a hard day feel a little lighter.';
+  }
   if (/(student|school|education|scholarship|award)/.test(lower)) {
     return 'Small achievements can become big reasons for people to keep going.';
   }
@@ -859,6 +941,9 @@ export function buildNewsAngle(title) {
 
 export function buildNewsHook(title) {
   const lower = cleanText(title).toLowerCase();
+  if (isHeartwarmingHumanStory(title)) {
+    return 'A simple act of kindness is reminding people what matters.';
+  }
   if (/(surviv|rescued|saved|survive)/.test(lower)) {
     return 'An unexpected moment is making headlines today.';
   }
