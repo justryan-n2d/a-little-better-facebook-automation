@@ -2,6 +2,88 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildGrowthReport } from '../src/growth-report.js';
 
+
+test('reports performance by experiment traits', () => {
+  const report = buildGrowthReport({
+    weekStart: '2026-10-05',
+    weekEnd: '2026-10-11',
+    history: [
+      {
+        date: '2026-10-06',
+        contentId: 'mindset-001',
+        category: 'mindset',
+        facebookPostId: 'p1',
+        experiment: {
+          selectionMode: 'explore',
+          contentTraits: {
+            hookType: 'direct-statement',
+            ctaType: 'question',
+            textLength: 'short'
+          }
+        }
+      },
+      {
+        date: '2026-10-07',
+        contentId: 'bible-001',
+        category: 'bible',
+        facebookPostId: 'p2',
+        experiment: {
+          selectionMode: 'exploit',
+          contentTraits: {
+            hookType: 'contrast',
+            ctaType: 'save',
+            textLength: 'medium'
+          }
+        }
+      }
+    ],
+    analytics: {
+      snapshots: [
+        {
+          facebookPostId: 'p1',
+          contentId: 'mindset-001',
+          category: 'mindset',
+          engagement: 10,
+          engagementRate: 0.02,
+          experiment: {
+            selectionMode: 'explore',
+            contentTraits: {
+              hookType: 'direct-statement',
+              ctaType: 'question',
+              textLength: 'short'
+            }
+          }
+        },
+        {
+          facebookPostId: 'p2',
+          contentId: 'bible-001',
+          category: 'bible',
+          engagement: 20,
+          engagementRate: 0.04,
+          experiment: {
+            selectionMode: 'exploit',
+            contentTraits: {
+              hookType: 'contrast',
+              ctaType: 'save',
+              textLength: 'medium'
+            }
+          }
+        }
+      ],
+      followerSnapshots: []
+    }
+  });
+
+  assert.match(report, /Experiment performance/);
+  assert.match(report, /Hook type/);
+  assert.match(report, /direct-statement/);
+  assert.match(report, /CTA type/);
+  assert.match(report, /save/);
+  assert.match(report, /Selection mode/);
+  assert.match(report, /explore/);
+});
+
+
 test('builds a useful weekly report from captured metrics', () => {
   const report = buildGrowthReport({
     weekStart: '2026-09-28',
