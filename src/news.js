@@ -475,6 +475,28 @@ export function selectFreshStory(articles, {
     groups.set(key, group);
   }
 
+  const heartwarmingGroups = [...groups.values()]
+    .filter(group => isHeartwarmingHumanStory(group.title))
+    .sort((a, b) => {
+      const aHours = hoursOld(a.seendate, now);
+      const bHours = hoursOld(b.seendate, now);
+      return aHours - bHours || a.ranks[0] - b.ranks[0];
+    });
+
+  if (heartwarmingGroups.length > 0) {
+    const group = heartwarmingGroups[0];
+    const candidate = {
+      ...group,
+      sourceCount: group.sourceDomains.size,
+      rank: Math.min(...group.ranks),
+      topic: 'human-kindness',
+      heartwarmingHuman: true
+    };
+    delete candidate.sourceDomains;
+    delete candidate.ranks;
+    return candidate;
+  }
+
   const ranked = [...groups.values()]
     .map(group => {
       const candidate = {
