@@ -311,6 +311,4 @@ export function getDailyPost(date = getPhilippineDate(), history = [], analytics
   };
 }
 
-];
-
 export const contentBank = POSTS;
