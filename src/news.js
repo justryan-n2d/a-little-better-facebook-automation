@@ -692,8 +692,8 @@ function sameSourceDomain(imageUrl, sourceDomain, articleUrl) {
 function extractMetaImages(html) {
   return [...String(html || '').matchAll(/<meta\b[^>]*>/gi)].map(match => {
     const tag = match[0];
-    const property = tag.match(/(?:property|name)\\s*=\\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
-    const content = tag.match(/content\\s*=\\s*["']([^"']+)["']/i)?.[1];
+    const property = tag.match(/(?:property|name)\s*=\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
+    const content = tag.match(/content\s*=\s*["']([^"']+)["']/i)?.[1];
     return { property, content: decodeXmlEntities(content || '').trim() };
   });
 }
@@ -703,7 +703,7 @@ function extractArticleImageUrls(html, articleUrl) {
   const values = tags
     .filter(item => ['og:image', 'og:image:url', 'twitter:image', 'twitter:image:src'].includes(item.property) && item.content)
     .map(item => item.content);
-  values.push(...[...String(html || '').matchAll(/"image"\\s*:\\s*"([^"]+)"/gi)].map(match => match[1]));
+  values.push(...[...String(html || '').matchAll(/"image"\s*:\s*"([^"]+)"/gi)].map(match => match[1]));
   return [...new Set(values.map(value => {
     try { return new URL(value, articleUrl).toString(); } catch { return null; }
   }).filter(Boolean))];
