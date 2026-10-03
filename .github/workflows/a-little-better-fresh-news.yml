@@ -21,6 +21,8 @@ concurrency:
 
 jobs:
   fresh-news:
+    env:
+      NEWS_AUTO_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.auto_publish || vars.NEWS_AUTO_PUBLISH || 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -43,7 +45,6 @@ jobs:
 
       - name: Generate fresh news post
         env:
-          NEWS_AUTO_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.auto_publish || vars.NEWS_AUTO_PUBLISH || 'false' }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
           META_GRAPH_VERSION: v26.0
@@ -62,7 +63,7 @@ jobs:
           retention-days: 14
 
       - name: Record fresh news history
-        if: ${{ success() && env.NEWS_AUTO_PUBLISH == 'true' }}
+        if: ${{ success() }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
