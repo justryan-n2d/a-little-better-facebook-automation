@@ -6,6 +6,9 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
+const MINT = '#A6D8B8';
+const WHITE = '#FFFFFF';
+
 function escapeXml(value) {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -15,7 +18,7 @@ function escapeXml(value) {
     .replaceAll("'", '&apos;');
 }
 
-function wrapLines(text, maxChars = 32) {
+function wrapLines(text, maxChars = 27) {
   return String(text)
     .split(/\r?\n/)
     .flatMap(line => {
@@ -37,56 +40,132 @@ function wrapLines(text, maxChars = 32) {
     });
 }
 
-function buildSvg({ imageText }) {
-  const lines = wrapLines(imageText, 33);
-  const startY = 455 - Math.max(0, lines.length - 4) * 24;
+function getFontSize(lineCount) {
+  if (lineCount <= 2) return 86;
+  if (lineCount === 3) return 78;
+  if (lineCount === 4) return 68;
+  if (lineCount === 5) return 60;
+  return 54;
+}
+
+function buildMintSvg({ imageText }) {
+  const lines = wrapLines(imageText, 27).filter(Boolean);
+  const fontSize = getFontSize(lines.length);
+  const lineGap = Math.round(fontSize * 1.16);
+  const totalHeight = Math.max(fontSize, lines.length * lineGap);
+  const startY = 610 - totalHeight / 2 + fontSize;
+
   const body = lines.map((line, i) => {
-    const y = startY + i * 76;
-    return `<text x="540" y="${y}" text-anchor="middle" class="quote">${escapeXml(line || ' ')}</text>`;
+    const y = startY + i * lineGap;
+    return `<text x="540" y="${y}" text-anchor="middle" class="quote" style="font-size:${fontSize}px">${escapeXml(line)}</text>`;
   }).join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
-  <rect width="1080" height="1350" rx="54" fill="#FFF9F0"/>
-  <rect x="58" y="58" width="964" height="1234" rx="44" fill="#FFFDF9" stroke="#E6D9C8" stroke-width="3"/>
-  <circle cx="116" cy="116" r="12" fill="#B89455"/>
-  <text x="150" y="128" class="brand">A LITTLE BETTER</text>
-  <text x="150" y="163" class="tagline">one small step at a time</text>
-  <line x1="120" y1="245" x2="960" y2="245" stroke="#E6D9C8" stroke-width="3"/>
-  <g font-family="DejaVu Sans, sans-serif" fill="#2F2A24">
+  <rect width="1080" height="1350" fill="${MINT}"/>
+
+  <g stroke="${WHITE}" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.95">
+    <path d="M145 405 l-34 -18 M153 376 l-10 -38 M185 397 l28 -30"/>
+    <path d="M935 760 l35 -12 M945 790 l28 28 M918 785 l-5 37"/>
+  </g>
+
+  <g font-family="DejaVu Sans, sans-serif" fill="${WHITE}">
     ${body}
   </g>
-  <text x="540" y="1065" text-anchor="middle" class="small">You do not need to be perfect.</text>
-  <text x="540" y="1105" text-anchor="middle" class="small">Just keep becoming a little better.</text>
-  <text x="540" y="1215" text-anchor="middle" class="footer">A LITTLE BETTER</text>
+
+  <text x="540" y="840" text-anchor="middle" class="support">Take it one day at a time.</text>
+  <path d="M405 875 Q540 905 675 875" stroke="${WHITE}" stroke-width="6" stroke-linecap="round" fill="none"/>
+
+  <g transform="translate(392 1188)" stroke="${WHITE}" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M32 38 C32 20 43 10 58 7 C58 24 49 38 32 38Z"/>
+    <path d="M32 38 C22 23 12 20 3 21 C7 34 17 41 32 38Z"/>
+    <path d="M32 38 V55"/>
+  </g>
+  <text x="470" y="1230" class="brand">A LITTLE BETTER</text>
+
   <style>
-    .brand { font: 700 30px 'DejaVu Sans'; letter-spacing: 4px; fill: #2F2A24; }
-    .tagline { font: 400 19px 'DejaVu Sans'; letter-spacing: 1.5px; fill: #8D7A65; }
-    .quote { font: 700 46px 'DejaVu Sans'; fill: #2F2A24; }
-    .small { font: 400 25px 'DejaVu Sans'; fill: #6F6255; }
-    .footer { font: 700 23px 'DejaVu Sans'; letter-spacing: 3px; fill: #B89455; }
+    .quote {
+      font: 600 78px 'DejaVu Sans';
+      letter-spacing: 0.2px;
+    }
+    .support {
+      font: 400 34px 'DejaVu Sans';
+      letter-spacing: 0.3px;
+    }
+    .brand {
+      font: 700 23px 'DejaVu Sans';
+      letter-spacing: 6px;
+      fill: ${WHITE};
+    }
   </style>
 </svg>`;
-
 }
 
-export async function renderPostImage({ imageText }) {
+function buildAlternateSvg({ imageText }) {
+  const lines = wrapLines(imageText, 31).filter(Boolean);
+  const fontSize = getFontSize(lines.length);
+  const lineGap = Math.round(fontSize * 1.18);
+  const totalHeight = Math.max(fontSize, lines.length * lineGap);
+  const startY = 595 - totalHeight / 2 + fontSize;
+
+  const body = lines.map((line, i) => {
+    const y = startY + i * lineGap;
+    return `<text x="540" y="${y}" text-anchor="middle" class="quote" style="font-size:${fontSize}px">${escapeXml(line)}</text>`;
+  }).join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+  <rect width="1080" height="1350" fill="#92CBA7"/>
+  <rect x="58" y="58" width="964" height="1234" rx="48" fill="none" stroke="${WHITE}" stroke-width="3" opacity="0.35"/>
+  <circle cx="95" cy="95" r="10" fill="${WHITE}" opacity="0.85"/>
+  <circle cx="985" cy="1255" r="10" fill="${WHITE}" opacity="0.85"/>
+
+  <g font-family="DejaVu Sans, sans-serif" fill="${WHITE}">
+    ${body}
+  </g>
+
+  <text x="540" y="1090" text-anchor="middle" class="support">A little better, one day at a time.</text>
+  <text x="540" y="1230" text-anchor="middle" class="brand">A LITTLE BETTER</text>
+
+  <style>
+    .quote {
+      font: 600 78px 'DejaVu Sans';
+    }
+    .support {
+      font: 400 31px 'DejaVu Sans';
+    }
+    .brand {
+      font: 700 22px 'DejaVu Sans';
+      letter-spacing: 6px;
+      fill: ${WHITE};
+    }
+  </style>
+</svg>`;
+}
+
+export function buildSvg({ imageText, variant = 'mint' }) {
+  return variant === 'alternate'
+    ? buildAlternateSvg({ imageText })
+    : buildMintSvg({ imageText });
+}
+
+export async function renderPostImage({ imageText, variant = 'mint' }) {
   const dir = await mkdtemp(join(tmpdir(), 'a-little-better-'));
   const svgPath = join(dir, 'post.svg');
   const pngPath = join(dir, 'post.png');
   try {
-    await writeFile(svgPath, buildSvg({ imageText }), 'utf8');
+    await writeFile(svgPath, buildSvg({ imageText, variant }), 'utf8');
     let command = 'magick';
     try {
       await execFileAsync(command, ['-version']);
     } catch {
       command = 'convert';
     }
-    await execFileAsync(command, [svgPath, '-background', 'white', '-resize', '1080x1350!', pngPath]);
+    await execFileAsync(command, [svgPath, '-background', MINT, '-resize', '1080x1350!', pngPath]);
     return await readFile(pngPath);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
 }
 
-export { buildSvg, wrapLines };
+export { wrapLines };
