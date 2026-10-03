@@ -1,3 +1,5 @@
+import { verifyImageStoryAlignment } from './visual-verify.js';
+
 const GDELT_BASE = 'https://api.gdeltproject.org/api/v2/doc/doc';
 const OPENVERSE_BASE = 'https://api.openverse.org/v1/images/';
 
@@ -841,7 +843,12 @@ async function resolveArticleUrl(url, { fetchImpl = fetch } = {}) {
   return response.url || url;
 }
 
-export async function findSourceArticleImage(story, { fetchImpl = fetch } = {}) {
+export async function findSourceArticleImage(story, {
+  fetchImpl = fetch,
+  visualVerificationMode = process.env.NEWS_VISUAL_VERIFY_MODE || 'optional',
+  openaiApiKey = process.env.OPENAI_API_KEY || '',
+  openaiVisionModel = process.env.OPENAI_VISION_MODEL || undefined
+} = {}) {
   const articleUrl = await resolveArticleUrl(story?.url, { fetchImpl });
   const sourceDomain = story?.domain || domainFromUrl(articleUrl);
   const response = await fetchImpl(articleUrl, {
@@ -861,7 +868,26 @@ export async function findSourceArticleImage(story, { fetchImpl = fetch } = {}) 
 
   for (const candidate of ranked) {
     try {
-      await downloadImage(candidate.url, { fetchImpl });
+      const imageBuffer = await downloadImage(candidate.url, { fetchImpl });
+      const visualVerification = await verifyImageStoryAlignment({
+        imageBuffer,
+        storyTitle: story?.title,
+        sourceDomain,
+        candidateContext: candidate.context,
+        mode: visualVerificationMode,
+        apiKey: openaiApiKey,
+        model: openaiVisionModel,
+        fetchImpl
+      });
+
+      if (visualVerification.verified === false) {
+        console.log(
+          'Source article image rejected by visual verification for ' +
+          candidate.url + ': ' + visualVerification.reason
+        );
+        continue;
+      }
+
       return {
         url: candidate.url,
         urlCandidates: [candidate.url],
@@ -873,16 +899,22 @@ export async function findSourceArticleImage(story, { fetchImpl = fetch } = {}) 
         landingUrl: articleUrl,
         provider: sourceDomain,
         searchQuery: 'source article image',
-        relevanceMatches: candidate.matches
+        relevanceMatches: candidate.matches,
+        visualVerification
       };
     } catch (error) {
-      console.log('Source article image failed for ' + candidate.url + ': ' + (error instanceof Error ? error.message : String(error)));
+      if (String(visualVerificationMode).toLowerCase() === 'required') {
+        throw error;
+      }
+      console.log(
+        'Source article image candidate failed for ' + candidate.url + ': ' +
+        (error instanceof Error ? error.message : String(error))
+      );
     }
   }
 
-  throw new Error('All context-matching source article images failed to download for: ' + sourceDomain);
+  throw new Error('All context-matching source article images failed to download or verify for: ' + sourceDomain);
 }
-
 export async function downloadImage(url, { fetchImpl = fetch } = {}) {
   const candidates = Array.isArray(url) ? url : [url];
   const errors = [];
