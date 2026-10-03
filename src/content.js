@@ -159,7 +159,7 @@ export function getPhilippineDate(input = new Date()) {
 
 function dateToIndex(date) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`Invalid date: ${date}`);
-  const parsed = new Date(`${date}T00:00:00+08:00`);
+  const parsed = new Date(`${date}T12:00:00+08:00`);
   if (Number.isNaN(parsed.getTime())) throw new Error(`Invalid date: ${date}`);
   return Math.floor(parsed.getTime() / 86400000);
 }
