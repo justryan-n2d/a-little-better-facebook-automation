@@ -219,13 +219,14 @@ test('provides a direct StockSnap CDN fallback when available', async () => {
   ]);
 });
 
-test('accepts the original article Open Graph image when context text is unavailable', async () => {
-  const result = await findSourceArticleImage(
-    {
-      url: 'https://news.google.com/rss/articles/example',
-      domain: 'Bay News 9',
-      title: 'Family shares story behind resurfaced memorial bench found in Bermuda'
-    },
+test('rejects an original article image when context evidence is unavailable', async () => {
+  await assert.rejects(
+    findSourceArticleImage(
+      {
+        url: 'https://news.google.com/rss/articles/example',
+        domain: 'Bay News 9',
+        title: 'Family shares story behind resurfaced memorial bench found in Bermuda'
+      },
     {
       fetchImpl: async input => {
         const url = String(input);
@@ -249,18 +250,29 @@ test('accepts the original article Open Graph image when context text is unavail
         }
 
         if (url.includes('cdn.baynews9.com/images/example-story.jpg')) {
-          return new Response(Buffer.alloc(12000, 9), {
+          const raw = Buffer.alloc(700 * 500 * 3);
+          for (let y = 0; y < 500; y += 1) {
+            for (let x = 0; x < 700; x += 1) {
+              const index = (y * 700 + x) * 3;
+              raw[index] = (x * 3 + y) % 256;
+              raw[index + 1] = (y * 4 + x) % 256;
+              raw[index + 2] = (x + y) % 256;
+            }
+          }
+          return new Response(await sharp(raw, {
+            raw: { width: 700, height: 500, channels: 3 }
+          }).png().toBuffer(), {
             status: 200,
-            headers: { 'content-type': 'image/jpeg' }
+            headers: { 'content-type': 'image/png' }
           });
         }
 
         return new Response('not found', { status: 404 });
       }
-    }
+      }
+    ),
+    /All context-matching source article images failed/i
   );
-
-  assert.equal(result.url, 'https://cdn.baynews9.com/images/example-story.jpg');
 });
 
 test('uses the source article image that matches the story context', async () => {
@@ -293,16 +305,37 @@ test('uses the source article image that matches the story context', async () =>
             '<meta name="twitter:image" content="https://media.example-cdn.test/josh-allen-kids.jpg">' +
             '</head><body>' +
             '<img src="https://media.example-cdn.test/patriot-mask.jpg" alt="A Patriot Wear a Mask Be Smart Be Strong">' +
-            '<img src="https://media.example-cdn.test/josh-allen-kids.jpg" alt="Josh Allen reacts to children hospital patients MVP message">' +
+            '<img src="https://media.example-cdn.test/josh-allen-kids.jpg" alt="Josh Allen MVP reaction video for children hospital patients">' +
             '</body></html>',
             { status: 200, headers: { 'content-type': 'text/html' } }
           );
         }
 
-        if (url === 'https://media.example-cdn.test/josh-allen-kids.jpg') {
-          return new Response(Buffer.alloc(12000, 9), {
+        if (url === 'https://media.example-cdn.test/patriot-mask.jpg') {
+          const raw = Buffer.alloc(700 * 500 * 3, 8);
+          return new Response(await sharp(raw, {
+            raw: { width: 700, height: 500, channels: 3 }
+          }).png().toBuffer(), {
             status: 200,
-            headers: { 'content-type': 'image/jpeg' }
+            headers: { 'content-type': 'image/png' }
+          });
+        }
+
+        if (url === 'https://media.example-cdn.test/josh-allen-kids.jpg') {
+          const raw = Buffer.alloc(700 * 500 * 3);
+          for (let y = 0; y < 500; y += 1) {
+            for (let x = 0; x < 700; x += 1) {
+              const index = (y * 700 + x) * 3;
+              raw[index] = (x * 3 + y) % 256;
+              raw[index + 1] = (y * 4 + x) % 256;
+              raw[index + 2] = (x + y) % 256;
+            }
+          }
+          return new Response(await sharp(raw, {
+            raw: { width: 700, height: 500, channels: 3 }
+          }).png().toBuffer(), {
+            status: 200,
+            headers: { 'content-type': 'image/png' }
           });
         }
 
