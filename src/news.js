@@ -80,8 +80,8 @@ export function isSafeNewsCandidate(title) {
     .replace(/\s+/g, ' ')
     .trim();
 
-  const padded = \` \${value} \`;
-  const isBlocked = BLOCKED_TERMS.some(term => padded.includes(\` \${term} \`));
+  const padded = ` ${value} `;
+  const isBlocked = BLOCKED_TERMS.some(term => padded.includes(` ${term} `));
 
   return value.length >= 24 && !isBlocked;
 }
