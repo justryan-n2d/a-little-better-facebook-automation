@@ -13,7 +13,7 @@ import {
   getLittleBetterTopic,
   selectFreshStory
 } from '../src/news.js';
-import { buildNewsSvg } from '../src/news-image.js';
+import { buildNewsSvg, calculateNewsLayout, fitTextToBox, NEWS_PRIMARY, rectanglesOverlap } from '../src/news-image.js';
 import { runNewsPost } from '../src/news-post.js';
 
 test('rejects unsafe or obviously graphic headlines', () => {
@@ -200,6 +200,38 @@ test('builds a category-aware hook and original angle', () => {
   assert.match(buildNewsAngle('Student receives award for science project'), /achievements/i);
 });
 
+test('reference layout keeps text zones isolated across templates', () => {
+  for (const template of ['4:5', '1:1', '9:16']) {
+    const layout = calculateNewsLayout(template);
+    const textZones = [layout.photoCredit, layout.brand, layout.headline, layout.source];
+
+    for (let i = 0; i < textZones.length; i += 1) {
+      for (let j = i + 1; j < textZones.length; j += 1) {
+        assert.equal(rectanglesOverlap(textZones[i], textZones[j]), false);
+      }
+    }
+  }
+});
+
+test('long headlines are fitted inside the strict headline box', () => {
+  const layout = calculateNewsLayout('4:5');
+  const fit = fitTextToBox(
+    'Woman lands on roof after an unexpected fall and calmly calls for help',
+    {
+      maxWidth: layout.headline.width - layout.headline.padding * 2,
+      maxHeight: layout.headline.height - layout.headline.padding * 2,
+      maxFontSize: 72,
+      minFontSize: 36,
+      lineHeight: 1.07,
+      maxLines: 5
+    }
+  );
+
+  assert.ok(fit.fontSize >= 36);
+  assert.ok(fit.width <= layout.headline.width - layout.headline.padding * 2);
+  assert.ok(fit.height <= layout.headline.height - layout.headline.padding * 2);
+});
+
 test('news SVG contains the brand, source, and original angle', () => {
   const svg = buildNewsSvg({
     imageDataBase64: 'dGVzdA==',
@@ -211,7 +243,10 @@ test('news SVG contains the brand, source, and original angle', () => {
   });
   assert.match(svg, /A LITTLE BETTER/);
   assert.match(svg, /Source: example.com/);
-  assert.match(svg, /Small achievements/);
+  assert.match(svg, /Photo credit:/);
+  assert.match(svg, /bottomFade/);
+  assert.equal(NEWS_PRIMARY, '#FFD61A');
+  assert.match(svg, /#FFD61A/);
 });
 
 test('news post runner is importable', () => {
