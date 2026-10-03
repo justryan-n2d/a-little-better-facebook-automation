@@ -438,6 +438,17 @@ test('parses Google News Top Stories RSS', async () => {
   assert.equal(items.length, 1);
 });
 
+test('classifies human kindness stories directly', () => {
+  assert.equal(
+    isHeartwarmingHumanStory('Journalist tears up after flood survivor offers her something to eat'),
+    true
+  );
+  assert.equal(
+    isHeartwarmingHumanStory('Buffalo Bills win Cannes Corporate Media award'),
+    false
+  );
+});
+
 test('prioritizes simple human kindness stories for A Little Better', () => {
   const selected = selectFreshStory([
     {
