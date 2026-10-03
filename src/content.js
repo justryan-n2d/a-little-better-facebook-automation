@@ -202,7 +202,7 @@ function rankCandidates(candidates, performanceByContentId, dayIndex) {
 export function getDailyPost(date = getPhilippineDate(), history = [], analytics = {}) {
   const dayIndex = dateToIndex(date);
   const parsed = new Date(`${date}T00:00:00+08:00`);
-  const dayCategory = CATEGORY_BY_DAY[parsed.getDay()];
+  const dayCategory = CATEGORY_BY_DAY[parsed.getUTCDay()];
   const recentIds = recentContentIds(date, history);
   const performance = getLatestContentPerformance(analytics?.snapshots);
 
