@@ -42,7 +42,8 @@ export function getExpirationWarning({
 
   if (!Number.isFinite(nowMs) || expiryMs === null) return null;
 
-  const daysLeft = Math.ceil((expiryMs - nowMs) / DAY_MS);
+  const rawDaysLeft = Math.ceil((expiryMs - nowMs) / DAY_MS);
+  const daysLeft = Object.is(rawDaysLeft, -0) ? 0 : rawDaysLeft;
   const normalized = [...new Set(thresholds)]
     .filter(value => Number.isFinite(value) && value >= 0)
     .sort((a, b) => a - b);
