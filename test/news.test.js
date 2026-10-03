@@ -722,6 +722,8 @@ test('fresh news runner stores source and final visual verification results', as
     }
   }).png().toBuffer();
 
+  let storyUrlCalls = 0;
+
   const visionDecision = {
     output_text: JSON.stringify({
       approved: true,
@@ -762,7 +764,15 @@ test('fresh news runner stores source and final visual verification results', as
         }
 
         if (url === 'https://example.news/story') {
-          return { ok: true, status: 200, url, text: async () => '' };
+          storyUrlCalls += 1;
+          if (storyUrlCalls === 1) {
+            return { ok: true, status: 200, url, text: async () => '' };
+          }
+          return new Response(
+            '<html><head><meta property="og:image" content="https://cdn.example/family.png"></head>' +
+            '</html>',
+            { status: 200, headers: { 'content-type': 'text/html' } }
+          );
         }
 
         if (url.includes('api.openai.com')) {
