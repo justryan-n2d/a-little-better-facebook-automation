@@ -1,3 +1,5 @@
+import { getLatestContentPerformance, performanceScore } from './analytics.js';
+
 const CATEGORY_BY_DAY = [
   'encouragement',
   'motivation',
@@ -160,15 +162,66 @@ function dateToIndex(date) {
   return Math.floor(parsed.getTime() / 86400000);
 }
 
-export function getDailyPost(date = getPhilippineDate(), history = []) {
+function recentContentIds(date, history, cooldownDays = 28) {
+  const dayIndex = dateToIndex(date);
+
+  return new Set(
+    (Array.isArray(history) ? history : [])
+      .filter(entry => entry?.contentId && /^\d{4}-\d{2}-\d{2}$/.test(entry.date))
+      .filter(entry => {
+        const entryIndex = dateToIndex(entry.date);
+        const age = dayIndex - entryIndex;
+        return age >= 0 && age < cooldownDays;
+      })
+      .map(entry => entry.contentId)
+  );
+}
+
+function rankCandidates(candidates, performanceByContentId, dayIndex) {
+  return candidates
+    .map((post, index) => ({
+      post,
+      index,
+      performance: performanceByContentId.get(post.id)
+    }))
+    .sort((a, b) => {
+      const aHasPerformance = Number.isFinite(Number(a.performance));
+      const bHasPerformance = Number.isFinite(Number(b.performance));
+
+      if (aHasPerformance !== bHasPerformance) return aHasPerformance ? -1 : 1;
+      if (aHasPerformance && Number(b.performance) !== Number(a.performance)) {
+        return Number(b.performance) - Number(a.performance);
+      }
+
+      return ((a.index - (dayIndex % candidates.length)) + candidates.length) % candidates.length -
+        ((b.index - (dayIndex % candidates.length)) + candidates.length) % candidates.length;
+    })
+    .map(item => item.post);
+}
+
+export function getDailyPost(date = getPhilippineDate(), history = [], analytics = {}) {
   const dayIndex = dateToIndex(date);
   const parsed = new Date(`${date}T00:00:00+08:00`);
   const dayCategory = CATEGORY_BY_DAY[parsed.getDay()];
-  const usedIds = new Set(history.map(entry => entry.contentId).filter(Boolean));
-  const candidates = POSTS.filter(post => post.category === dayCategory && !usedIds.has(post.id));
-  const fallback = POSTS.filter(post => !usedIds.has(post.id));
-  const pool = candidates.length ? candidates : fallback.length ? fallback : POSTS;
-  const selected = pool[dayIndex % pool.length];
+  const recentIds = recentContentIds(date, history);
+  const performance = getLatestContentPerformance(analytics?.snapshots);
+
+  const categoryCandidates = POSTS.filter(post =>
+    post.category === dayCategory && !recentIds.has(post.id)
+  );
+
+  const fallback = POSTS.filter(post => !recentIds.has(post.id));
+  const pool = categoryCandidates.length ? categoryCandidates : fallback.length ? fallback : POSTS;
+  const scored = rankCandidates(
+    pool,
+    new Map([...performance.entries()].map(([contentId, snapshot]) => [
+      contentId,
+      performanceScore(snapshot)
+    ])),
+    dayIndex
+  );
+
+  const selected = scored[0];
   return { date, contentId: selected.id, ...selected };
 }
 
