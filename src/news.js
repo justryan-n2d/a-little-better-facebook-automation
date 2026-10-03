@@ -197,17 +197,40 @@ export function extractGoogleNewsRssArticles(xml) {
   }).filter(item => item.title && item.url);
 }
 
+function buildBroadNewsQuery(queries = NEWS_QUERIES) {
+  const words = [...new Set(
+    queries
+      .join(' OR ')
+      .toLowerCase()
+      .match(/[a-z]{5,}/g) || []
+  )].filter(word =>
+    !STOPWORDS.has(word) &&
+    !['achievement', 'achievements', 'inspiring', 'heartwarming'].includes(word)
+  );
+
+  const preferred = [
+    'inspiring', 'heartwarming', 'kindness', 'student', 'school',
+    'science', 'innovation', 'community', 'volunteer', 'achievement',
+    'breakthrough', 'success', 'award', 'milestone'
+  ];
+
+  const selected = preferred.filter(word =>
+    words.includes(word) || queries.join(' ').toLowerCase().includes(word)
+  );
+
+  return [...new Set([...selected, ...words])].slice(0, 12).join(' OR ');
+}
+
 export async function searchGoogleNewsRss({
   queries = NEWS_QUERIES,
+  query,
   maxRecords = 50,
   fetchImpl = fetch
 } = {}) {
-  const query = [...new Set(queries.filter(Boolean))]
-    .map(value => `(${value})`)
-    .join(' OR ');
+  const searchQuery = query || buildBroadNewsQuery(queries);
 
   const url = new URL('https://news.google.com/rss/search');
-  url.searchParams.set('q', query);
+  url.searchParams.set('q', searchQuery);
   url.searchParams.set('hl', 'en');
   url.searchParams.set('gl', 'US');
   url.searchParams.set('ceid', 'US:en');
@@ -222,7 +245,30 @@ export async function searchGoogleNewsRss({
 
   const xml = await response.text();
   return extractGoogleNewsRssArticles(xml)
-    .map(item => ({ ...item, query }))
+    .map(item => ({ ...item, query: searchQuery }))
+    .slice(0, maxRecords);
+}
+
+export async function searchGoogleNewsTopStoriesRss({
+  maxRecords = 100,
+  fetchImpl = fetch
+} = {}) {
+  const url = new URL('https://news.google.com/rss');
+  url.searchParams.set('hl', 'en');
+  url.searchParams.set('gl', 'US');
+  url.searchParams.set('ceid', 'US:en');
+
+  const response = await fetchImpl(url, {
+    headers: { 'user-agent': 'A-Little-Better-News/1.0' }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Google News Top Stories RSS HTTP ${response.status}`);
+  }
+
+  const xml = await response.text();
+  return extractGoogleNewsRssArticles(xml)
+    .map(item => ({ ...item, query: 'top-stories' }))
     .slice(0, maxRecords);
 }
 
@@ -242,15 +288,29 @@ export async function searchFreshNews({
     const message = error instanceof Error ? error.message : String(error);
     console.log(`GDELT unavailable; using Google News RSS fallback (${message})`);
 
-    const articles = await searchGoogleNewsRss({
+    const queryArticles = await searchGoogleNewsRss({
       queries,
       maxRecords: Math.min(maxRecords, 50),
       fetchImpl
     });
 
+    if (queryArticles.length > 0) {
+      return {
+        provider: 'google-news-rss',
+        articles: queryArticles
+      };
+    }
+
+    console.log('Google News query returned no articles; using Top Stories fallback.');
+
+    const topStories = await searchGoogleNewsTopStoriesRss({
+      maxRecords: Math.min(maxRecords, 100),
+      fetchImpl
+    });
+
     return {
-      provider: 'google-news-rss',
-      articles
+      provider: 'google-news-top-stories',
+      articles: topStories
     };
   }
 }
