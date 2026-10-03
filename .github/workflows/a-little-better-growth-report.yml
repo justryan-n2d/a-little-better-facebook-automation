@@ -1,0 +1,42 @@
+name: A Little Better Weekly Growth Report
+
+on:
+  schedule:
+    - cron: "0 20 * * 0"
+      timezone: "Asia/Manila"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: a-little-better-growth-report
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build weekly growth report
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node src/growth-report.js
+
+      - name: Upload weekly growth report
+        uses: actions/upload-artifact@v4
+        with:
+          name: a-little-better-growth-report
+          path: artifacts/growth-report-*.md
+          if-no-files-found: error
+          retention-days: 30
