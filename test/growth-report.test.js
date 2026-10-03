@@ -27,4 +27,6 @@ test('builds a useful weekly report from captured metrics', () => {
   assert.match(report, /motivation-001/);
   assert.match(report, /Followers/);
   assert.match(report, /Reel draft/);
+  assert.match(report, /motivation/);
+  assert.match(report, /Follow for daily reminders to keep going/);
 });
