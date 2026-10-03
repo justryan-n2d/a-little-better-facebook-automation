@@ -245,8 +245,8 @@ test('news SVG contains the brand, source, and original angle', () => {
   assert.match(svg, /Source: example.com/);
   assert.match(svg, /Photo credit:/);
   assert.match(svg, /bottomFade/);
-  assert.equal(NEWS_PRIMARY, '#FFD61A');
-  assert.match(svg, /#FFD61A/);
+  assert.equal(NEWS_PRIMARY, '#A3D4C0');
+  assert.match(svg, /#A3D4C0/);
 });
 
 test('news post runner is importable', () => {
