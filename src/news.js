@@ -13,7 +13,12 @@ const BLOCKED_TERMS = [
   'murder', 'murdered', 'killed', 'death', 'dead', 'suicide', 'self-harm',
   'rape', 'sexual assault', 'torture', 'gore', 'graphic', 'beheading',
   'bombing', 'terrorist', 'terrorism', 'war', 'massacre', 'shooting',
-  'stabbed', 'homicide', 'drug trafficking', 'porn', 'arrest', 'arrested', 'crime', 'criminal', 'accused', 'charged', 'assault', 'abuse', 'abduction', 'trafficking', 'corruption'
+  'stabbed', 'homicide', 'drug trafficking', 'porn', 'arrest', 'arrested',
+  'crime', 'criminal', 'accused', 'charged', 'assault', 'abuse', 'abduction',
+  'trafficking', 'corruption', 'protest', 'protests', 'riot', 'riots',
+  'unrest', 'clashes', 'demonstration', 'demonstrations', 'strike', 'strikes',
+  'rally', 'rallies', 'scandal', 'controversy', 'backlash', 'lawsuit',
+  'election', 'campaign', 'politician', 'partisan'
 ];
 
 const STOPWORDS = new Set([
@@ -25,27 +30,33 @@ const STOPWORDS = new Set([
 const LITTLE_BETTER_TOPIC_GROUPS = [
   {
     name: 'kindness-community',
-    keywords: ['kindness', 'kind', 'helping', 'helped', 'support', 'community', 'volunteer', 'volunteers', 'donation', 'donated', 'charity', 'generosity', 'care']
+    context: ['community', 'people', 'neighborhood', 'local', 'volunteer', 'volunteers', 'charity'],
+    positive: ['kindness', 'helping', 'helped', 'support', 'volunteer', 'volunteers', 'donation', 'donated', 'charity', 'generosity', 'care']
   },
   {
     name: 'education-growth',
-    keywords: ['student', 'students', 'school', 'education', 'learning', 'teacher', 'teachers', 'scholarship', 'graduate', 'graduation', 'study']
+    context: ['student', 'students', 'school', 'education', 'learning', 'teacher', 'teachers', 'study', 'college'],
+    positive: ['scholarship', 'graduate', 'graduation', 'award', 'success', 'achievement', 'wins', 'won', 'excels', 'honor', 'honours']
   },
   {
     name: 'science-innovation',
-    keywords: ['science', 'scientist', 'discovery', 'discovered', 'breakthrough', 'innovation', 'innovative', 'technology', 'research', 'invention', 'inventor']
+    context: ['science', 'scientist', 'research', 'technology', 'innovation', 'inventor', 'invention'],
+    positive: ['discovery', 'discovered', 'breakthrough', 'innovation', 'innovative', 'invention', 'inventor', 'milestone', 'progress']
   },
   {
     name: 'achievement-progress',
-    keywords: ['achievement', 'achieves', 'achieved', 'success', 'successful', 'award', 'awards', 'winner', 'wins', 'won', 'milestone', 'record', 'champion', 'comeback', 'creator', 'artist', 'athlete']
+    context: ['achievement', 'success', 'winner', 'wins', 'won', 'award', 'milestone', 'record', 'champion', 'comeback', 'creator', 'artist', 'athlete'],
+    positive: ['achievement', 'achieves', 'achieved', 'success', 'successful', 'award', 'awards', 'winner', 'wins', 'won', 'milestone', 'record', 'champion', 'comeback']
   },
   {
     name: 'hope-uplifting',
-    keywords: ['inspiring', 'inspiration', 'inspirational', 'hope', 'hopeful', 'positive', 'uplifting', 'heartwarming', 'good news', 'feel-good']
+    context: ['story', 'people', 'moment', 'community'],
+    positive: ['inspiring', 'inspiration', 'inspirational', 'hope', 'hopeful', 'positive', 'uplifting', 'heartwarming', 'good news', 'feel-good']
   },
   {
     name: 'better-world',
-    keywords: ['environment', 'sustainability', 'sustainable', 'renewable', 'clean energy', 'green technology', 'conservation', 'restoration']
+    context: ['environment', 'sustainability', 'sustainable', 'renewable', 'clean energy', 'green technology', 'conservation', 'restoration'],
+    positive: ['sustainability', 'sustainable', 'renewable', 'clean energy', 'green technology', 'conservation', 'restoration', 'progress']
   }
 ];
 
@@ -59,12 +70,22 @@ export function getLittleBetterTopic(title) {
   if (!lower || BLOCKED_TERMS.some(term => containsTerm(lower, term))) return null;
 
   const matches = LITTLE_BETTER_TOPIC_GROUPS
-    .map(group => ({
-      name: group.name,
-      matches: group.keywords.filter(keyword => containsTerm(lower, keyword))
-    }))
-    .filter(group => group.matches.length > 0)
-    .sort((a, b) => b.matches.length - a.matches.length || a.name.localeCompare(b.name));
+    .map(group => {
+      const contextMatches = group.context.filter(keyword => containsTerm(lower, keyword));
+      const positiveMatches = group.positive.filter(keyword => containsTerm(lower, keyword));
+      return {
+        name: group.name,
+        matches: [...new Set([...contextMatches, ...positiveMatches])],
+        contextCount: contextMatches.length,
+        positiveCount: positiveMatches.length,
+        score: contextMatches.length + (positiveMatches.length * 2)
+      };
+    })
+    .filter(group =>
+      group.positiveCount >= 1 &&
+      (group.positiveCount >= 2 || group.contextCount >= 1)
+    )
+    .sort((a, b) => b.score - a.score || b.positiveCount - a.positiveCount || a.name.localeCompare(b.name));
 
   return matches[0] || null;
 }
@@ -435,43 +456,63 @@ export function extractImageQuery(title) {
   return [...new Set(words)].slice(0, 4).join(' ');
 }
 
+export function buildImageQueries(title, topic) {
+  const exact = extractImageQuery(title);
+  const topicQueries = {
+    'kindness-community': ['community volunteers helping people', 'people helping community'],
+    'education-growth': ['students achievement education', 'students celebrating success'],
+    'science-innovation': ['science innovation breakthrough', 'scientists technology discovery'],
+    'achievement-progress': ['achievement celebration success', 'award winner celebration'],
+    'hope-uplifting': ['inspiring people positive moment', 'heartwarming community'],
+    'better-world': ['sustainable community environment', 'clean energy innovation']
+  };
+
+  const fallbacks = topicQueries[topic] || ['positive people community', 'uplifting people'];
+  return [...new Set([exact, ...fallbacks, 'people community inspiration'].filter(Boolean))];
+}
+
 export async function findOpenverseImage(query, {
   licenses = ['cc0', 'pdm', 'by'],
   fetchImpl = fetch
 } = {}) {
-  for (const license of licenses) {
-    const url = new URL(OPENVERSE_BASE);
-    url.searchParams.set('q', query);
-    url.searchParams.set('license', license);
-    url.searchParams.set('page_size', '12');
-    url.searchParams.set('mature', 'false');
+  const queries = Array.isArray(query) ? query : [query];
 
-    try {
-      const payload = await fetchJson(url, { fetchImpl });
-      const results = Array.isArray(payload?.results) ? payload.results : [];
-      const candidate = results.find(item =>
-        item &&
-        item.url &&
-        !item.watermarked &&
-        Number(item.width || 0) >= 700 &&
-        Number(item.height || 0) >= 500 &&
-        ['cc0', 'pdm', 'by'].includes(String(item.license || license).toLowerCase())
-      );
-      if (candidate) {
-        return {
-          url: candidate.url,
-          thumbnail: candidate.thumbnail || null,
-          title: cleanText(candidate.title || ''),
-          creator: cleanText(candidate.creator || candidate.author || 'Unknown creator'),
-          license: String(candidate.license || license).toLowerCase(),
-          licenseVersion: candidate.license_version || null,
-          licenseUrl: candidate.license_url || null,
-          landingUrl: candidate.foreign_landing_url || candidate.url,
-          provider: cleanText(candidate.provider || candidate.source || 'Openverse')
-        };
+  for (const searchQuery of queries.filter(Boolean)) {
+    for (const license of licenses) {
+      const url = new URL(OPENVERSE_BASE);
+      url.searchParams.set('q', searchQuery);
+      url.searchParams.set('license', license);
+      url.searchParams.set('page_size', '12');
+      url.searchParams.set('mature', 'false');
+
+      try {
+        const payload = await fetchJson(url, { fetchImpl });
+        const results = Array.isArray(payload?.results) ? payload.results : [];
+        const candidate = results.find(item =>
+          item &&
+          item.url &&
+          !item.watermarked &&
+          Number(item.width || 0) >= 700 &&
+          Number(item.height || 0) >= 500 &&
+          ['cc0', 'pdm', 'by'].includes(String(item.license || license).toLowerCase())
+        );
+        if (candidate) {
+          return {
+            url: candidate.url,
+            thumbnail: candidate.thumbnail || null,
+            title: cleanText(candidate.title || ''),
+            creator: cleanText(candidate.creator || candidate.author || 'Unknown creator'),
+            license: String(candidate.license || license).toLowerCase(),
+            licenseVersion: candidate.license_version || null,
+            licenseUrl: candidate.license_url || null,
+            landingUrl: candidate.foreign_landing_url || candidate.url,
+            provider: cleanText(candidate.provider || candidate.source || 'Openverse'),
+            searchQuery
+          };
+        }
+      } catch (error) {
+        console.log(`Openverse search failed for "${searchQuery}" / ${license}: ${error instanceof Error ? error.message : String(error)}`);
       }
-    } catch (error) {
-      console.log(`Openverse search failed for ${license}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
