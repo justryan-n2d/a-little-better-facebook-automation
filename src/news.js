@@ -469,6 +469,10 @@ export function buildDisplayHeadline(title) {
     .replace(/\s+-\s+[^-]{2,80}$/i, '')
     .trim();
 
+  if (/discusses skills students need for success beyond grades/i.test(text)) {
+    return 'Students Need More Than Good Grades';
+  }
+
   if (/FAU graduate student uses Miss Fort Lauderdale crown to turn science into action/i.test(text)) {
     return 'FAU Graduate Uses Her Crown for Coastal Conservation';
   }
