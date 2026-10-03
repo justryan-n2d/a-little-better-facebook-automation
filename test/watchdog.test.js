@@ -1,6 +1,77 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decideWatchdogAction } from '../src/watchdog.js';
+import { decideAnalyticsHealthAction, decideWatchdogAction } from '../src/watchdog.js';
+
+
+test('does not alert for analytics before the daily analytics grace period', () => {
+  const action = decideAnalyticsHealthAction({
+    now: '2026-10-04T11:00:00.000Z',
+    today: '2026-10-04',
+    scheduleHour: 18,
+    scheduleMinute: 0,
+    graceMinutes: 120,
+    analytics: {}
+  });
+
+  assert.deepEqual(action, {
+    type: 'wait',
+    reason: 'before-analytics-grace-period'
+  });
+});
+
+test('alerts when analytics are stale after the daily grace period', () => {
+  const action = decideAnalyticsHealthAction({
+    now: '2026-10-04T13:30:00.000Z',
+    today: '2026-10-04',
+    scheduleHour: 18,
+    scheduleMinute: 0,
+    graceMinutes: 120,
+    analytics: {
+      collectorRuns: [
+        {
+          capturedDate: '2026-10-03',
+          capturedAt: '2026-10-03T10:00:00.000Z',
+          attemptedPosts: 1,
+          successfulPosts: 1,
+          errorCount: 0
+        }
+      ]
+    }
+  });
+
+  assert.deepEqual(action, {
+    type: 'alert',
+    reason: 'analytics-stale',
+    capturedDate: '2026-10-03'
+  });
+});
+
+test('marks analytics healthy when today has successful collection', () => {
+  const action = decideAnalyticsHealthAction({
+    now: '2026-10-04T13:30:00.000Z',
+    today: '2026-10-04',
+    scheduleHour: 18,
+    scheduleMinute: 0,
+    graceMinutes: 120,
+    analytics: {
+      collectorRuns: [
+        {
+          capturedDate: '2026-10-04',
+          capturedAt: '2026-10-04T10:00:00.000Z',
+          attemptedPosts: 1,
+          successfulPosts: 1,
+          errorCount: 0
+        }
+      ]
+    }
+  });
+
+  assert.deepEqual(action, {
+    type: 'healthy',
+    capturedDate: '2026-10-04'
+  });
+});
+
 
 test('dispatches recovery when the daily run is missing after the grace period', () => {
   const action = decideWatchdogAction({

@@ -51,6 +51,62 @@ function resultForCompletedFailure(run, maxAttempts) {
   return { type: 'alert', runId: run.id, reason: 'publish-job-failure' };
 }
 
+export function decideAnalyticsHealthAction({
+  now,
+  today,
+  scheduleHour = 18,
+  scheduleMinute = 0,
+  graceMinutes = 120,
+  analytics = {}
+}) {
+  const scheduleMs = toTime(
+    `${today}T${String(scheduleHour).padStart(2, '0')}:${String(scheduleMinute).padStart(2, '0')}:00+08:00`
+  );
+  const nowMs = toTime(now);
+
+  if (nowMs < scheduleMs + graceMinutes * 60_000) {
+    return { type: 'wait', reason: 'before-analytics-grace-period' };
+  }
+
+  const runs = Array.isArray(analytics?.collectorRuns) ? analytics.collectorRuns : [];
+  const latest = [...runs]
+    .filter(run => run?.capturedDate)
+    .sort((a, b) =>
+      String(b.capturedDate).localeCompare(String(a.capturedDate)) ||
+      String(b.capturedAt || '').localeCompare(String(a.capturedAt || ''))
+    )[0];
+
+  if (!latest) {
+    return { type: 'alert', reason: 'analytics-missing', capturedDate: null };
+  }
+
+  if (String(latest.capturedDate) !== today) {
+    return {
+      type: 'alert',
+      reason: 'analytics-stale',
+      capturedDate: latest.capturedDate
+    };
+  }
+
+  if (Number(latest.successfulPosts || 0) === 0 && Number(latest.attemptedPosts || 0) > 0) {
+    return {
+      type: 'alert',
+      reason: 'analytics-collection-zero',
+      capturedDate: latest.capturedDate
+    };
+  }
+
+  if (Number(latest.errorCount || 0) > 0) {
+    return {
+      type: 'alert',
+      reason: 'analytics-partial',
+      capturedDate: latest.capturedDate
+    };
+  }
+
+  return { type: 'healthy', capturedDate: latest.capturedDate };
+}
+
 export function decideWatchdogAction({
   now,
   today,
@@ -147,6 +203,17 @@ async function readPostingHistory() {
   }
 }
 
+async function readGrowthAnalytics() {
+  try {
+    const path = resolve(process.env.ANALYTICS_PATH || 'data/growth-analytics.json');
+    const content = await readFile(path, 'utf8');
+    return JSON.parse(content);
+  } catch (error) {
+    console.warn(`Unable to read growth analytics for maintenance monitoring: ${error.message}`);
+    return {};
+  }
+}
+
 function envInt(name, fallback) {
   const value = Number.parseInt(process.env[name] ?? '', 10);
   return Number.isFinite(value) ? value : fallback;
@@ -234,6 +301,42 @@ async function runMaintenanceChecks({ apiUrl, token, repository, now }) {
         `Used unique posts: ${contentStatus.used}`,
         '',
         'Add more original content to src/content.js before the bank is exhausted.'
+      ].join('\n')
+    });
+  }
+
+  const analytics = await readGrowthAnalytics();
+  const analyticsAction = decideAnalyticsHealthAction({
+    now,
+    today: todayInManila(new Date(now)),
+    scheduleHour: envInt('WATCHDOG_ANALYTICS_SCHEDULE_HOUR', 18),
+    scheduleMinute: envInt('WATCHDOG_ANALYTICS_SCHEDULE_MINUTE', 0),
+    graceMinutes: envInt('WATCHDOG_ANALYTICS_GRACE_MINUTES', 120),
+    analytics
+  });
+
+  if (analyticsAction.type === 'alert') {
+    const title = analyticsAction.reason === 'analytics-missing'
+      ? 'Growth analytics missing'
+      : analyticsAction.reason === 'analytics-stale'
+        ? `Growth analytics stale - last ${analyticsAction.capturedDate || 'unknown'}`
+        : analyticsAction.reason === 'analytics-collection-zero'
+          ? 'Growth analytics collected zero posts'
+          : 'Growth analytics partially failed';
+
+    await createIssueIfMissing({
+      apiUrl,
+      token,
+      repository,
+      title,
+      body: [
+        'The A Little Better growth analytics collector needs attention.',
+        '',
+        `Reason: ${analyticsAction.reason}`,
+        `Expected analytics date: ${todayInManila(new Date(now))}`,
+        `Latest captured date: ${analyticsAction.capturedDate || 'none'}`,
+        '',
+        'Check the Facebook Growth Analytics workflow and Meta Page access before relying on adaptive content decisions.'
       ].join('\n')
     });
   }
