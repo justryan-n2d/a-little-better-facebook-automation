@@ -266,7 +266,7 @@ function buildAlternateSvg({ imageText }) {
   <style>
     .headline {
       font-family: 'DejaVu Sans';
-      font-weight: 500;
+      font-weight: 700;
     }
     .support {
       font-family: 'DejaVu Sans';
