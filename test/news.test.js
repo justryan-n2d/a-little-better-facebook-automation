@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import sharp from 'sharp';
 import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -325,10 +326,14 @@ test('news SVG contains the brand, source, and original angle', () => {
 
 test('production renderer preserves the source photo and readable text layers', async () => {
   const dir = await mkdtemp('/tmp/a-little-better-render-test-');
-  const input = Buffer.concat([
-    Buffer.from('P6\n20 20\n255\n', 'ascii'),
-    Buffer.alloc(20 * 20 * 3, 0)
-  ]);
+  const input = await sharp({
+    create: {
+      width: 20,
+      height: 20,
+      channels: 3,
+      background: { r: 220, g: 90, b: 40 }
+    }
+  }).png().toBuffer();
   const outputPath = join(dir, 'rendered.png');
 
   try {
@@ -340,15 +345,20 @@ test('production renderer preserves the source photo and readable text layers', 
       outputPath
     });
 
-    const identify = await execFileAsync('convert', [
-      outputPath,
-      '-format',
-      '%wx%h %[mean]',
-      'info:'
-    ]);
-    const parts = identify.stdout.trim().split(/\s+/);
-    assert.equal(parts[0], '1080x1350');
-    assert.ok(Number(parts[1]) > 10, 'rendered image should not be effectively black');
+    const metadata = await sharp(outputPath).metadata();
+    assert.equal(metadata.width + 'x' + metadata.height, '1080x1350');
+
+    const upper = await sharp(outputPath)
+      .extract({ left: 0, top: 0, width: 1080, height: 600 })
+      .stats();
+    const upperMean = upper.channels.reduce((sum, channel) => sum + channel.mean, 0) / upper.channels.length;
+    assert.ok(upperMean > 10, 'rendered upper photo area should not be effectively black');
+
+    const sample = await sharp(outputPath)
+      .extract({ left: 450, top: 300, width: 100, height: 100 })
+      .stats();
+    const sampleMean = sample.channels.reduce((sum, channel) => sum + channel.mean, 0) / sample.channels.length;
+    assert.ok(sampleMean > 20, 'source photo should remain visible in the rendered image');
     const bytes = await readFile(outputPath);
     assert.ok(bytes.length > 5000);
   } finally {

@@ -1,9 +1,4 @@
-import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { promisify } from 'node:util';
-
-const execFileAsync = promisify(execFile);
+import sharp from 'sharp';
 
 export const NEWS_CANVAS = { width: 1080, height: 1350 };
 export const NEWS_PRIMARY = '#A3D4C0';
@@ -27,7 +22,7 @@ function escapeXml(value) {
 }
 
 function estimateWidth(text, size) {
-  return String(text || '').length * size * 0.66;
+  return String(text || '').length * size * 0.56;
 }
 
 export function wrapTextToBox(text, { fontSize, maxWidth } = {}) {
@@ -52,9 +47,9 @@ export function wrapTextToBox(text, { fontSize, maxWidth } = {}) {
 export function fitTextToBox(text, {
   maxWidth,
   maxHeight,
-  maxFontSize = 68,
+  maxFontSize = 66,
   minFontSize = 34,
-  lineHeight = 1.16,
+  lineHeight = 1.08,
   maxLines = 4
 } = {}) {
   for (let fontSize = maxFontSize; fontSize >= minFontSize; fontSize -= 1) {
@@ -70,88 +65,6 @@ export function fitTextToBox(text, {
   throw new Error(
     'Text cannot fit in allocated box: "' + String(text || '').slice(0, 100) + '"'
   );
-}
-
-async function measureRenderedLine(command, text, fontSize) {
-  const { stdout } = await execFileAsync(command, [
-    '-background', 'none',
-    '-font', 'DejaVu-Sans-Bold',
-    '-pointsize', String(fontSize),
-    'label:' + String(text || ''),
-    '-trim',
-    '-format', '%wx%h',
-    'info:'
-  ]);
-
-  const match = stdout.trim().match(/^(\d+)x(\d+)$/);
-  if (!match) throw new Error('Unable to measure rendered headline text.');
-  return { width: Number(match[1]), height: Number(match[2]) };
-}
-
-async function fitRenderedHeadline(command, text, box) {
-  let fit = fitTextToBox(text, {
-    maxWidth: box.width - box.padding * 2,
-    maxHeight: box.height - box.padding * 2,
-    maxFontSize: 68,
-    minFontSize: 34,
-    lineHeight: 1.16,
-    maxLines: 4
-  });
-
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const measurements = await Promise.all(
-      fit.lines.map(line => measureRenderedLine(command, line, fit.fontSize))
-    );
-
-    const maxMeasuredWidth = Math.max(...measurements.map(item => item.width), 0);
-    const actualLineHeight = Math.max(
-      fit.fontSize * fit.lineHeight,
-      Math.max(...measurements.map(item => item.height), 0) * 1.16
-    );
-    const totalHeight = fit.lines.length * actualLineHeight;
-
-    if (
-      fit.lines.length <= 4 &&
-      maxMeasuredWidth <= box.width - box.padding * 2 &&
-      totalHeight <= box.height - box.padding * 2
-    ) {
-      return {
-        ...fit,
-        lineHeight: actualLineHeight / fit.fontSize,
-        width: maxMeasuredWidth,
-        height: totalHeight
-      };
-    }
-
-    const nextFontSize = fit.fontSize - 2;
-    if (nextFontSize < 34) break;
-
-    fit = {
-      ...fitTextToBox(text, {
-        maxWidth: box.width - box.padding * 2,
-        maxHeight: box.height - box.padding * 2,
-        maxFontSize: nextFontSize,
-        minFontSize: 34,
-        lineHeight: 1.16,
-        maxLines: 4
-      })
-    };
-  }
-
-  throw new Error(
-    'Rendered headline could not fit safely inside its allocated zone.'
-  );
-}
-
-function chooseHighlights(lines) {
-  const candidates = lines
-    .flatMap(line => line.split(/\s+/))
-    .map(word => word.replace(/[^A-Za-z0-9]/g, ''))
-    .filter(word => word.length >= 5);
-
-  return [...new Set(candidates)]
-    .sort((a, b) => b.length - a.length)
-    .slice(0, 2);
 }
 
 function rect(x, y, width, height, name, padding = 0) {
@@ -187,14 +100,14 @@ export function calculateNewsLayout(template = '4:5') {
     NEWS_SAFE * scale,
     28 * scale,
     width - NEWS_SAFE * 2 * scale,
-    30 * scale,
+    32 * scale,
     'photo-credit',
-    6 * scale
+    4 * scale
   );
 
   const circleRadius = 178 * scale;
   const circleCenterX = 250 * scale;
-  const circleCenterY = 270 * scale;
+  const circleCenterY = 268 * scale;
   const photoInset = rect(
     circleCenterX - circleRadius,
     circleCenterY - circleRadius,
@@ -205,36 +118,37 @@ export function calculateNewsLayout(template = '4:5') {
   );
 
   const brandWidth = 430 * scale;
-  const brandHeight = 72 * scale;
+  const brandHeight = 70 * scale;
+
   const source = rect(
     NEWS_SAFE * scale,
     height - 70 * scale,
     width - NEWS_SAFE * 2 * scale,
-    34 * scale,
+    30 * scale,
     'source',
-    6 * scale
+    4 * scale
   );
 
   const headlineHeight = Math.min(
-    380 * scale,
-    Math.max(240 * scale, height * 0.23)
+    330 * scale,
+    Math.max(210 * scale, height * 0.21)
   );
   const headline = rect(
     NEWS_SAFE * scale,
-    source.y - 58 * scale - headlineHeight,
+    source.y - 34 * scale - headlineHeight,
     width - NEWS_SAFE * 2 * scale,
     headlineHeight,
     'headline',
-    18 * scale
+    10 * scale
   );
 
   const brand = rect(
-    275 * scale,
-    headline.y - 124 * scale,
+    148 * scale,
+    headline.y - 98 * scale,
     brandWidth,
     brandHeight,
     'branding',
-    6 * scale
+    5 * scale
   );
 
   const zones = [photoCredit, photoInset, brand, headline, source];
@@ -267,62 +181,51 @@ function renderBrandLockup({ box }) {
   const w = box.width;
   const h = box.height;
   const centerY = y + h / 2;
-  const fontSize = Math.max(15, Math.min(18, (w - 112) / 13.5));
+  const fontSize = Math.max(14, Math.min(18, 17 * (w / 430)));
 
   return [
     '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="' + h / 2 + '" fill="' + NEWS_PRIMARY + '"/>',
     '<g>',
-    '<path d="M' + (x + 34) + ' ' + (centerY + 7) + ' C' + (x + 34) + ' ' + (centerY - 18) + ' ' + (x + 51) + ' ' + (centerY - 31) + ' ' + (x + 69) + ' ' + (centerY - 32) + ' C' + (x + 68) + ' ' + (centerY - 11) + ' ' + (x + 57) + ' ' + (centerY + 4) + ' ' + (x + 34) + ' ' + (centerY + 7) + 'Z" fill="' + NEWS_DARK + '"/>',
-    '<path d="M' + (x + 36) + ' ' + (centerY + 6) + ' C' + (x + 25) + ' ' + (centerY - 5) + ' ' + (x + 17) + ' ' + (centerY - 8) + ' ' + (x + 8) + ' ' + (centerY - 7) + ' C' + (x + 11) + ' ' + (centerY + 6) + ' ' + (x + 21) + ' ' + (centerY + 12) + ' ' + (x + 36) + ' ' + (centerY + 6) + 'Z" fill="' + NEWS_DARK + '"/>',
-    '<path d="M' + (x + 36) + ' ' + (centerY + 6) + ' V' + (centerY + 22) + '" stroke="' + NEWS_DARK + '" stroke-width="3" stroke-linecap="round"/>',
-    '<text x="' + (x + 88) + '" y="' + (centerY + 7) + '" fill="' + NEWS_DARK + '" font-family="DejaVu Sans, sans-serif" font-size="' + fontSize + '" font-weight="800" letter-spacing="2">',
+    '<path d="M' + (x + 35) + ' ' + (centerY + 7) + ' C' + (x + 35) + ' ' + (centerY - 18) + ' ' + (x + 51) + ' ' + (centerY - 31) + ' ' + (x + 69) + ' ' + (centerY - 32) + ' C' + (x + 68) + ' ' + (centerY - 11) + ' ' + (x + 57) + ' ' + (centerY + 4) + ' ' + (x + 35) + ' ' + (centerY + 7) + 'Z" fill="' + NEWS_DARK + '"/>',
+    '<path d="M' + (x + 37) + ' ' + (centerY + 6) + ' C' + (x + 26) + ' ' + (centerY - 5) + ' ' + (x + 18) + ' ' + (centerY - 8) + ' ' + (x + 9) + ' ' + (centerY - 7) + ' C' + (x + 12) + ' ' + (centerY + 6) + ' ' + (x + 22) + ' ' + (centerY + 12) + ' ' + (x + 37) + ' ' + (centerY + 6) + 'Z" fill="' + NEWS_DARK + '"/>',
+    '<path d="M' + (x + 37) + ' ' + (centerY + 6) + ' V' + (centerY + 22) + '" stroke="' + NEWS_DARK + '" stroke-width="3" stroke-linecap="round"/>',
+    '<text x="' + (x + 96) + '" y="' + (centerY + 6) + '" fill="' + NEWS_DARK + '" font-family="DejaVu Sans, sans-serif" font-size="' + fontSize + '" font-weight="800" letter-spacing="2.5">',
     'A LITTLE BETTER',
     '</text>',
     '</g>'
   ].join('');
 }
 
-function renderHeadline({ box, title, fitOverride = null }) {
-  const fit = fitOverride || fitTextToBox(title, {
+function renderHeadline({ box, title }) {
+  const fit = fitTextToBox(title, {
     maxWidth: box.width - box.padding * 2,
     maxHeight: box.height - box.padding * 2,
-    maxFontSize: 68,
-    minFontSize: 34,
-    lineHeight: 1.16,
+    maxFontSize: 62,
+    minFontSize: 38,
+    lineHeight: 1.08,
     maxLines: 4
   });
 
-  const highlights = chooseHighlights(fit.lines);
   const lineGap = fit.fontSize * fit.lineHeight;
   const totalHeight = fit.lines.length * lineGap;
-  const yStart = box.y + (box.height - totalHeight) / 2 + fit.fontSize * 0.82;
+  const yStart = box.y + (box.height - totalHeight) / 2 + fit.fontSize * 0.8;
   const x = box.x + box.width / 2;
 
   const lines = fit.lines.map((line, lineIndex) => {
-    const words = line.split(/\s+/).filter(Boolean);
     const baseline = yStart + lineIndex * lineGap;
-    const base = '<text x="' + x + '" y="' + baseline +
-      '" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="' + fit.fontSize +
-      '" font-weight="800" letter-spacing="-0.7" fill="' + NEWS_WHITE + '">' +
-      escapeXml(line) + '</text>';
-    const overlays = highlights
-      .filter(word => words.some(part => part.replace(/[^A-Za-z0-9]/g, '') === word))
-      .map(word => {
-        const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const match = line.match(new RegExp('(^|\\s)' + escaped + '(?=\\s|$)', 'i'));
-        if (!match) return '';
-        const prefix = line.slice(0, match.index + (match[1] ? 1 : 0));
-        const beforeWidth = estimateWidth(prefix, fit.fontSize);
-        const wordWidth = estimateWidth(word, fit.fontSize);
-        const wordX = x - estimateWidth(line, fit.fontSize) / 2 + beforeWidth + wordWidth / 2;
-        return '<text x="' + wordX + '" y="' + baseline +
-          '" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="' + fit.fontSize +
-          '" font-weight="800" letter-spacing="-0.7" fill="' + NEWS_PRIMARY + '">' +
-          escapeXml(word) + '</text>';
-      }).join('');
+    const color = lineIndex === fit.lines.length - 1 ? NEWS_PRIMARY : NEWS_WHITE;
+    const estimated = Math.min(
+      box.width - box.padding * 2,
+      Math.max(1, estimateWidth(line, fit.fontSize))
+    );
+    const textLength = estimated < box.width * 0.98 ? '' : ' textLength="' + estimated + '" lengthAdjust="spacingAndGlyphs"';
 
-    return base + overlays;
-  }).join('');
+    return '<text x="' + x + '" y="' + baseline +
+      '" text-anchor="middle" dominant-baseline="alphabetic" font-family="DejaVu Sans, sans-serif" font-size="' + fit.fontSize +
+      '" font-weight="800" letter-spacing="-1.0" fill="' + color + '"' + textLength + '>' +
+      escapeXml(line) +
+      '</text>';
+  }).join('\n');
 
   return { svg: lines, fit };
 }
@@ -347,14 +250,14 @@ export function buildNewsSvg({
     '<defs>',
     '<linearGradient id="bottomFade" x1="0" y1="0" x2="0" y2="1">',
     '<stop offset="0%" stop-color="#000000" stop-opacity="0"/>',
-    '<stop offset="50%" stop-color="#000000" stop-opacity="0.02"/>',
-    '<stop offset="70%" stop-color="#000000" stop-opacity="0.28"/>',
-    '<stop offset="85%" stop-color="#000000" stop-opacity="0.68"/>',
-    '<stop offset="100%" stop-color="#000000" stop-opacity="0.96"/>',
+    '<stop offset="45%" stop-color="#000000" stop-opacity="0.04"/>',
+    '<stop offset="70%" stop-color="#000000" stop-opacity="0.24"/>',
+    '<stop offset="86%" stop-color="#000000" stop-opacity="0.62"/>',
+    '<stop offset="100%" stop-color="#000000" stop-opacity="0.94"/>',
     '</linearGradient>',
     '<radialGradient id="bottomRightFade" cx="100%" cy="100%" r="70%">',
-    '<stop offset="0%" stop-color="#000000" stop-opacity="0.34"/>',
-    '<stop offset="55%" stop-color="#000000" stop-opacity="0.14"/>',
+    '<stop offset="0%" stop-color="#000000" stop-opacity="0.42"/>',
+    '<stop offset="55%" stop-color="#000000" stop-opacity="0.15"/>',
     '<stop offset="100%" stop-color="#000000" stop-opacity="0"/>',
     '</radialGradient>',
     '</defs>',
@@ -364,17 +267,23 @@ export function buildNewsSvg({
       '" cy="' + (layout.photoInset.y + layout.photoInset.height / 2) +
       '" r="' + (layout.photoInset.width / 2) +
       '" fill="none" stroke="' + NEWS_PRIMARY + '" stroke-width="' + (10 * scale) + '"/>',
-    '<text x="' + layout.photoCredit.x + '" y="' + (layout.photoCredit.y + 21 * scale) +
-      '" fill="' + NEWS_WHITE + '" font-family="DejaVu Sans, sans-serif" font-size="' + (16 * scale) +
+    '<rect x="' + layout.photoCredit.x + '" y="' + (layout.photoCredit.y - 2 * scale) +
+      '" width="' + layout.photoCredit.width + '" height="' + (30 * scale) +
+      '" rx="' + (12 * scale) + '" fill="#000000" fill-opacity="0.45"/>',
+    '<text x="' + (layout.photoCredit.x + 14 * scale) + '" y="' + (layout.photoCredit.y + 19 * scale) +
+      '" fill="' + NEWS_WHITE + '" font-family="DejaVu Sans, sans-serif" font-size="' + (14 * scale) +
       '" font-weight="700">',
     'Photo credit: ' + escapeXml(photoCredit),
     '</text>',
     renderBrandLockup({ box: layout.brand }),
     '<g>' + headline.svg + '</g>',
+    '<rect x="' + (layout.source.x + 180 * scale) + '" y="' + (layout.source.y - 3 * scale) +
+      '" width="' + Math.max(120 * scale, layout.source.width - 360 * scale) + '" height="' + (29 * scale) +
+      '" rx="' + (14 * scale) + '" fill="#000000" fill-opacity="0.36"/>',
     '<text x="' + (layout.source.x + layout.source.width / 2) +
-      '" y="' + (layout.source.y + 22 * scale) +
+      '" y="' + (layout.source.y + 18 * scale) +
       '" text-anchor="middle" fill="' + NEWS_WHITE +
-      '" font-family="DejaVu Sans, sans-serif" font-size="' + (16 * scale) +
+      '" font-family="DejaVu Sans, sans-serif" font-size="' + (14 * scale) +
       '" font-weight="700">',
     'Source: ' + escapeXml(sourceDomain),
     '</text>',
@@ -382,68 +291,46 @@ export function buildNewsSvg({
   ].join('\n');
 }
 
-async function resolveMagickCommand() {
-  for (const command of ['magick', 'convert']) {
-    try {
-      await execFileAsync(command, ['-version']);
-      return command;
-    } catch {
-      // Try the next executable.
-    }
-  }
-  throw new Error('ImageMagick is required to render Fresh News images.');
+async function prepareBackground(imageBuffer, width, height) {
+  return sharp(imageBuffer, { failOn: 'error' })
+    .rotate()
+    .resize({
+      width,
+      height,
+      fit: 'cover',
+      position: 'attention',
+      withoutEnlargement: false
+    })
+    .removeAlpha()
+    .jpeg({ quality: 92, chromaSubsampling: '4:4:4' })
+    .toBuffer();
 }
 
-async function prepareBackground(command, inputPath, outputPath, width, height) {
-  await execFileAsync(command, [
-    inputPath,
-    '-auto-orient',
-    '-resize', width + 'x' + height + '^',
-    '-gravity', 'center',
-    '-extent', width + 'x' + height,
-    '-strip',
-    '-quality', '92',
-    outputPath
-  ]);
+async function prepareCircularInset(imageBuffer, size) {
+  const photo = await sharp(imageBuffer, { failOn: 'error' })
+    .rotate()
+    .resize({ width: size, height: size, fit: 'cover', position: 'attention' })
+    .removeAlpha()
+    .png()
+    .toBuffer();
+
+  const mask = Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size + '">' +
+    '<circle cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + (size / 2 - 2) + '" fill="white"/>' +
+    '</svg>'
+  );
+
+  return sharp(photo)
+    .composite([{ input: mask, blend: 'dest-in' }])
+    .png()
+    .toBuffer();
 }
 
-async function prepareCircularInset(command, inputPath, outputPath, size, innerRadius) {
-  const dir = await mkdtemp('/tmp/a-little-better-inset-');
-  const squarePath = join(dir, 'square.jpg');
-  const maskPath = join(dir, 'mask.png');
-
-  try {
-    await execFileAsync(command, [
-      inputPath,
-      '-auto-orient',
-      '-resize', size + 'x' + size + '^',
-      '-gravity', 'center',
-      '-extent', size + 'x' + size,
-      '-strip',
-      '-quality', '92',
-      squarePath
-    ]);
-
-    await execFileAsync(command, [
-      '-size', size + 'x' + size,
-      'xc:none',
-      '-fill', 'white',
-      '-draw', 'circle ' + (size / 2) + ',' + (size / 2) + ' ' + (size / 2) + ',' + (size / 2 - innerRadius),
-      maskPath
-    ]);
-
-    await execFileAsync(command, [
-      squarePath,
-      maskPath,
-      '-alpha', 'off',
-      '-compose', 'CopyOpacity',
-      '-composite',
-      '-strip',
-      outputPath
-    ]);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+async function imageMean(buffer) {
+  const stats = await sharp(buffer).stats();
+  const channels = stats.channels || [];
+  if (!channels.length) return 0;
+  return channels.reduce((sum, channel) => sum + channel.mean, 0) / channels.length;
 }
 
 export async function renderNewsImage({
@@ -456,91 +343,53 @@ export async function renderNewsImage({
   outputPath,
   template = '4:5'
 }) {
-  const dir = await mkdtemp('/tmp/a-little-better-news-');
-  const inputPath = join(dir, 'source.jpg');
-  const backgroundPath = join(dir, 'background.jpg');
-  const insetPath = join(dir, 'inset-circle.png');
-  const composedPath = join(dir, 'composed.png');
-  const overlaySvgPath = join(dir, 'overlay.svg');
-  const overlayPngPath = join(dir, 'overlay.png');
+  const layout = calculateNewsLayout(template);
+  const background = await prepareBackground(imageBuffer, layout.width, layout.height);
+  const inset = await prepareCircularInset(imageBuffer, Math.round(layout.photoInset.width));
+  const overlaySvg = buildNewsSvg({
+    imageDataBase64: '',
+    hook,
+    title,
+    sourceDomain,
+    angle,
+    photoCredit,
+    template
+  });
+  const overlay = Buffer.from(overlaySvg);
 
-  try {
-    await writeFile(inputPath, imageBuffer);
-
-    const command = await resolveMagickCommand();
-    const layout = calculateNewsLayout(template);
-
-    await prepareBackground(
-      command,
-      inputPath,
-      backgroundPath,
-      layout.width,
-      layout.height
-    );
-
-    const insetSize = Math.round(layout.photoInset.width);
-    const innerRadius = Math.max(1, insetSize / 2 - Math.round(10 * (layout.width / 1080)));
-
-    await prepareCircularInset(
-      command,
-      inputPath,
-      insetPath,
-      insetSize,
-      innerRadius
-    );
-
-    await execFileAsync(command, [
-      backgroundPath,
-      insetPath,
-      '-geometry', '+' + Math.round(layout.photoInset.x) + '+' + Math.round(layout.photoInset.y),
-      '-compose', 'Over',
-      '-composite',
-      composedPath
-    ]);
-
-    const headlineFit = await fitRenderedHeadline(command, title, layout.headline);
-
-    const overlaySvg = buildNewsSvg({
-      imageDataBase64: '',
-      hook,
-      title,
-      sourceDomain,
-      angle,
-      photoCredit,
-      template,
-      headlineFit
-    });
-
-    await writeFile(overlaySvgPath, overlaySvg, 'utf8');
-
-    await execFileAsync(command, [
-      overlaySvgPath,
-      '-background', 'none',
-      '-alpha', 'on',
-      overlayPngPath
-    ]);
-
-    await execFileAsync(command, [
-      composedPath,
-      overlayPngPath,
-      '-compose', 'Over',
-      '-composite',
-      outputPath
-    ]);
-
-    const { stdout } = await execFileAsync(command, [
-      outputPath,
-      '-format', '%wx%h',
-      'info:'
-    ]);
-
-    const expected = layout.width + 'x' + layout.height;
-    if (stdout.trim() !== expected) {
-      throw new Error('Rendered image dimensions are ' + stdout.trim() + ', expected ' + expected + '.');
-    }
-
-    return await readFile(outputPath);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
+  const backgroundMean = await imageMean(background);
+  if (backgroundMean < 4) {
+    throw new Error('Source photo decoded as effectively black; refusing to create a black Fresh News graphic.');
   }
+
+  const output = await sharp(background)
+    .composite([
+      {
+        input: inset,
+        left: Math.round(layout.photoInset.x),
+        top: Math.round(layout.photoInset.y)
+      },
+      {
+        input: overlay,
+        left: 0,
+        top: 0
+      }
+    ])
+    .png()
+    .toBuffer();
+
+  const outputMean = await imageMean(output);
+  if (outputMean < Math.max(4, backgroundMean * 0.12)) {
+    throw new Error('Fresh News render lost the source photo; refusing to save the result.');
+  }
+
+  await sharp(output).png().toFile(outputPath);
+  const metadata = await sharp(output).metadata();
+  const expected = layout.width + 'x' + layout.height;
+  const actual = metadata.width + 'x' + metadata.height;
+  if (actual !== expected) {
+    throw new Error('Rendered image dimensions are ' + actual + ', expected ' + expected + '.');
+  }
+
+  return output;
 }
