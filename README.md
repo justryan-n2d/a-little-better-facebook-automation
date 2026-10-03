@@ -25,7 +25,7 @@ Never put the access token in source code or a normal repository file.
 
 Meta setup
 
-Create and configure a Meta app and obtain a Page access token that is authorized to publish to the Page. The workflow is pinned to Graph API v26.0. The version is configurable in the workflow if your app needs another supported version.
+Create and configure a Meta app and obtain a Page access token that is authorized to publish to the Page. The current v26.0 Page Photos documentation lists pages_manage_posts, pages_read_engagement, and pages_show_list for photo creation, and the person requesting the Page token must have the CREATE_CONTENT task on the Page. The workflow is pinned to Graph API v26.0. The version is configurable in the workflow if your app needs another supported version.
 
 References:
 - https://developers.facebook.com/docs/graph-api/
