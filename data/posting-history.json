@@ -1,4 +1,12 @@
 {
   "version": 1,
-  "posts": []
+  "posts": [
+    {
+      "date": "2026-10-03",
+      "contentId": "self-001",
+      "category": "self-improvement",
+      "facebookPostId": "1248785541648176_122125382391396136",
+      "publishedAt": "2026-10-03T02:57:14.892Z"
+    }
+  ]
 }
