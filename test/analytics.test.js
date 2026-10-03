@@ -4,7 +4,9 @@ import {
   engagementScore,
   getLatestPostSnapshots,
   summarizeCategoryPerformance,
-  getFollowerDelta
+  getFollowerDelta,
+  getLatestContentPerformance,
+  performanceScore
 } from '../src/analytics.js';
 
 test('scores shares and comments more strongly than simple reactions', () => {
@@ -52,4 +54,22 @@ test('calculates follower change from the first and last available snapshots', (
     ]),
     13
   );
+});
+
+test('uses engagement rate as the adaptive content performance score when available', () => {
+  assert.equal(
+    performanceScore({ engagement: 90, reach: 1000, engagementRate: 0.09 }),
+    0.09
+  );
+});
+
+test('keeps the latest performance snapshot for each content id', () => {
+  const latest = getLatestContentPerformance([
+    { contentId: 'motivation-001', capturedAt: '2026-10-03T18:00:00Z', engagementRate: 0.04 },
+    { contentId: 'motivation-001', capturedAt: '2026-10-04T18:00:00Z', engagementRate: 0.08 },
+    { contentId: 'bible-001', capturedAt: '2026-10-04T18:00:00Z', engagementRate: 0.06 }
+  ]);
+
+  assert.equal(latest.get('motivation-001').engagementRate, 0.08);
+  assert.equal(latest.get('bible-001').engagementRate, 0.06);
 });
