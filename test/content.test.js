@@ -46,6 +46,27 @@ test('uses performance data to prefer a strong eligible post after the reuse coo
   assert.equal(post.contentId, 'motivation-001');
 });
 
+test('explores an unmeasured candidate on exploration days', () => {
+  const analytics = {
+    snapshots: [
+      {
+        facebookPostId: 'facebook-002',
+        contentId: 'mindset-001',
+        category: 'mindset',
+        capturedDate: '2026-11-02',
+        reach: 1000,
+        engagement: 200,
+        engagementRate: 0.2
+      }
+    ]
+  };
+
+  const post = getDailyPost('2026-11-03', [], analytics);
+
+  assert.equal(post.category, 'mindset');
+  assert.equal(post.contentId, 'mindset-002');
+});
+
 test('rejects invalid dates', () => {
   assert.throws(() => getDailyPost('not-a-date', []), /Invalid date/);
 });
