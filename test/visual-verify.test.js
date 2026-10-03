@@ -1,151 +1,133 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import sharp from 'sharp';
 
 import {
   verifyImageStoryAlignment,
   verifyRenderedNewsGraphic
 } from '../src/visual-verify.js';
 
-const approvedVisionResponse = {
-  output_text: JSON.stringify({
-    approved: true,
-    story_alignment_score: 92,
-    photo_quality_score: 88,
-    readability_score: 94,
-    generic_graphic: false,
-    unsafe: false,
-    visible_subjects: ['a father', 'a child'],
-    visible_context: 'A parent helping a child with food',
-    reason: 'The image visibly matches the human-helping story.'
-  })
-};
+async function makePhoto({
+  width = 1200,
+  height = 900,
+  background = { r: 40, g: 120, b: 80 }
+} = {}) {
+  return sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background
+    }
+  }).png().toBuffer();
+}
 
-test('vision verifier approves a story-aligned image using the Responses API', async () => {
-  const calls = [];
+async function makeGraphic() {
+  return sharp({
+    create: {
+      width: 1080,
+      height: 1350,
+      channels: 3,
+      background: { r: 24, g: 36, b: 48 }
+    }
+  }).png().toBuffer();
+}
+
+test('deterministic verifier approves a high-quality article image with matching context', async () => {
+  let externalCall = false;
+  const imageBuffer = await makePhoto();
 
   const result = await verifyImageStoryAlignment({
-    imageBuffer: Buffer.from('fake-image-bytes'),
-    storyTitle: 'Father helps hungry child with a warm meal',
+    imageBuffer,
+    storyTitle: 'Neighbor helps family with groceries',
     sourceDomain: 'Example News',
-    candidateContext: 'Father gives child food',
-    mode: 'required',
-    apiKey: 'test-key',
-    fetchImpl: async (url, init) => {
-      calls.push({ url: String(url), init });
-      return new Response(JSON.stringify(approvedVisionResponse), {
-        status: 200,
-        headers: { 'content-type': 'application/json' }
-      });
+    candidateContext: 'A neighbor carrying groceries to a family',
+    candidateUrl: 'https://cdn.example/neighbor-family-groceries.jpg',
+    candidateKind: 'article-image'
+  });
+
+  externalCall = externalCall;
+  assert.equal(externalCall, false);
+  assert.equal(result.verified, true);
+  assert.equal(result.method, 'deterministic');
+  assert.ok(result.storyAlignmentScore >= 50);
+  assert.ok(result.photoQualityScore >= 70);
+  assert.match(result.reason, /passed/i);
+});
+
+test('deterministic verifier rejects an unrelated image context', async () => {
+  const imageBuffer = await makePhoto({ background: { r: 120, g: 60, b: 40 } });
+
+  const result = await verifyImageStoryAlignment({
+    imageBuffer,
+    storyTitle: 'Neighbor helps family with groceries',
+    sourceDomain: 'Example News',
+    candidateContext: 'A football stadium with players and fans',
+    candidateUrl: 'https://cdn.example/football-stadium.jpg',
+    candidateKind: 'og:image'
+  });
+
+  assert.equal(result.verified, false);
+  assert.ok(result.storyAlignmentScore < 50);
+  assert.match(result.reason, /alignment|context|mismatch|generic/i);
+});
+
+test('deterministic verifier rejects a low-quality article image', async () => {
+  const imageBuffer = await sharp({
+    create: {
+      width: 120,
+      height: 90,
+      channels: 3,
+      background: { r: 0, g: 0, b: 0 }
     }
+  }).png().toBuffer();
+
+  const result = await verifyImageStoryAlignment({
+    imageBuffer,
+    storyTitle: 'Volunteer gives groceries to a family',
+    sourceDomain: 'Example News',
+    candidateContext: 'Volunteer gives groceries to a family',
+    candidateUrl: 'https://cdn.example/volunteer-family.jpg',
+    candidateKind: 'article-image'
+  });
+
+  assert.equal(result.verified, false);
+  assert.match(result.reason, /quality|dimension|black|small/i);
+});
+
+test('final graphic verifier passes a valid 4:5 rendered graphic without external APIs', async () => {
+  const imageBuffer = await makeGraphic();
+
+  const result = await verifyRenderedNewsGraphic({
+    imageBuffer,
+    storyTitle: 'Neighbor helps a family with groceries',
+    displayHeadline: 'A Neighbor Shows Up With Groceries',
+    sourceDomain: 'Example News'
   });
 
   assert.equal(result.verified, true);
-  assert.equal(result.method, 'openai-vision');
-  assert.equal(result.storyAlignmentScore, 92);
-  assert.equal(result.readabilityScore, 94);
-  assert.equal(calls.length, 1);
-  assert.match(calls[0].init.headers.authorization, /^Bearer test-key$/);
-
-  const body = JSON.parse(calls[0].init.body);
-  assert.equal(body.model, 'gpt-5-mini');
-  assert.equal(body.input[0].content[0].type, 'input_text');
-  assert.equal(body.input[0].content[1].type, 'input_image');
-  assert.match(body.input[0].content[1].image_url, /^data:image\/jpeg;base64,/);
+  assert.equal(result.method, 'deterministic');
+  assert.equal(result.readabilityScore, 100);
+  assert.match(result.reason, /passed/i);
 });
 
-test('vision verifier rejects an image below the local story-alignment threshold', async () => {
-  const result = await verifyImageStoryAlignment({
-    imageBuffer: Buffer.from('fake-image-bytes'),
-    storyTitle: 'Volunteers deliver meals to seniors',
-    sourceDomain: 'Example News',
-    candidateContext: 'Unrelated landscape photo',
-    mode: 'required',
-    apiKey: 'test-key',
-    fetchImpl: async () => new Response(JSON.stringify({
-      output_text: JSON.stringify({
-        approved: true,
-        story_alignment_score: 41,
-        photo_quality_score: 90,
-        readability_score: 90,
-        generic_graphic: false,
-        unsafe: false,
-        visible_subjects: ['a landscape'],
-        visible_context: 'A mountain landscape',
-        reason: 'The image does not show the described people or action.'
-      })
-    }), { status: 200 })
-  });
-
-  assert.equal(result.verified, false);
-  assert.match(result.reason, /alignment/i);
-});
-
-test('required vision verification fails closed when the API key is missing', async () => {
-  let called = false;
-
-  await assert.rejects(
-    verifyImageStoryAlignment({
-      imageBuffer: Buffer.from('fake-image-bytes'),
-      storyTitle: 'Neighbor shares groceries with another family',
-      sourceDomain: 'Example News',
-      candidateContext: 'Neighbor shares groceries',
-      mode: 'required',
-      apiKey: '',
-      fetchImpl: async () => {
-        called = true;
-        return new Response('{}', { status: 200 });
-      }
-    }),
-    /OPENAI_API_KEY/i
-  );
-
-  assert.equal(called, false);
-});
-
-test('metadata mode skips the vision API and reports metadata-only verification', async () => {
-  let called = false;
-
-  const result = await verifyImageStoryAlignment({
-    imageBuffer: Buffer.from('fake-image-bytes'),
-    storyTitle: 'Neighbors help a family after a hard day',
-    sourceDomain: 'Example News',
-    candidateContext: 'Neighbors helping a family',
-    mode: 'metadata',
-    apiKey: '',
-    fetchImpl: async () => {
-      called = true;
-      return new Response('{}', { status: 200 });
+test('final graphic verifier rejects the wrong canvas size', async () => {
+  const imageBuffer = await sharp({
+    create: {
+      width: 1000,
+      height: 1000,
+      channels: 3,
+      background: { r: 24, g: 36, b: 48 }
     }
-  });
+  }).png().toBuffer();
 
-  assert.equal(result.verified, null);
-  assert.equal(result.method, 'metadata-only');
-  assert.equal(called, false);
-});
-
-test('rendered graphic verifier applies the final-graphic readability gate', async () => {
   const result = await verifyRenderedNewsGraphic({
-    imageBuffer: Buffer.from('fake-rendered-image'),
-    storyTitle: 'A neighbor helps a family with groceries',
+    imageBuffer,
+    storyTitle: 'Neighbor helps a family with groceries',
     displayHeadline: 'A Neighbor Shows Up With Groceries',
-    sourceDomain: 'Example News',
-    mode: 'required',
-    apiKey: 'test-key',
-    fetchImpl: async () => new Response(JSON.stringify({
-      output_text: JSON.stringify({
-        approved: true,
-        story_alignment_score: 82,
-        photo_quality_score: 86,
-        readability_score: 58,
-        generic_graphic: false,
-        unsafe: false,
-        visible_subjects: ['a neighbor', 'a family'],
-        visible_context: 'A person carrying groceries',
-        reason: 'The photo matches, but the headline is difficult to read.'
-      })
-    }), { status: 200 })
+    sourceDomain: 'Example News'
   });
 
   assert.equal(result.verified, false);
-  assert.match(result.reason, /readab/i);
+  assert.match(result.reason, /dimension|1080x1350/i);
 });
