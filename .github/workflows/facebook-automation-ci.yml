@@ -35,6 +35,16 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Run production publisher in dry-run mode
+        env:
+          DRY_RUN: "true"
+          FORCE_POST: "false"
+        run: npm start
+
+      - name: Validate workflow YAML
+        run: |
+          ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_file(f); puts "YAML OK: #{f}" }' .github/workflows/daily-facebook-post.yml .github/workflows/facebook-workflow-watchdog.yml .github/workflows/facebook-automation-ci.yml
+
   live-watchdog-check:
     name: Live GitHub Actions API check
     if: ${{ github.event_name == 'workflow_dispatch' }}
