@@ -64,9 +64,9 @@ test('explores an unmeasured candidate on exploration days', () => {
     snapshots: [
       {
         facebookPostId: 'facebook-002',
-        contentId: 'mindset-001',
-        category: 'mindset',
-        capturedDate: '2026-11-02',
+        contentId: 'motivation-001',
+        category: 'motivation',
+        capturedDate: '2026-12-20',
         reach: 1000,
         engagement: 200,
         engagementRate: 0.2
@@ -74,10 +74,20 @@ test('explores an unmeasured candidate on exploration days', () => {
     ]
   };
 
-  const post = getDailyPost('2026-12-22', [], analytics);
+  const history = [
+    { date: '2026-12-20', contentId: 'motivation-003' },
+    { date: '2026-12-20', contentId: 'motivation-004' },
+    { date: '2026-12-20', contentId: 'motivation-005' },
+    { date: '2026-12-20', contentId: 'motivation-006' },
+    { date: '2026-12-20', contentId: 'motivation-007' },
+    { date: '2026-12-20', contentId: 'motivation-008' },
+    { date: '2026-12-20', contentId: 'motivation-009' }
+  ];
 
-  assert.equal(post.category, 'mindset');
-  assert.equal(post.contentId, 'mindset-002');
+  const post = getDailyPost('2026-12-21', history, analytics);
+
+  assert.equal(post.category, 'motivation');
+  assert.equal(post.contentId, 'motivation-002');
 });
 
 test('rejects invalid dates', () => {
