@@ -84,6 +84,26 @@ export function parsePostMetrics(payload, { contentId, category, postDate }) {
   };
 }
 
+export function addDerivedPerformanceMetrics(snapshot = {}) {
+  const reach = Number(snapshot?.reach);
+  const engagement = Number(snapshot?.engagement);
+  const reactions = Number(snapshot?.reactions);
+  const comments = Number(snapshot?.comments);
+  const shares = Number(snapshot?.shares);
+  const engagedUsers = Number(snapshot?.engagedUsers);
+
+  if (!Number.isFinite(reach) || reach <= 0) return { ...snapshot };
+
+  return {
+    ...snapshot,
+    engagementRate: Number.isFinite(engagement) ? engagement / reach : null,
+    reactionRate: Number.isFinite(reactions) ? reactions / reach : null,
+    commentRate: Number.isFinite(comments) ? comments / reach : null,
+    shareRate: Number.isFinite(shares) ? shares / reach : null,
+    engagedUserRate: Number.isFinite(engagedUsers) ? engagedUsers / reach : null
+  };
+}
+
 export function parsePageFollowerCount(payload) {
   const count = Number(payload?.followers_count);
   return Number.isFinite(count) && count >= 0 ? count : null;
@@ -213,12 +233,12 @@ export async function collectGrowthAnalytics({
         }
       }
 
-      store = upsertDailySnapshot(store, {
+      store = upsertDailySnapshot(store, addDerivedPerformanceMetrics({
         ...snapshot,
         ...insights,
         capturedDate,
         capturedAt
-      });
+      }));
       succeeded += 1;
     } catch (error) {
       errors.push({
