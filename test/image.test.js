@@ -11,6 +11,9 @@ test('renders the daily post as a Facebook-ready PNG', async () => {
     imageText: 'Keep going.\nSmall steps count.'
   });
   assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  const svg = (await import('../src/image.js')).buildSvg({ imageText: 'Keep going.' });
+  assert.match(svg, /#A6D8B8/);
+  assert.match(svg, /#FFFFFF/);
 });
 
 test('image renderer can find ImageMagick on the runner', async () => {
