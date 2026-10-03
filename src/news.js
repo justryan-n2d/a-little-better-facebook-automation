@@ -789,7 +789,9 @@ function imageCandidateScore(candidate, story) {
   ];
   if (genericVisualTerms.some(term => containsTerm(text, term))) score -= 30;
 
-  if (candidate.kind === 'og:image' || candidate.kind === 'twitter:image') score += 2;
+  if (candidate.kind === 'og:image') score += 28;
+  if (candidate.kind === 'og:image:url') score += 26;
+  if (candidate.kind === 'twitter:image' || candidate.kind === 'twitter:image:src') score += 24;
   if (candidate.kind === 'article-image') score += 5;
 
   return { score, matches };

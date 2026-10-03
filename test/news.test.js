@@ -219,6 +219,50 @@ test('provides a direct StockSnap CDN fallback when available', async () => {
   ]);
 });
 
+test('accepts the original article Open Graph image when context text is unavailable', async () => {
+  const result = await findSourceArticleImage(
+    {
+      url: 'https://news.google.com/rss/articles/example',
+      domain: 'Bay News 9',
+      title: 'Family shares story behind resurfaced memorial bench found in Bermuda'
+    },
+    {
+      fetchImpl: async input => {
+        const url = String(input);
+
+        if (url.includes('news.google.com')) {
+          return {
+            ok: true,
+            status: 200,
+            url: 'https://www.baynews9.com/fl/tampa/news/example-story',
+            text: async () => ''
+          };
+        }
+
+        if (url.includes('baynews9.com/fl/tampa/news/example-story')) {
+          return new Response(
+            '<html><head>' +
+            '<meta property="og:image" content="https://cdn.baynews9.com/images/example-story.jpg">' +
+            '</head></html>',
+            { status: 200, headers: { 'content-type': 'text/html' } }
+          );
+        }
+
+        if (url.includes('cdn.baynews9.com/images/example-story.jpg')) {
+          return new Response(Buffer.alloc(12000, 9), {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' }
+          });
+        }
+
+        return new Response('not found', { status: 404 });
+      }
+    }
+  );
+
+  assert.equal(result.url, 'https://cdn.baynews9.com/images/example-story.jpg');
+});
+
 test('uses the source article image that matches the story context', async () => {
   const calls = [];
 
