@@ -61,7 +61,7 @@ test('explores an unmeasured candidate on exploration days', () => {
     ]
   };
 
-  const post = getDailyPost('2026-11-03', [], analytics);
+  const post = getDailyPost('2026-12-22', [], analytics);
 
   assert.equal(post.category, 'mindset');
   assert.equal(post.contentId, 'mindset-002');
