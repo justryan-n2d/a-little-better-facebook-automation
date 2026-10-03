@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 export const NEWS_CANVAS = { width: 1080, height: 1350 };
-export const NEWS_PRIMARY = '#FFD61A';
+export const NEWS_PRIMARY = '#A3D4C0';
 export const NEWS_WHITE = '#FFFFFF';
 export const NEWS_DARK = '#111111';
 export const NEWS_SAFE = 72;
