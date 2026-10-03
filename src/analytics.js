@@ -13,6 +13,37 @@ export function engagementScore({
   return asNumber(reactions) + (asNumber(comments) * 2) + (asNumber(shares) * 3);
 }
 
+export function getLatestContentPerformance(snapshots = []) {
+  const latest = new Map();
+
+  for (const snapshot of Array.isArray(snapshots) ? snapshots : []) {
+    const contentId = snapshot?.contentId;
+    if (!contentId) continue;
+
+    const existing = latest.get(contentId);
+    if (!existing) {
+      latest.set(contentId, snapshot);
+      continue;
+    }
+
+    const existingDate = String(existing.capturedDate || existing.capturedAt || '');
+    const candidateDate = String(snapshot.capturedDate || snapshot.capturedAt || '');
+
+    if (candidateDate > existingDate) {
+      latest.set(contentId, snapshot);
+    }
+  }
+
+  return latest;
+}
+
+export function performanceScore(snapshot = {}) {
+  const engagementRate = Number(snapshot?.engagementRate);
+  if (Number.isFinite(engagementRate) && engagementRate >= 0) return engagementRate;
+
+  return asNumber(snapshot?.engagement);
+}
+
 export function getLatestPostSnapshots(snapshots = []) {
   const latest = new Map();
 
