@@ -69,7 +69,7 @@ const LITTLE_BETTER_TOPIC_GROUPS = [
 ];
 
 function containsTerm(text, term) {
-  const escaped = String(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escaped = String(term).replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
   return new RegExp('\\b' + escaped + '\\b', 'i').test(text);
 }
 
@@ -677,18 +677,6 @@ export async function findOpenverseImage(query, {
   };
 }
 
-function sameSourceDomain(imageUrl, sourceDomain, articleUrl) {
-  try {
-    const imageHost = new URL(imageUrl).hostname.replace(/^www\\./i, '').toLowerCase();
-    const sourceHost = String(sourceDomain || '').replace(/^www\\./i, '').toLowerCase();
-    const articleHost = new URL(articleUrl).hostname.replace(/^www\\./i, '').toLowerCase();
-    const matches = host => Boolean(host) && (host === imageHost || host.endsWith('.' + imageHost) || imageHost.endsWith('.' + host));
-    return matches(sourceHost) || matches(articleHost);
-  } catch {
-    return false;
-  }
-}
-
 function extractMetaImages(html) {
   return [...String(html || '').matchAll(/<meta\b[^>]*>/gi)].map(match => {
     const tag = match[0];
@@ -697,16 +685,17 @@ function extractMetaImages(html) {
     return { property, content: decodeXmlEntities(content || '').trim() };
   });
 }
-
-function extractArticleImageUrls(html, articleUrl) {
-  const tags = extractMetaImages(html);
-  const values = tags
-    .filter(item => ['og:image', 'og:image:url', 'twitter:image', 'twitter:image:src'].includes(item.property) && item.content)
-    .map(item => item.content);
-  values.push(...[...String(html || '').matchAll(/"image"\s*:\s*"([^"]+)"/gi)].map(match => match[1]));
-  return [...new Set(values.map(value => {
-    try { return new URL(value, articleUrl).toString(); } catch { return null; }
-  }).filter(Boolean))];
+function articleImageCandidates(html, articleUrl) {
+  const values = [];
+  for (const item of extractMetaImages(html)) {
+    if (['og:image', 'og:image:url', 'twitter:image', 'twitter:image:src'].includes(item.property) && item.content) values.push(item.content);
+  }
+  values.push(...[...String(html || '').matchAll(/<link\b[^>]*(?:rel|itemprop)\s*=\s*["'][^"']*image[^"']*["'][^>]*>/gi)].map(match =>
+    match[0].match(/href\s*=\s*["']([^"']+)["']/i)?.[1] || ''));
+  values.push(...[...String(html || '').matchAll(/<img\b[^>]+>/gi)].map(match =>
+    match[0].match(/(?:src|data-src|data-original)\s*=\s*["']([^"']+)["']/i)?.[1] || ''));
+  values.push(...[...String(html || '').matchAll(/"image"\\s*:\\s*(?:"([^"]+)"|\[\\s*"([^"]+)")/gi)].map(match => match[1] || match[2] || ''));
+  return [...new Set(values.map(value => { try { return new URL(value, articleUrl).toString(); } catch { return null; } }).filter(Boolean))];
 }
 
 async function resolveArticleUrl(url, { fetchImpl = fetch } = {}) {
@@ -726,9 +715,8 @@ export async function findSourceArticleImage(story, { fetchImpl = fetch } = {}) 
   });
   if (!response.ok) throw new Error('Source article HTTP ' + response.status);
   const html = await response.text();
-  const imageUrls = extractArticleImageUrls(html, articleUrl)
-    .filter(url => sameSourceDomain(url, sourceDomain, articleUrl));
-  if (!imageUrls.length) throw new Error('Source article did not expose an image from the same source: ' + sourceDomain);
+  const imageUrls = articleImageCandidates(html, articleUrl);
+  if (!imageUrls.length) throw new Error('Source article did not expose an article-declared image: ' + sourceDomain);
 
   for (const imageUrl of imageUrls) {
     try {
@@ -749,7 +737,8 @@ export async function findSourceArticleImage(story, { fetchImpl = fetch } = {}) 
       console.log('Source article image failed for ' + imageUrl + ': ' + (error instanceof Error ? error.message : String(error)));
     }
   }
-  throw new Error('All source article images failed to download for: ' + sourceDomain);
+
+  throw new Error('All article-declared images failed to download for: ' + sourceDomain);
 }
 
 export async function downloadImage(url, { fetchImpl = fetch } = {}) {
