@@ -67,7 +67,7 @@ test('dry-run mode is allowed to preview even when a date is already posted', as
 
 test('short headline uses the larger production font size', () => {
   const svg = buildSvg({ imageText: 'Keep going.\nSmall steps count.' });
-  assert.match(svg, /font-size="52"/);
+  assert.match(svg, /font-size="56"/);
 });
 
 test('branding icon and text are a single centered lockup', () => {
@@ -75,6 +75,7 @@ test('branding icon and text are a single centered lockup', () => {
   assert.ok(svg.includes('class="brand-lockup"'));
   assert.ok(svg.includes('translate(32 1160)'));
   assert.ok(svg.includes('translate(198.5 0)'));
+  assert.equal((svg.match(/class="brand-lockup"/g) || []).length, 1);
   assert.ok(svg.includes('<text x="73" y="1195" text-anchor="start" class="brand">A LITTLE BETTER</text>'));
 });
 
@@ -83,4 +84,5 @@ test('branding is centered at the bottom', () => {
   assert.match(svg, /class="brand-lockup"/);
   assert.match(svg, /A LITTLE BETTER/);
   assert.match(svg, /font-size: 21px/);
+  assert.match(svg, /BRAND_LOCKUP_X/);
 });
