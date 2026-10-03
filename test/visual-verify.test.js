@@ -9,28 +9,24 @@ import {
 
 async function makePhoto({
   width = 1200,
-  height = 900,
-  background = { r: 40, g: 120, b: 80 }
+  height = 900
 } = {}) {
-  return sharp({
-    create: {
-      width,
-      height,
-      channels: 3,
-      background
+  const raw = Buffer.alloc(width * height * 3);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width + x) * 3;
+      raw[index] = (x * 3 + y) % 256;
+      raw[index + 1] = (y * 4 + x) % 256;
+      raw[index + 2] = (x + y * 2) % 256;
     }
+  }
+  return sharp(raw, {
+    raw: { width, height, channels: 3 }
   }).png().toBuffer();
 }
 
 async function makeGraphic() {
-  return sharp({
-    create: {
-      width: 1080,
-      height: 1350,
-      channels: 3,
-      background: { r: 24, g: 36, b: 48 }
-    }
-  }).png().toBuffer();
+  return makePhoto({ width: 1080, height: 1350 });
 }
 
 test('deterministic verifier approves a high-quality article image with matching context', async () => {
