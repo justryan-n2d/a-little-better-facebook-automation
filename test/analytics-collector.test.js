@@ -36,6 +36,21 @@ test('parses engagement counts from a Meta post response', () => {
 });
 
 
+
+test('records the Manila publish hour when available', () => {
+  const parsed = parsePostMetrics({
+    id: '123_999'
+  }, {
+    contentId: 'motivation-001',
+    category: 'motivation',
+    postDate: '2026-10-03',
+    publishedAt: '2026-10-03T01:00:00.000Z'
+  });
+
+  assert.equal(parsed.publishHour, 9);
+});
+
+
 test('carries experiment metadata into collected post metrics', () => {
   const experiment = {
     selectionMode: 'explore',

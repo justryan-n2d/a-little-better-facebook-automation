@@ -6,7 +6,9 @@ import {
   summarizeCategoryPerformance,
   getFollowerDelta,
   getLatestContentPerformance,
-  performanceScore
+  performanceScore,
+  getPhilippineHour,
+  summarizePublishHourPerformance
 } from '../src/analytics.js';
 
 test('scores shares and comments more strongly than simple reactions', () => {
@@ -62,6 +64,28 @@ test('uses engagement rate as the adaptive content performance score when availa
     0.09
   );
 });
+
+test('converts timestamps to a Manila posting hour', () => {
+  assert.equal(
+    getPhilippineHour('2026-10-03T01:00:00.000Z'),
+    9
+  );
+});
+
+test('summarizes performance by publish hour', () => {
+  assert.deepEqual(
+    summarizePublishHourPerformance([
+      { publishHour: 9, engagement: 10, engagementRate: 0.02 },
+      { publishHour: 9, engagement: 20, engagementRate: 0.04 },
+      { publishHour: 18, engagement: 30, engagementRate: 0.06 }
+    ]),
+    [
+      { publishHour: 18, posts: 1, averageEngagement: 30, averageEngagementRate: 0.06 },
+      { publishHour: 9, posts: 2, averageEngagement: 15, averageEngagementRate: 0.03 }
+    ]
+  );
+});
+
 
 test('keeps the latest performance snapshot for each content id', () => {
   const latest = getLatestContentPerformance([

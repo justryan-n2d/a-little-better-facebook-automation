@@ -147,6 +147,65 @@ export function summarizeExperimentPerformance(snapshots = [], dimension) {
     );
 }
 
+export function getPhilippineHour(input) {
+  if (input === null || input === undefined || input === '') return null;
+
+  const date = new Date(input);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const hour = Number(new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    hour: '2-digit',
+    hourCycle: 'h23'
+  }).format(date));
+
+  return Number.isFinite(hour) ? hour : null;
+}
+
+export function summarizePublishHourPerformance(snapshots = []) {
+  const groups = new Map();
+
+  for (const snapshot of Array.isArray(snapshots) ? snapshots : []) {
+    const hour = Number(snapshot?.publishHour);
+    if (!Number.isInteger(hour) || hour < 0 || hour > 23) continue;
+
+    const engagement = asNumber(snapshot?.engagement ?? engagementScore(snapshot));
+    const rate = Number(snapshot?.engagementRate);
+    const current = groups.get(hour) || {
+      publishHour: hour,
+      posts: 0,
+      totalEngagement: 0,
+      totalEngagementRate: 0,
+      ratePosts: 0
+    };
+
+    current.posts += 1;
+    current.totalEngagement += engagement;
+
+    if (Number.isFinite(rate) && rate >= 0) {
+      current.totalEngagementRate += rate;
+      current.ratePosts += 1;
+    }
+
+    groups.set(hour, current);
+  }
+
+  return [...groups.values()]
+    .map(group => ({
+      publishHour: group.publishHour,
+      posts: group.posts,
+      averageEngagement: Number((group.totalEngagement / group.posts).toFixed(2)),
+      averageEngagementRate: group.ratePosts
+        ? Number((group.totalEngagementRate / group.ratePosts).toFixed(4))
+        : null
+    }))
+    .sort((a, b) =>
+      (b.averageEngagementRate ?? -1) - (a.averageEngagementRate ?? -1) ||
+      b.averageEngagement - a.averageEngagement ||
+      a.publishHour - b.publishHour
+    );
+}
+
 export function getFollowerDelta(snapshots = []) {
   const available = (Array.isArray(snapshots) ? snapshots : [])
     .filter(snapshot => Number.isFinite(Number(snapshot?.followersCount)))

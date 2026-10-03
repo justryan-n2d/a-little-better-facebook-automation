@@ -2,7 +2,7 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { resolve } from 'node:path';
 import { getPhilippineDate } from './content.js';
-import { engagementScore, normalizeAnalyticsStore } from './analytics.js';
+import { engagementScore, getPhilippineHour, normalizeAnalyticsStore } from './analytics.js';
 import { loadHistory } from './history.js';
 
 const DEFAULT_GRAPH_VERSION = 'v26.0';
@@ -66,7 +66,13 @@ async function metaGet({ graphVersion, path, params, fetchImpl = fetch }) {
   return payload;
 }
 
-export function parsePostMetrics(payload, { contentId, category, postDate, experiment = null }) {
+export function parsePostMetrics(payload, {
+  contentId,
+  category,
+  postDate,
+  publishedAt = null,
+  experiment = null
+}) {
   const reactions = summaryCount(payload?.reactions);
   const comments = summaryCount(payload?.comments);
   const shares = summaryCount(payload?.shares);
@@ -83,6 +89,8 @@ export function parsePostMetrics(payload, { contentId, category, postDate, exper
     engagement: engagementScore({ reactions, comments, shares })
   };
 
+  const publishHour = getPhilippineHour(publishedAt);
+  if (publishHour !== null) result.publishHour = publishHour;
   if (experiment) result.experiment = experiment;
 
   return result;
@@ -217,6 +225,7 @@ export async function collectGrowthAnalytics({
         contentId: post.contentId,
         category: post.category,
         postDate: post.date,
+        publishedAt: post.publishedAt || null,
         experiment: post.experiment || null
       });
 
