@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { publishPhoto } from './facebook.js';
 import {
   buildNewsCaption,
+  buildDisplayHeadline,
   buildNewsHook,
   buildNewsAngle,
   buildPhotoCredit,
@@ -81,6 +82,7 @@ export async function runNewsPost({
   const hook = buildNewsHook(story.title);
   const angle = buildNewsAngle(story.title);
   const photoCredit = buildPhotoCredit(imageMeta);
+  const displayHeadline = buildDisplayHeadline(story.title);
   const sourceDomain = story.domain || 'news source';
 
   await mkdir('artifacts', { recursive: true });
@@ -90,7 +92,7 @@ export async function runNewsPost({
   await renderNewsImage({
     imageBuffer,
     hook,
-    title: story.title,
+    title: displayHeadline,
     sourceDomain,
     angle,
     photoCredit,
@@ -104,6 +106,7 @@ export async function runNewsPost({
     sourceDomain,
     provider: discovery.provider,
     topic: story.topic,
+    displayHeadline,
     sourceCount: story.sourceCount,
     discoveryScore: story.score,
     published: false,
