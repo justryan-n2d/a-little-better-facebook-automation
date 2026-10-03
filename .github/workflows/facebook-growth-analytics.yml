@@ -1,0 +1,47 @@
+name: Facebook Growth Analytics
+
+on:
+  schedule:
+    - cron: "0 18 * * *"
+      timezone: "Asia/Manila"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: a-little-better-growth-analytics
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Collect Facebook growth analytics
+        env:
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
+          META_GRAPH_VERSION: v26.0
+          FB_ANALYTICS_LOOKBACK_DAYS: "30"
+          FB_POST_INSIGHT_METRICS: "post_impressions_unique,post_engaged_users"
+        run: node src/analytics-collector.js
+
+      - name: Commit analytics history
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/growth-analytics.json
+          git diff --cached --quiet || git commit -m "chore: record Facebook growth analytics"
+          git push
