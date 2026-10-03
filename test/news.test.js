@@ -445,6 +445,10 @@ test('classifies human kindness stories directly', () => {
     true
   );
   assert.equal(
+    isLittleBetterTopic('Journalist tears up after flood survivor offers her something to eat')?.name,
+    'human-kindness'
+  );
+  assert.equal(
     isHeartwarmingHumanStory('Buffalo Bills win Cannes Corporate Media award'),
     false
   );
