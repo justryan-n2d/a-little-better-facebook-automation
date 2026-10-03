@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   parsePostMetrics,
+  parsePageFollowerCount,
+  parseInsightValues,
   upsertDailySnapshot
 } from '../src/analytics-collector.js';
 
@@ -30,6 +32,26 @@ test('parses engagement counts from a Meta post response', () => {
     shares: 4,
     engagement: 28
   });
+});
+
+test('parses a numeric Page follower count', () => {
+  assert.equal(parsePageFollowerCount({ followers_count: 217 }), 217);
+  assert.equal(parsePageFollowerCount({ followers_count: 'not-a-number' }), null);
+});
+
+test('maps available Meta insight metrics into stable analytics fields', () => {
+  assert.deepEqual(
+    parseInsightValues({
+      data: [
+        { name: 'post_impressions_unique', values: [{ value: 91 }] },
+        { name: 'post_engaged_users', values: [{ value: 17 }] }
+      ]
+    }),
+    {
+      reach: 91,
+      engagedUsers: 17
+    }
+  );
 });
 
 test('replaces the same post snapshot for the same capture date', () => {
