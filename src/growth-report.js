@@ -5,6 +5,7 @@ import {
   getLatestPostSnapshots,
   summarizeCategoryPerformance
 } from './analytics.js';
+import { contentBank } from './content.js';
 
 const DAYS_IN_WEEK = 7;
 
@@ -78,8 +79,8 @@ export function buildGrowthReport({
     const historyPost = weeklyPosts.find(post => post.facebookPostId === snapshot.facebookPostId);
     return {
       ...snapshot,
-      imageText: historyPost?.imageText || '',
-      caption: historyPost?.caption || ''
+      imageText: contentBank.find(item => item.id === historyPost?.contentId)?.imageText || '',
+      caption: contentBank.find(item => item.id === historyPost?.contentId)?.caption || ''
     };
   });
 
