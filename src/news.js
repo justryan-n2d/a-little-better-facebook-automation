@@ -23,7 +23,7 @@ const STOPWORDS = new Set([
 ]);
 
 function cleanText(value) {
-  return String(value ?? '').replace(/\\s+/g, ' ').trim();
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
 
 function normalizeUrl(value) {
@@ -43,7 +43,7 @@ function normalizeUrl(value) {
 
 function domainFromUrl(value) {
   try {
-    return new URL(value).hostname.replace(/^www\\./, '');
+    return new URL(value).hostname.replace(/^www\./, '');
   } catch {
     return '';
   }
@@ -52,8 +52,8 @@ function domainFromUrl(value) {
 function titleFingerprint(title) {
   const words = cleanText(title)
     .toLowerCase()
-    .replace(/[^a-z0-9\\s]/g, ' ')
-    .split(/\\s+/)
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
     .filter(word => word.length > 2 && !STOPWORDS.has(word));
   return [...new Set(words)].sort().slice(0, 12).join(' ');
 }
@@ -64,7 +64,7 @@ function hoursOld(seendate, now = new Date()) {
   const parsed = new Date(
     raw.length >= 14
       ? raw.replace(
-          /^(\\d{4})(\\d{2})(\\d{2})(\\d{2})(\\d{2})(\\d{2})$/,
+          /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/,
           '$1-$2-$3T$4:$5:$6Z'
         )
       : raw
@@ -212,8 +212,8 @@ export function selectFreshStory(articles, {
 
 export function extractImageQuery(title) {
   const words = cleanText(title)
-    .replace(/[^a-zA-Z0-9\\s]/g, ' ')
-    .split(/\\s+/)
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
+    .split(/\s+/)
     .filter(word => word.length >= 4 && !STOPWORDS.has(word.toLowerCase()));
   return [...new Set(words)].slice(0, 4).join(' ');
 }
@@ -275,7 +275,7 @@ export async function downloadImage(url, { fetchImpl = fetch } = {}) {
   return Buffer.from(arrayBuffer);
 }
 
-export function buildNewsHook(title) {
+export function buildNewsAngle(title) {\n  const lower = cleanText(title).toLowerCase();\n  if (/(student|school|education|scholarship|award)/.test(lower)) {\n    return 'Small achievements can become big reasons for people to keep going.';\n  }\n  if (/(science|discovery|breakthrough|innovation|technology)/.test(lower)) {\n    return 'Progress often starts with one new idea, question, or discovery.';\n  }\n  if (/(kindness|charity|volunteer|community|donat)/.test(lower)) {\n    return 'One helpful action can reach much farther than the moment it started.';\n  }\n  if (/(surviv|rescued|saved|survive)/.test(lower)) {\n    return 'Unexpected moments can remind us how quickly life can change.';\n  }\n  if (/(record|milestone|achievement|comeback|champion)/.test(lower)) {\n    return 'A milestone is more than a headline. It shows what persistence can build.';\n  }\n  return 'Sometimes one story stands out because it gives people something to think about.';\n}\n\nexport function buildNewsHook(title) {
   const lower = cleanText(title).toLowerCase();
   if (/(surviv|rescued|saved|survive)/.test(lower)) {
     return 'An unexpected moment is making headlines today.';
@@ -315,7 +315,7 @@ export function buildNewsCaption({
     `Photo: ${photoCredit}`,
     '',
     'A Little Better, one day at a time.'
-  ].join('\\n');
+  ].join('\n');
 }
 
 export function buildPhotoCredit(image) {
