@@ -30,14 +30,14 @@ test('long text wraps and reduces font size instead of overflowing', () => {
     'You do not have to have everything figured out. Take it one day at a time.',
     24
   );
-  const fontSize = calculateFontSize(lines.length, 470, { max: 48, min: 26 });
+  const fontSize = calculateFontSize(lines.length, 470, { max: 42, min: 24 });
   assert.ok(lines.length >= 3);
-  assert.ok(fontSize <= 48);
+  assert.ok(fontSize <= 42);
 });
 
 test('layout validation rejects collisions and accepts the production layout', () => {
   assert.equal(validateLayout({
-    headline: { x: 120, y: 330, width: 840, height: 470 },
+    headline: { x: 126, y: 340, width: 816, height: 440 },
     support: { x: 150, y: 865, width: 780, height: 90 },
     brand: { x: 360, y: 1185, width: 360, height: 60 }
   }), true);
