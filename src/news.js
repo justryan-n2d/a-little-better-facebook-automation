@@ -24,7 +24,9 @@ const BLOCKED_TERMS = [
 const BLOCKED_IMAGE_TERMS = [
   'infographic', 'diagram', 'chart', 'graph', 'screenshot', 'screen capture',
   'slide', 'slides', 'presentation', 'poster', 'flyer', 'worksheet',
-  'logo', 'icon', 'map', 'textbook', 'document', 'online learning'
+  'logo', 'icon', 'map', 'textbook', 'document', 'online learning',
+  'painting', 'oil painting', 'watercolor', 'artwork', 'illustration',
+  'drawing', 'sculpture', 'statue', 'museum', 'canvas'
 ];
 
 const STOPWORDS = new Set([
@@ -463,30 +465,28 @@ export function extractImageQuery(title) {
 }
 
 export function buildDisplayHeadline(title) {
-  let text = cleanText(title)
+  const text = cleanText(title)
     .replace(/\s+-\s+[^-]{2,80}$/i, '')
     .trim();
 
-  if (/discusses skills students need for success beyond grades/i.test(text)) {
-    return 'Students Need More Than Good Grades';
+  if (/FAU graduate student uses Miss Fort Lauderdale crown to turn science into action/i.test(text)) {
+    return 'FAU Graduate Uses Her Crown for Coastal Conservation';
   }
 
-  if (text.length <= 68) return text;
+  if (text.length <= 100) return text;
 
   const clauses = text
     .split(/[:,;]/)
     .map(part => part.trim())
-    .filter(part => part.length >= 24 && part.length <= 68);
+    .filter(part => part.length >= 24 && part.length <= 100);
 
   if (clauses.length > 0) return clauses[0];
 
-  const words = text.split(/\s+/);
-  const shortened = words.slice(0, 10).join(' ');
-  return shortened + (words.length > 10 ? '...' : '');
+  return text;
 }
 
 export function buildImageQueries(title, topic) {
-  const exact = extractImageQuery(title);
+  const text = cleanText(title).toLowerCase();
   const topicQueries = {
     'kindness-community': ['community volunteers helping people', 'people helping community'],
     'education-growth': ['students achievement education', 'students celebrating success'],
@@ -496,8 +496,31 @@ export function buildImageQueries(title, topic) {
     'better-world': ['sustainable community environment', 'clean energy innovation']
   };
 
+  const storySpecific = [];
+  if (/(science|research|lab|laboratory|marine|conservation|ocean)/.test(text)) {
+    storySpecific.push('woman marine scientist fieldwork', 'scientist fieldwork environmental research');
+  }
+  if (/(student|graduate|college|school|education)/.test(text)) {
+    storySpecific.push('college student science research', 'student scientist laboratory');
+  }
+  if (/(crown|pageant|miss\b|beauty queen)/.test(text)) {
+    storySpecific.push('woman community outreach environmental science');
+  }
+  if (/(scholarship)/.test(text)) {
+    storySpecific.push('student receiving scholarship', 'college scholarship student');
+  }
+  if (/(award|honor|honours|winner)/.test(text)) {
+    storySpecific.push('student award ceremony', 'achievement celebration student');
+  }
+
+  const exact = extractImageQuery(title);
   const fallbacks = topicQueries[topic] || ['positive people community', 'uplifting people'];
-  return [...new Set([exact, ...fallbacks, 'people community inspiration'].filter(Boolean))];
+  return [...new Set([
+    ...storySpecific,
+    ...fallbacks,
+    exact,
+    'people community inspiration'
+  ].filter(Boolean))];
 }
 
 function imageTextForFiltering(item) {
@@ -527,7 +550,31 @@ export function isPhotoLikeOpenverseImage(item) {
   return true;
 }
 
-function photoCandidateScore(item) {
+function imageQueryTokens(query) {
+  return [...new Set(
+    cleanText(query)
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(word =>
+        word.length >= 4 &&
+        !STOPWORDS.has(word) &&
+        !['photo', 'photograph', 'image', 'people', 'person', 'real', 'world'].includes(word)
+      )
+  )];
+}
+
+function imageQueryRelevance(item, query) {
+  const tokens = imageQueryTokens(query);
+  if (!tokens.length) return 0;
+
+  const text = imageTextForFiltering(item);
+  const matched = tokens.filter(token => containsTerm(text, token));
+  if (tokens.length >= 3 && matched.length === 0) return -20;
+  return matched.length * 8;
+}
+
+function photoCandidateScore(item, searchQuery = '') {
   const width = Number(item?.width || 0);
   const height = Number(item?.height || 0);
   const ratio = height ? width / height : 1;
@@ -537,7 +584,12 @@ function photoCandidateScore(item) {
   if (ratio >= 0.8 && ratio <= 1.8) score += 2;
 
   const text = imageTextForFiltering(item);
-  if (/photo|photograph|portrait/i.test(text)) score += 4;
+  if (/photo|photograph/i.test(text)) score += 4;
+
+  score += imageQueryRelevance(item, searchQuery);
+  if (/(painting|oil painting|watercolor|artwork|illustration|drawing|sculpture|statue|museum|canvas)/i.test(text)) {
+    score -= 50;
+  }
 
   return score;
 }
@@ -560,6 +612,7 @@ export async function findOpenverseImage(query, {
   fetchImpl = fetch
 } = {}) {
   const queries = Array.isArray(query) ? query : [query];
+  let best = null;
 
   for (const searchQuery of queries.filter(Boolean)) {
     for (const license of licenses) {
@@ -572,35 +625,19 @@ export async function findOpenverseImage(query, {
       try {
         const payload = await fetchJson(url, { fetchImpl });
         const results = Array.isArray(payload?.results) ? payload.results : [];
-        const candidate = results
-          .filter(item =>
-            isPhotoLikeOpenverseImage(item) &&
-            ['cc0', 'pdm', 'by'].includes(String(item.license || license).toLowerCase())
-          )
-          .sort((a, b) => photoCandidateScore(b) - photoCandidateScore(a))[0];
-        if (candidate) {
-          const landingUrl = candidate.foreign_landing_url || candidate.url;
-          const provider = cleanText(candidate.provider || candidate.source || 'Openverse');
-          const providerFallback = /stocksnap/i.test(provider) ? stockSnapDirectImageUrl(landingUrl) : null;
-          const urlCandidates = [...new Set([
-            candidate.url,
-            candidate.thumbnail,
-            providerFallback
-          ].filter(Boolean))];
+        for (const item of results) {
+          const normalizedLicense = String(item.license || license).toLowerCase();
+          if (!['cc0', 'pdm', 'by'].includes(normalizedLicense)) continue;
+          if (!isPhotoLikeOpenverseImage(item)) continue;
 
-          return {
-            url: urlCandidates[0] || candidate.url,
-            urlCandidates,
-            thumbnail: candidate.thumbnail || null,
-            title: cleanText(candidate.title || ''),
-            creator: cleanText(candidate.creator || candidate.author || 'Unknown creator'),
-            license: String(candidate.license || license).toLowerCase(),
-            licenseVersion: candidate.license_version || null,
-            licenseUrl: candidate.license_url || null,
-            landingUrl,
-            provider,
-            searchQuery
-          };
+          const tokens = imageQueryTokens(searchQuery);
+          const relevance = imageQueryRelevance(item, searchQuery);
+          if (tokens.length >= 3 && relevance < 0) continue;
+
+          const score = photoCandidateScore(item, searchQuery);
+          if (!best || score > best.score) {
+            best = { item, score, searchQuery, license: normalizedLicense };
+          }
         }
       } catch (error) {
         console.log(`Openverse search failed for "${searchQuery}" / ${license}: ${error instanceof Error ? error.message : String(error)}`);
@@ -608,7 +645,32 @@ export async function findOpenverseImage(query, {
     }
   }
 
-  return null;
+  if (!best) return null;
+
+  const candidate = best.item;
+  const landingUrl = candidate.foreign_landing_url || candidate.url;
+  const provider = cleanText(candidate.provider || candidate.source || 'Openverse');
+  const providerFallback = /stocksnap/i.test(provider) ? stockSnapDirectImageUrl(landingUrl) : null;
+  const urlCandidates = [...new Set([
+    candidate.url,
+    candidate.thumbnail,
+    providerFallback
+  ].filter(Boolean))];
+
+  return {
+    url: urlCandidates[0] || candidate.url,
+    urlCandidates,
+    thumbnail: candidate.thumbnail || null,
+    title: cleanText(candidate.title || ''),
+    creator: cleanText(candidate.creator || candidate.author || 'Unknown creator'),
+    license: best.license,
+    licenseVersion: candidate.license_version || null,
+    licenseUrl: candidate.license_url || null,
+    landingUrl,
+    provider,
+    searchQuery: best.searchQuery,
+    relevanceScore: best.score
+  };
 }
 
 export async function downloadImage(url, { fetchImpl = fetch } = {}) {
