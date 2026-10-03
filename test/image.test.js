@@ -88,6 +88,13 @@ test('image renderer can find ImageMagick on the runner', async () => {
 });
 
 
+
+test('publisher renders using the selected visual variant', async () => {
+  const indexSource = await import('node:fs/promises').then(fs => fs.readFile('src/index.js', 'utf8'));
+  assert.match(indexSource, /renderPostImage\(\{ imageText: post\.imageText, variant: post\.experiment\.contentTraits\.visualVariant \}\)/);
+});
+
+
 test('dry-run mode is allowed to preview even when a date is already posted', async () => {
   const indexSource = await import('node:fs/promises').then(fs => fs.readFile('src/index.js', 'utf8'));
   assert.match(indexSource, /&& !isTrue\('FORCE_POST'\) && !dryRun/);
