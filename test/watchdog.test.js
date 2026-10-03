@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decideWatchdogAction } from '../src/watchdog.js';
+import { decideAnalyticsHealthAction, decideWatchdogAction } from '../src/watchdog.js';
 
 
 test('does not alert for analytics before the daily analytics grace period', () => {
