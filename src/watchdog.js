@@ -180,7 +180,8 @@ async function githubRequest({ apiUrl, token, path, method = 'GET', body }) {
 }
 
 async function hasOpenIssue({ apiUrl, token, repository, title }) {
-  const searchQuery = encodeURIComponent(`repo:${repository} is:issue is:open in:title [Facebook Watchdog] ${title}`);
+  const fullTitle = title.startsWith('[Facebook Watchdog]') ? title : `[Facebook Watchdog] ${title}`;
+  const searchQuery = encodeURIComponent(`repo:${repository} is:issue is:open in:title ${fullTitle}`);
   const existing = await githubRequest({
     apiUrl,
     token,
@@ -190,8 +191,9 @@ async function hasOpenIssue({ apiUrl, token, repository, title }) {
 }
 
 async function createIssueIfMissing({ apiUrl, token, repository, title, body }) {
-  if (await hasOpenIssue({ apiUrl, token, repository, title })) {
-    console.log(`An open watchdog issue already exists for: ${title}`);
+  const fullTitle = title.startsWith('[Facebook Watchdog]') ? title : `[Facebook Watchdog] ${title}`;
+  if (await hasOpenIssue({ apiUrl, token, repository, title: fullTitle })) {
+    console.log(`An open watchdog issue already exists for: ${fullTitle}`);
     return false;
   }
 
@@ -200,10 +202,10 @@ async function createIssueIfMissing({ apiUrl, token, repository, title, body }) 
     token,
     method: 'POST',
     path: `/repos/${repository}/issues`,
-    body: { title, body: truncate(body) }
+    body: { title: fullTitle, body: truncate(body) }
   });
 
-  console.log(`Created watchdog maintenance issue: ${title}`);
+  console.log(`Created watchdog maintenance issue: ${fullTitle}`);
   return true;
 }
 
