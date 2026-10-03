@@ -628,36 +628,7 @@ test('production renderer preserves the source photo and readable text layers', 
   }
 });
 
-test('rejects a semantically wrong top-ranked article image and accepts the verified candidate', async () => {
-  const visionResponses = [
-    {
-      output_text: JSON.stringify({
-        approved: false,
-        story_alignment_score: 18,
-        photo_quality_score: 90,
-        readability_score: 90,
-        generic_graphic: false,
-        unsafe: false,
-        visible_subjects: ['football players'],
-        visible_context: 'A football game',
-        reason: 'The visible scene does not match the family grocery story.'
-      })
-    },
-    {
-      output_text: JSON.stringify({
-        approved: true,
-        story_alignment_score: 91,
-        photo_quality_score: 89,
-        readability_score: 90,
-        generic_graphic: false,
-        unsafe: false,
-        visible_subjects: ['a neighbor', 'a family', 'grocery bags'],
-        visible_context: 'A neighbor carrying groceries toward a family',
-        reason: 'The visible people and action match the story.'
-      })
-    }
-  ];
-
+test('rejects an unrelated article image and accepts the matching article image with deterministic checks', async () => {
   const result = await findSourceArticleImage(
     {
       url: 'https://news.google.com/rss/articles/example',
@@ -665,8 +636,6 @@ test('rejects a semantically wrong top-ranked article image and accepts the veri
       title: 'Neighbor helps family with groceries'
     },
     {
-      visualVerificationMode: 'required',
-      openaiApiKey: 'test-key',
       fetchImpl: async (input) => {
         const url = String(input);
 
@@ -679,23 +648,29 @@ test('rejects a semantically wrong top-ranked article image and accepts the veri
             '<html><head>' +
             '<meta property="og:image" content="https://cdn.example/football.jpg">' +
             '</head><body>' +
-            '<img src="https://cdn.example/family.jpg" alt="A person helps another person">' +
+            '<img src="https://cdn.example/family.jpg" alt="A person helps another family with groceries">' +
             '</body></html>',
             { status: 200, headers: { 'content-type': 'text/html' } }
           );
         }
 
-        if (url.includes('api.openai.com')) {
-          return new Response(JSON.stringify(visionResponses.shift()), {
-            status: 200,
-            headers: { 'content-type': 'application/json' }
-          });
-        }
-
         if (url.includes('cdn.example/football.jpg') || url.includes('cdn.example/family.jpg')) {
-          return new Response(Buffer.alloc(12000, 12), {
+          const raw = Buffer.alloc(500 * 400 * 3);
+          for (let y = 0; y < 400; y += 1) {
+            for (let x = 0; x < 500; x += 1) {
+              const index = (y * 500 + x) * 3;
+              raw[index] = (x * 3) % 256;
+              raw[index + 1] = (y * 4) % 256;
+              raw[index + 2] = (x + y) % 256;
+            }
+          }
+          const image = await sharp(raw, {
+            raw: { width: 500, height: 400, channels: 3 }
+          }).png().toBuffer();
+
+          return new Response(image, {
             status: 200,
-            headers: { 'content-type': 'image/jpeg' }
+            headers: { 'content-type': 'image/png' }
           });
         }
 
@@ -706,10 +681,11 @@ test('rejects a semantically wrong top-ranked article image and accepts the veri
 
   assert.equal(result.url, 'https://cdn.example/family.jpg');
   assert.equal(result.visualVerification.verified, true);
-  assert.equal(result.visualVerification.storyAlignmentScore, 91);
+  assert.equal(result.visualVerification.method, 'deterministic');
+  assert.ok(result.visualVerification.storyAlignmentScore >= 50);
 });
 
-test('fresh news runner stores source and final visual verification results', async () => {
+test('fresh news runner stores deterministic source and final visual verification results', async () => {
   const tempDir = await mkdtemp('/tmp/a-little-better-phase4-');
   const historyPath = join(tempDir, 'history.json');
   const outputDate = '2099-12-31';
@@ -728,28 +704,11 @@ test('fresh news runner stores source and final visual verification results', as
 
   let storyUrlCalls = 0;
 
-  const visionDecision = {
-    output_text: JSON.stringify({
-      approved: true,
-      story_alignment_score: 90,
-      photo_quality_score: 88,
-      readability_score: 92,
-      generic_graphic: false,
-      unsafe: false,
-      visible_subjects: ['neighbor', 'family', 'groceries'],
-      visible_context: 'A neighbor helping a family with groceries',
-      reason: 'The photo and final graphic remain aligned with the story.'
-    })
-  };
-
   try {
     const result = await runNewsPost({
       today: outputDate,
       autoPublish: false,
       historyPath,
-      visualVerificationMode: 'required',
-      openaiApiKey: 'test-key',
-      openaiVisionModel: 'gpt-5-mini',
       fetchImpl: async (input) => {
         const url = String(input);
 
@@ -779,13 +738,6 @@ test('fresh news runner stores source and final visual verification results', as
           );
         }
 
-        if (url.includes('api.openai.com')) {
-          return new Response(JSON.stringify(visionDecision), {
-            status: 200,
-            headers: { 'content-type': 'application/json' }
-          });
-        }
-
         if (url.includes('cdn.example')) {
           return new Response(visual, {
             status: 200,
@@ -802,10 +754,11 @@ test('fresh news runner stores source and final visual verification results', as
 
     const history = JSON.parse(await readFile(historyPath, 'utf8'));
     assert.equal(result.published, false);
-    assert.equal(history.stories.at(-1).visualVerification.source.method, 'openai-vision');
-    assert.equal(history.stories.at(-1).visualVerification.graphic.method, 'openai-vision');
+    assert.equal(history.stories.at(-1).visualVerification.source.method, 'deterministic');
+    assert.equal(history.stories.at(-1).visualVerification.graphic.method, 'deterministic');
     assert.equal(history.stories.at(-1).visualVerification.source.verified, true);
     assert.equal(history.stories.at(-1).visualVerification.graphic.verified, true);
+    assert.ok(history.stories.at(-1).visualVerification.graphic.readabilityScore >= 75);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
     await rm(join('artifacts', `fresh-news-${outputDate}.png`), { force: true }).catch(() => {});
@@ -814,17 +767,16 @@ test('fresh news runner stores source and final visual verification results', as
   }
 });
 
-test('Fresh News workflow exposes the visual verification configuration', async () => {
+test('Fresh News workflow uses the free deterministic visual gate', async () => {
   const workflow = await readFile(
     '.github/workflows/a-little-better-fresh-news.yml',
     'utf8'
   );
 
-  assert.match(workflow, /name: Resolve visual verification mode/);
-  assert.match(workflow, /OPENAI_API_KEY:/);
-  assert.match(workflow, /NEWS_VISUAL_VERIFY_MODE:/);
-  assert.match(workflow, /mode=required/);
-  assert.match(workflow, /mode=metadata/);
+  assert.doesNotMatch(workflow, /OPENAI_API_KEY/);
+  assert.doesNotMatch(workflow, /OPENAI_VISION_MODEL/);
+  assert.doesNotMatch(workflow, /Resolve visual verification mode/);
+  assert.match(workflow, /Generate fresh news post/);
 });
 
 test('news post runner is importable', () => {
