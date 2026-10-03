@@ -1,0 +1,75 @@
+name: Facebook Automation CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install ImageMagick
+        run: sudo apt-get update && sudo apt-get install -y imagemagick
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run tests
+        run: npm test
+
+  live-watchdog-check:
+    name: Live GitHub Actions API check
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Verify GitHub Actions API access
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          echo "Checking repository..."
+          gh api "repos/${GITHUB_REPOSITORY}" --jq '.full_name'
+
+          echo "Checking daily Facebook workflow..."
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/daily-facebook-post.yml"             --jq '"enabled=(.state), path=(.path)"'
+
+          echo "Checking recent daily workflow runs..."
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/daily-facebook-post.yml/runs?per_page=5"             --jq '.workflow_runs[] | [.id, .event, .status, (.conclusion // "null"), .run_attempt] | @tsv'
+
+          echo "Checking watchdog workflow..."
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/facebook-workflow-watchdog.yml"             --jq '"enabled=(.state), path=(.path)"'
+
+          echo "Live GitHub Actions API check passed."
