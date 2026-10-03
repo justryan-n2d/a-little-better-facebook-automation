@@ -22,7 +22,8 @@ export async function publishPhoto({
 
   const url = `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(pageId)}/photos`;
   const form = new FormData();
-  form.append('message', message);
+  form.append('caption', message);
+  form.append('published', 'true');
   form.append('access_token', pageAccessToken);
   form.append('source', new Blob([image], { type: 'image/png' }), 'a-little-better.png');
 
@@ -33,8 +34,9 @@ export async function publishPhoto({
     throw new Error(normalizeMetaError(payload));
   }
 
-  if (!payload.id) throw new Error('Meta API returned success but no post/photo id.');
-  return { postId: payload.id, raw: payload };
+  const postId = payload.post_id || payload.id;
+  if (!postId) throw new Error('Meta API returned success but no post/photo id.');
+  return { postId, photoId: payload.id || null, raw: payload };
 }
 
 export async function getPage({
