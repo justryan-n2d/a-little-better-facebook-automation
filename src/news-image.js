@@ -119,14 +119,6 @@ export function calculateNewsLayout(template = '4:5') {
 
   const brandWidth = 430 * scale;
   const brandHeight = 70 * scale;
-  const brand = rect(
-    148 * scale,
-    height * 0.60,
-    brandWidth,
-    brandHeight,
-    'branding',
-    5 * scale
-  );
 
   const source = rect(
     NEWS_SAFE * scale,
@@ -137,13 +129,26 @@ export function calculateNewsLayout(template = '4:5') {
     4 * scale
   );
 
+  const headlineHeight = Math.min(
+    330 * scale,
+    Math.max(210 * scale, height * 0.21)
+  );
   const headline = rect(
     NEWS_SAFE * scale,
-    brand.y + 112 * scale,
+    source.y - 34 * scale - headlineHeight,
     width - NEWS_SAFE * 2 * scale,
-    Math.min(330 * scale, Math.max(240 * scale, height * 0.235)),
+    headlineHeight,
     'headline',
     10 * scale
+  );
+
+  const brand = rect(
+    148 * scale,
+    headline.y - 98 * scale,
+    brandWidth,
+    brandHeight,
+    'branding',
+    5 * scale
   );
 
   const zones = [photoCredit, photoInset, brand, headline, source];
