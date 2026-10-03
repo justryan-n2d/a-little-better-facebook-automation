@@ -164,6 +164,20 @@ function buildHeadline({ lines, box, fontSize }) {
   }).join('\n');
 }
 
+const VISUAL_VARIANTS = ['mint', 'alternate', 'minimal', 'framed'];
+
+function hashContentId(value) {
+  let hash = 0;
+  for (const char of String(value || '')) {
+    hash = ((hash * 31) + char.charCodeAt(0)) >>> 0;
+  }
+  return hash;
+}
+
+export function selectImageVariant({ contentId = '' } = {}) {
+  return VISUAL_VARIANTS[hashContentId(contentId) % VISUAL_VARIANTS.length];
+}
+
 const BRAND_TEXT = 'A LITTLE BETTER';
 const BRAND_FONT_SIZE = 21;
 const BRAND_LETTER_SPACING = 4;
@@ -284,10 +298,71 @@ function buildAlternateSvg({ imageText }) {
 </svg>`;
 }
 
+function buildMinimalSvg({ imageText }) {
+  const layout = LAYOUTS.mint;
+  validateLayout(layout);
+
+  const lines = wrapLines(imageText, 24).filter(Boolean);
+  const fontSize = calculateFontSize(lines, layout.headline.width - 28, layout.headline.height, {
+    max: 58,
+    min: 28,
+    lineHeightRatio: 1.06
+  });
+  const body = buildHeadline({ lines, box: layout.headline, fontSize });
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+  <rect width="1080" height="1350" fill="${COLORS.mint}"/>
+  <g fill="${COLORS.white}" font-family="DejaVu Sans, sans-serif">
+    ${body}
+    <text x="540" y="900" text-anchor="middle" class="support">Breathe. Then take the next step.</text>
+    ${buildBrand(layout)}
+  </g>
+  <style>
+    .headline { font-family: 'DejaVu Sans'; font-weight: 700; }
+    .support { font-family: 'DejaVu Sans'; font-size: 24px; font-weight: 400; }
+    .brand { font-family: 'DejaVu Sans'; font-size: 21px; font-weight: 700; letter-spacing: 4px; fill: ${COLORS.white}; }
+  </style>
+</svg>`;
+}
+
+function buildFramedSvg({ imageText }) {
+  const layout = LAYOUTS.alternate;
+  validateLayout(layout);
+
+  const lines = wrapLines(imageText, 22).filter(Boolean);
+  const fontSize = calculateFontSize(lines, layout.headline.width - 28, layout.headline.height, {
+    max: 52,
+    min: 25,
+    lineHeightRatio: 1.08
+  });
+  const body = buildHeadline({ lines, box: layout.headline, fontSize });
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+  <rect width="1080" height="1350" fill="${COLORS.mint}"/>
+  <rect x="110" y="235" width="860" height="770" rx="70" fill="none" stroke="${COLORS.white}" stroke-width="8" opacity="0.9"/>
+  <path d="M170 1010 H910" stroke="${COLORS.white}" stroke-width="4" opacity="0.55"/>
+  <circle cx="170" cy="1010" r="8" fill="${COLORS.white}"/>
+  <circle cx="910" cy="1010" r="8" fill="${COLORS.white}"/>
+  <g fill="${COLORS.white}" font-family="DejaVu Sans, sans-serif">
+    ${body}
+    <text x="540" y="900" text-anchor="middle" class="support">A little better, one day at a time.</text>
+    ${buildBrand(layout)}
+  </g>
+  <style>
+    .headline { font-family: 'DejaVu Sans'; font-weight: 700; }
+    .support { font-family: 'DejaVu Sans'; font-size: 24px; font-weight: 400; }
+    .brand { font-family: 'DejaVu Sans'; font-size: 21px; font-weight: 700; letter-spacing: 4px; fill: ${COLORS.white}; }
+  </style>
+</svg>`;
+}
+
 export function buildSvg({ imageText, variant = 'mint' }) {
-  return variant === 'alternate'
-    ? buildAlternateSvg({ imageText })
-    : buildMintSvg({ imageText });
+  if (variant === 'alternate') return buildAlternateSvg({ imageText });
+  if (variant === 'minimal') return buildMinimalSvg({ imageText });
+  if (variant === 'framed') return buildFramedSvg({ imageText });
+  return buildMintSvg({ imageText });
 }
 
 export async function renderPostImage({ imageText, variant = 'mint' }) {
