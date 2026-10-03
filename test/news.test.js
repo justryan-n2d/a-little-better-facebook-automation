@@ -218,13 +218,14 @@ test('provides a direct StockSnap CDN fallback when available', async () => {
   ]);
 });
 
-test('uses an image declared by the exact source article', async () => {
+test('uses the source article image that matches the story context', async () => {
   const calls = [];
 
   const result = await findSourceArticleImage(
     {
       url: 'https://news.google.com/rss/articles/example',
-      domain: 'Buffalo Bills'
+      domain: 'Buffalo Bills',
+      title: "Buffalo Bills become first NFL team to win Cannes Corporate Media & TV Award with Josh Allen MVP reaction video"
     },
     {
       fetchImpl: async (input, init = {}) => {
@@ -243,13 +244,17 @@ test('uses an image declared by the exact source article', async () => {
         if (url === 'https://www.buffalobills.com/news/example-story') {
           return new Response(
             '<html><head>' +
-            '<meta property="og:image" content="https://media.example-cdn.test/story.jpg">' +
-            '</head></html>',
+            '<meta property="og:image" content="https://media.example-cdn.test/patriot-mask.jpg">' +
+            '<meta name="twitter:image" content="https://media.example-cdn.test/josh-allen-kids.jpg">' +
+            '</head><body>' +
+            '<img src="https://media.example-cdn.test/patriot-mask.jpg" alt="A Patriot Wear a Mask Be Smart Be Strong">' +
+            '<img src="https://media.example-cdn.test/josh-allen-kids.jpg" alt="Josh Allen reacts to children hospital patients MVP message">' +
+            '</body></html>',
             { status: 200, headers: { 'content-type': 'text/html' } }
           );
         }
 
-        if (url === 'https://media.example-cdn.test/story.jpg') {
+        if (url === 'https://media.example-cdn.test/josh-allen-kids.jpg') {
           return new Response(Buffer.alloc(12000, 9), {
             status: 200,
             headers: { 'content-type': 'image/jpeg' }
@@ -261,9 +266,10 @@ test('uses an image declared by the exact source article', async () => {
     }
   );
 
-  assert.equal(result.url, 'https://media.example-cdn.test/story.jpg');
+  assert.equal(result.url, 'https://media.example-cdn.test/josh-allen-kids.jpg');
   assert.equal(result.provider, 'Buffalo Bills');
   assert.equal(result.license, 'article-image');
+  assert.ok(result.relevanceMatches.includes('josh'));
   assert.ok(calls.some(item => item.url === 'https://www.buffalobills.com/news/example-story'));
 });
 
