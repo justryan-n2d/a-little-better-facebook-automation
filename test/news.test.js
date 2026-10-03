@@ -438,6 +438,41 @@ test('parses Google News Top Stories RSS', async () => {
   assert.equal(items.length, 1);
 });
 
+test('prioritizes simple human kindness stories for A Little Better', () => {
+  const selected = selectFreshStory([
+    {
+      title: 'Journalist tears up after flood survivor offers her something to eat',
+      url: 'https://kind.example/story',
+      domain: 'Kind News',
+      seendate: '20261003030000',
+      rank: 4
+    },
+    {
+      title: 'Buffalo Bills win Cannes Corporate Media award',
+      url: 'https://sports.example/story',
+      domain: 'Sports News',
+      seendate: '20261003020000',
+      rank: 1
+    }
+  ], {
+    now: new Date('2026-10-03T04:00:00Z')
+  });
+
+  assert.equal(selected.title, 'Journalist tears up after flood survivor offers her something to eat');
+  assert.equal(selected.topic, 'human-kindness');
+});
+
+test('human kindness stories get a warm hook and relatable angle', () => {
+  const title = 'Journalist tears up after flood survivor offers her something to eat';
+  assert.match(buildNewsHook(title), /act of kindness/i);
+  assert.match(buildNewsAngle(title), /hard day feel a little lighter/i);
+});
+
+test('does not prioritize achievement-only stories over human kindness', () => {
+  const title = 'Buffalo Bills become first NFL team to win Cannes Corporate Media award';
+  assert.notEqual(getLittleBetterTopic(title)?.name, 'human-kindness');
+});
+
 test('builds a category-aware hook and original angle', () => {
   assert.match(buildNewsHook('Student receives award for science project'), /student/i);
   assert.match(buildNewsHook('New science discovery changes how we see space'), /development/i);
