@@ -158,7 +158,7 @@ export async function searchGdelt({
 
 function decodeXmlEntities(value) {
   return String(value ?? '')
-    .replace(/<![CDATA[([\\s\\S]*?)]]>/gi, '$1')
+    .replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/gi, '$1')
     .replace(/&amp;/gi, '&')
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
@@ -169,7 +169,7 @@ function decodeXmlEntities(value) {
 
 export function extractGoogleNewsRssArticles(xml) {
   const text = String(xml ?? '');
-  const items = [...text.matchAll(/<item\\b[\\s\\S]*?<\\/item>/gi)];
+  const items = [...text.matchAll(/<item\b[\s\S]*?<\/item>/gi)];
 
   return items.map((match, index) => {
     const item = match[0];
