@@ -1,8 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getDailyPost, getPhilippineDate } from '../src/content.js';
+import { getDailyPost, getPhilippineDate, contentBank } from '../src/content.js';
 
 const history = [];
+
+
+test('keeps at least twelve original posts in every content category', () => {
+  const counts = new Map();
+  for (const post of contentBank) {
+    counts.set(post.category, (counts.get(post.category) || 0) + 1);
+  }
+
+  for (const category of [
+    'encouragement',
+    'motivation',
+    'mindset',
+    'bible',
+    'student-struggles',
+    'self-improvement',
+    'casual'
+  ]) {
+    assert.ok((counts.get(category) || 0) >= 12, `${category} should have at least 12 posts`);
+  }
+});
+
 
 test('adds experiment metadata to each selected post', () => {
   const post = getDailyPost('2026-10-06', []);
@@ -13,7 +34,7 @@ test('adds experiment metadata to each selected post', () => {
       hookType: 'direct-statement',
       ctaType: 'question',
       textLength: 'short',
-      visualVariant: 'alternate'
+      visualVariant: 'mint'
     }
   });
 });
