@@ -51,6 +51,15 @@ jobs:
       - name: Generate and publish
         run: npm start
 
+      - name: Upload dry-run image preview
+        if: ${{ success() && env.DRY_RUN == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: a-little-better-image-preview
+          path: artifacts/*.png
+          if-no-files-found: error
+          retention-days: 3
+
       - name: Commit posting history
         if: ${{ success() && env.DRY_RUN != 'true' }}
         run: |
