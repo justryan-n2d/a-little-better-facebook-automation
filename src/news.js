@@ -477,6 +477,10 @@ export function buildDisplayHeadline(title) {
     return 'FAU Graduate Uses Her Crown for Coastal Conservation';
   }
 
+  if (/Buffalo Bills become first NFL team to win Cannes Corporate Media & TV Award.*Josh Allen MVP reaction video/i.test(text)) {
+    return 'Bills Video About Children’s Hospital Patients Wins Cannes Award';
+  }
+
   if (text.length <= 100) return text;
 
   const clauses = text
@@ -685,17 +689,66 @@ function extractMetaImages(html) {
     return { property, content: decodeXmlEntities(content || '').trim() };
   });
 }
-function articleImageCandidates(html, articleUrl) {
-  const values = [];
+function imageStoryTokens(title) {
+  const tokens = cleanText(title)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(word => word.length >= 4 && !STOPWORDS.has(word));
+  return [...new Set(tokens)].filter(word => !['after', 'first', 'team', 'wins', 'with', 'from', 'turn', 'uses', 'become', 'becomes'].includes(word));
+}
+
+function imageCandidateScore(candidate, story) {
+  const text = cleanText([candidate.context, candidate.url].filter(Boolean).join(' ')).toLowerCase();
+  const tokens = imageStoryTokens(story?.title || '');
+  const matches = tokens.filter(token => containsTerm(text, token));
+  let score = matches.length * 10;
+
+  const genericVisualTerms = [
+    'logo', 'icon', 'patriot', 'mask', 'flag', 'generic', 'default', 'placeholder',
+    'template', 'background', 'stock', 'illustration', 'painting', 'graphic', 'forms'
+  ];
+  if (genericVisualTerms.some(term => containsTerm(text, term))) score -= 30;
+
+  if (candidate.kind === 'og:image' || candidate.kind === 'twitter:image') score += 2;
+  if (candidate.kind === 'article-image') score += 5;
+
+  return { score, matches };
+}
+
+function articleImageCandidates(html, articleUrl, story) {
+  const candidates = [];
+  const add = (url, kind, context = '') => {
+    if (!url) return;
+    try {
+      candidates.push({
+        url: new URL(url, articleUrl).toString(),
+        kind,
+        context
+      });
+    } catch {}
+  };
+
   for (const item of extractMetaImages(html)) {
-    if (['og:image', 'og:image:url', 'twitter:image', 'twitter:image:src'].includes(item.property) && item.content) values.push(item.content);
+    if (['og:image', 'og:image:url', 'twitter:image', 'twitter:image:src'].includes(item.property)) {
+      add(item.content, item.property, item.property);
+    }
   }
-  values.push(...[...String(html || '').matchAll(/<link\b[^>]*(?:rel|itemprop)\s*=\s*["'][^"']*image[^"']*["'][^>]*>/gi)].map(match =>
-    match[0].match(/href\s*=\s*["']([^"']+)["']/i)?.[1] || ''));
-  values.push(...[...String(html || '').matchAll(/<img\b[^>]+>/gi)].map(match =>
-    match[0].match(/(?:src|data-src|data-original)\s*=\s*["']([^"']+)["']/i)?.[1] || ''));
-  values.push(...[...String(html || '').matchAll(/"image"\\s*:\\s*(?:"([^"]+)"|\[\\s*"([^"]+)")/gi)].map(match => match[1] || match[2] || ''));
-  return [...new Set(values.map(value => { try { return new URL(value, articleUrl).toString(); } catch { return null; } }).filter(Boolean))];
+
+  for (const match of String(html || '').matchAll(/<img\b[^>]+>/gi)) {
+    const tag = match[0];
+    const url = tag.match(/(?:src|data-src|data-original|data-lazy-src)\s*=\s*["']([^"']+)["']/i)?.[1];
+    const alt = tag.match(/alt\s*=\s*["']([^"']+)["']/i)?.[1] || '';
+    const title = tag.match(/title\s*=\s*["']([^"']+)["']/i)?.[1] || '';
+    const caption = tag.match(/(?:data-caption|aria-label)\s*=\s*["']([^"']+)["']/i)?.[1] || '';
+    add(url, 'article-image', [alt, title, caption, tag].join(' '));
+  }
+
+  for (const match of String(html || '').matchAll(/"image"\s*:\s*(?:"([^"]+)"|\[\s*"([^"]+)")/gi)) {
+    add(match[1] || match[2], 'article-image', 'json-ld image');
+  }
+
+  return candidates;
 }
 
 async function resolveArticleUrl(url, { fetchImpl = fetch } = {}) {
@@ -715,30 +768,38 @@ export async function findSourceArticleImage(story, { fetchImpl = fetch } = {}) 
   });
   if (!response.ok) throw new Error('Source article HTTP ' + response.status);
   const html = await response.text();
-  const imageUrls = articleImageCandidates(html, articleUrl);
-  if (!imageUrls.length) throw new Error('Source article did not expose an article-declared image: ' + sourceDomain);
 
-  for (const imageUrl of imageUrls) {
+  const ranked = articleImageCandidates(html, articleUrl, story)
+    .map(candidate => ({ ...candidate, ...imageCandidateScore(candidate, story) }))
+    .filter(candidate => candidate.score >= 10)
+    .sort((a, b) => b.score - a.score);
+
+  if (!ranked.length) {
+    throw new Error('Source article did not expose a context-matching image for: ' + cleanText(story?.title));
+  }
+
+  for (const candidate of ranked) {
     try {
-      await downloadImage(imageUrl, { fetchImpl });
+      await downloadImage(candidate.url, { fetchImpl });
       return {
-        url: imageUrl,
-        urlCandidates: [imageUrl],
-        title: 'Source article image',
+        url: candidate.url,
+        urlCandidates: [candidate.url],
+        title: candidate.context || 'Source article image',
         creator: sourceDomain,
         license: 'article-image',
         licenseVersion: null,
         licenseUrl: null,
         landingUrl: articleUrl,
         provider: sourceDomain,
-        searchQuery: 'source article image'
+        searchQuery: 'source article image',
+        relevanceMatches: candidate.matches
       };
     } catch (error) {
-      console.log('Source article image failed for ' + imageUrl + ': ' + (error instanceof Error ? error.message : String(error)));
+      console.log('Source article image failed for ' + candidate.url + ': ' + (error instanceof Error ? error.message : String(error)));
     }
   }
 
-  throw new Error('All article-declared images failed to download for: ' + sourceDomain);
+  throw new Error('All context-matching source article images failed to download for: ' + sourceDomain);
 }
 
 export async function downloadImage(url, { fetchImpl = fetch } = {}) {
