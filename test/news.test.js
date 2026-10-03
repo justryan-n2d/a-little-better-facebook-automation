@@ -326,9 +326,8 @@ test('news SVG contains the brand, source, and original angle', () => {
 test('production renderer preserves the source photo and readable text layers', async () => {
   const dir = await mkdtemp('/tmp/a-little-better-render-test-');
   const input = Buffer.from(
-    'P3\\n20 20\\n255\\n' +
-    Array.from({ length: 400 }, () => '245 90 60').join('\\n'),
-    'ascii'
+    'P6\\n20 20\\n255\\n' +
+    Buffer.alloc(20 * 20 * 3, Buffer.from([245, 90, 60]))
   );
   const outputPath = join(dir, 'rendered.png');
 
