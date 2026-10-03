@@ -69,7 +69,7 @@ const LITTLE_BETTER_TOPIC_GROUPS = [
 ];
 
 function containsTerm(text, term) {
-  const escaped = String(term).replace(/[.*+?^${}()|[\]\]/g, '\\$&');
+  const escaped = String(term).replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
   return new RegExp('\\b' + escaped + '\\b', 'i').test(text);
 }
 
