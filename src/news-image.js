@@ -20,7 +20,7 @@ function escapeXml(value) {
 }
 
 function wrap(text, maxChars = 25) {
-  const words = String(text || '').trim().split(/\\s+/).filter(Boolean);
+  const words = String(text || '').trim().split(/\s+/).filter(Boolean);
   const lines = [];
   let current = '';
   for (const word of words) {
@@ -50,7 +50,7 @@ function fontSizeFor(lines, max = 58, min = 30, maxWidth = 860, lineHeight = 1.0
 
 function chooseHighlights(lines) {
   const candidates = [];
-  const words = lines.flatMap(line => line.split(/\\s+/));
+  const words = lines.flatMap(line => line.split(/\s+/));
   for (const word of words) {
     const cleaned = word.replace(/[^A-Za-z0-9]/g, '');
     if (cleaned.length >= 5) candidates.push(cleaned);
@@ -64,13 +64,13 @@ function renderHighlightedLines(lines, highlightWords, {
   x, yStart, size, lineGap
 }) {
   return lines.map((line, index) => {
-    const parts = line.split(/(\\s+)/);
+    const parts = line.split(/(\s+)/);
     let cursor = x;
     const totalWidth = line.length * size * 0.56;
     cursor = x - totalWidth / 2;
 
     const tspans = parts.map(part => {
-      const isWord = /\\S/.test(part);
+      const isWord = /\S/.test(part);
       const cleaned = part.replace(/[^A-Za-z0-9]/g, '');
       const highlight = isWord && highlightWords.includes(cleaned);
       const out = `<tspan fill="${highlight ? YELLOW : WHITE}" font-weight="${highlight ? 800 : 800}">${escapeXml(part)}</tspan>`;
@@ -78,7 +78,7 @@ function renderHighlightedLines(lines, highlightWords, {
     }).join('');
 
     return `<text x="${x}" y="${yStart + index * lineGap}" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="${size}" font-weight="800">${tspans}</text>`;
-  }).join('\\n');
+  }).join('\n');
 }
 
 export function buildNewsSvg({
@@ -92,7 +92,7 @@ export function buildNewsSvg({
   const titleLines = wrap(title, 28);
   const hookSize = fontSizeFor(hookLines, 60, 34, 900, 1.02);
   const titleSize = fontSizeFor(titleLines, 42, 24, 860, 1.05);
-  const hookHighlights = chooseHighlights(hookLines);
+  const hookHighlights = chooseHighlights(hookLines);\n  const angleLines = wrap(angle, 42).slice(0, 2);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${CANVAS.width}" height="${CANVAS.height}" viewBox="0 0 ${CANVAS.width} ${CANVAS.height}">
@@ -138,7 +138,7 @@ export function buildNewsSvg({
   <g fill="${WHITE}">
     ${titleLines.map((line, i) =>
       `<text x="540" y="${1080 + i * Math.round(titleSize * 1.08)}" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="${titleSize}" font-weight="700">${escapeXml(line)}</text>`
-    ).join('\\n')}
+    ).join('\n')}
   </g>
 
   <rect x="90" y="1232" width="900" height="2" fill="${YELLOW}" opacity="0.9"/>
