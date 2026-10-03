@@ -1,0 +1,40 @@
+name: Facebook Workflow Watchdog
+
+on:
+  schedule:
+    - cron: "15,45 * * * *"
+      timezone: "Asia/Manila"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+  issues: write
+
+concurrency:
+  group: a-little-better-facebook-watchdog
+  cancel-in-progress: false
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Facebook workflow watchdog
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WATCHDOG_WORKFLOW_FILE: .github/workflows/daily-facebook-post.yml
+          WATCHDOG_SCHEDULE_HOUR: "9"
+          WATCHDOG_SCHEDULE_MINUTE: "0"
+          WATCHDOG_GRACE_MINUTES: "60"
+          WATCHDOG_MAX_ATTEMPTS: "3"
+        run: node src/watchdog.js
