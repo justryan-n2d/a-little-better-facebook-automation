@@ -74,7 +74,7 @@ test('branding icon and text are a single centered lockup', () => {
   const svg = buildSvg({ imageText: 'Keep going.' });
   assert.ok(svg.includes('class="brand-lockup"'));
   assert.ok(svg.includes('translate(32 1160)'));
-  assert.ok(svg.includes('translate(378.5 0)'));
+  assert.ok(svg.includes('translate(198.5 0)'));
   assert.ok(svg.includes('<text x="73" y="1195" text-anchor="start" class="brand">A LITTLE BETTER</text>'));
 });
 
