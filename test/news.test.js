@@ -346,7 +346,7 @@ test('production renderer preserves the source photo and readable text layers', 
       '%wx%h %[mean]',
       'info:'
     ]);
-    const parts = identify.stdout.trim().split(/\\s+/);
+    const parts = identify.stdout.trim().split(/\s+/);
     assert.equal(parts[0], '1080x1350');
     assert.ok(Number(parts[1]) > 10, 'rendered image should not be effectively black');
     const bytes = await readFile(outputPath);
