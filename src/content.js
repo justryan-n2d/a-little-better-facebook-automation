@@ -159,7 +159,7 @@ export function getPhilippineDate(input = new Date()) {
 
 function dateToIndex(date) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`Invalid date: ${date}`);
-  const parsed = new Date(`${date}T00:00:00+08:00`);
+  const parsed = new Date(`${date}T12:00:00+08:00`);
   if (Number.isNaN(parsed.getTime())) throw new Error(`Invalid date: ${date}`);
   return Math.floor(parsed.getTime() / 86400000);
 }
@@ -201,6 +201,35 @@ function rankCandidates(candidates, performanceByContentId, dayIndex) {
     .map(item => item.post);
 }
 
+export function getContentExperimentMetadata(post = {}) {
+  const imageText = String(post?.imageText || '');
+  const caption = String(post?.caption || '');
+
+  const firstLine = imageText.split(/\r?\n/).map(line => line.trim()).find(Boolean) || '';
+  const hookType = firstLine.startsWith('The World Said:')
+    ? 'contrast'
+    : /\?$/.test(firstLine)
+      ? 'question'
+      : /^(Start|Stop|Do|Keep|Protect|Take|Learn|Give|Focus|Try|Choose|Build|Make|Remember)\b/i.test(firstLine)
+        ? 'imperative'
+        : 'direct-statement';
+
+  const captionLines = caption.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const finalLine = captionLines.at(-1) || '';
+  const ctaType = /\bsave\b/i.test(finalLine)
+    ? 'save'
+    : /\bshare\b|\bsend\b/i.test(finalLine)
+      ? 'share'
+      : /\btag\b/i.test(finalLine)
+        ? 'tag'
+        : /\?$/.test(finalLine)
+          ? 'question'
+          : 'follow';
+
+  const textLength = imageText.length <= 180 ? 'short' : imageText.length <= 320 ? 'medium' : 'long';
+  return { hookType, ctaType, textLength };
+}
+
 function selectCandidate(candidates, performanceByContentId, dayIndex) {
   const ranked = rankCandidates(candidates, performanceByContentId, dayIndex);
   const unmeasured = candidates.filter(post =>
@@ -233,7 +262,20 @@ export function getDailyPost(date = getPhilippineDate(), history = [], analytics
   ]));
 
   const selected = selectCandidate(pool, performanceByContentId, dayIndex);
-  return { date, contentId: selected.id, ...selected };
+  const unmeasured = pool.filter(post => !Number.isFinite(Number(performanceByContentId.get(post.id))));
+  const selectionMode = dayIndex % EXPLORATION_INTERVAL_DAYS === 0 && unmeasured.length > 0 && !performanceByContentId.has(selected.id)
+    ? 'explore'
+    : 'exploit';
+
+  return {
+    date,
+    contentId: selected.id,
+    ...selected,
+    experiment: {
+      selectionMode,
+      contentTraits: getContentExperimentMetadata(selected)
+    }
+  };
 }
 
 export const contentBank = POSTS;

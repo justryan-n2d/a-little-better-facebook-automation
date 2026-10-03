@@ -66,12 +66,12 @@ async function metaGet({ graphVersion, path, params, fetchImpl = fetch }) {
   return payload;
 }
 
-export function parsePostMetrics(payload, { contentId, category, postDate }) {
+export function parsePostMetrics(payload, { contentId, category, postDate, experiment = null }) {
   const reactions = summaryCount(payload?.reactions);
   const comments = summaryCount(payload?.comments);
   const shares = summaryCount(payload?.shares);
 
-  return {
+  const result = {
     facebookPostId: payload?.id,
     contentId,
     category,
@@ -82,6 +82,10 @@ export function parsePostMetrics(payload, { contentId, category, postDate }) {
     shares,
     engagement: engagementScore({ reactions, comments, shares })
   };
+
+  if (experiment) result.experiment = experiment;
+
+  return result;
 }
 
 export function addDerivedPerformanceMetrics(snapshot = {}) {
@@ -212,7 +216,8 @@ export async function collectGrowthAnalytics({
       const snapshot = parsePostMetrics(payload, {
         contentId: post.contentId,
         category: post.category,
-        postDate: post.date
+        postDate: post.date,
+        experiment: post.experiment || null
       });
 
       const insights = {};

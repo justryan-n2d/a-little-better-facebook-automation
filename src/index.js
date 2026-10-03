@@ -64,6 +64,7 @@ const updatedHistory = addPost(history, {
   date: post.date,
   contentId: post.contentId,
   category: post.category,
+  experiment: post.experiment,
   facebookPostId: result.postId,
   publishedAt: new Date().toISOString()
 });

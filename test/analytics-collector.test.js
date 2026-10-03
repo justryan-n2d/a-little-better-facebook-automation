@@ -35,6 +35,43 @@ test('parses engagement counts from a Meta post response', () => {
   });
 });
 
+
+test('carries experiment metadata into collected post metrics', () => {
+  const experiment = {
+    selectionMode: 'explore',
+    contentTraits: {
+      hookType: 'imperative',
+      ctaType: 'save',
+      textLength: 'short'
+    }
+  };
+
+  assert.deepEqual(
+    parsePostMetrics({
+      id: '123_789',
+      created_time: '2026-10-06T09:00:00+0000'
+    }, {
+      contentId: 'mindset-001',
+      category: 'mindset',
+      postDate: '2026-10-06',
+      experiment
+    }),
+    {
+      facebookPostId: '123_789',
+      contentId: 'mindset-001',
+      category: 'mindset',
+      postDate: '2026-10-06',
+      permalinkUrl: null,
+      reactions: 0,
+      comments: 0,
+      shares: 0,
+      engagement: 0,
+      experiment
+    }
+  );
+});
+
+
 test('parses a numeric Page follower count', () => {
   assert.equal(parsePageFollowerCount({ followers_count: 217 }), 217);
   assert.equal(parsePageFollowerCount({ followers_count: 'not-a-number' }), null);

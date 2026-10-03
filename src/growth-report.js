@@ -3,7 +3,8 @@ import { resolve } from 'node:path';
 import {
   getFollowerDelta,
   getLatestPostSnapshots,
-  summarizeCategoryPerformance
+  summarizeCategoryPerformance,
+  summarizeExperimentPerformance
 } from './analytics.js';
 import { contentBank } from './content.js';
 
@@ -38,6 +39,17 @@ function formatMetric(snapshot, key, fallback = 'n/a') {
 function formatPercent(snapshot, key, fallback = 'n/a') {
   const value = Number(snapshot?.[key]);
   return Number.isFinite(value) && value >= 0 ? `${(value * 100).toFixed(2)}%` : fallback;
+}
+
+function formatExperimentGroup(title, groups) {
+  if (!groups.length) return `### ${title}\nNo experiment data captured yet.`;
+
+  return [
+    `### ${title}`,
+    ...groups.map(group =>
+      `- ${group.value}: ${group.posts} post(s), average engagement ${formatNumber(group.averageEngagement)}, average engagement rate ${group.averageEngagementRate === null ? 'n/a' : `${(group.averageEngagementRate * 100).toFixed(2)}%`}`
+    )
+  ].join('\n');
 }
 
 function buildReelDraft(topPost) {
@@ -126,6 +138,24 @@ export function buildGrowthReport({
           `- ${category.category}: ${category.posts} post(s), average engagement ${formatNumber(category.averageEngagement)}, total engagement ${formatNumber(category.totalEngagement)}`
         ).join('\n')
       : 'No category analytics are available yet.',
+    '',
+    '## Experiment performance',
+    formatExperimentGroup(
+      'Hook type',
+      summarizeExperimentPerformance(enriched, 'hookType')
+    ),
+    formatExperimentGroup(
+      'CTA type',
+      summarizeExperimentPerformance(enriched, 'ctaType')
+    ),
+    formatExperimentGroup(
+      'Text length',
+      summarizeExperimentPerformance(enriched, 'textLength')
+    ),
+    formatExperimentGroup(
+      'Selection mode',
+      summarizeExperimentPerformance(enriched, 'selectionMode')
+    ),
     '',
     '## Followers',
     followerDelta === null
