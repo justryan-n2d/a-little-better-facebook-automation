@@ -4,6 +4,7 @@ import {
   parsePostMetrics,
   parsePageFollowerCount,
   parseInsightValues,
+  addDerivedPerformanceMetrics,
   upsertDailySnapshot
 } from '../src/analytics-collector.js';
 
@@ -71,4 +72,35 @@ test('replaces the same post snapshot for the same capture date', () => {
   assert.deepEqual(result.snapshots, [
     { facebookPostId: 'p1', capturedDate: '2026-10-03', engagement: 9 }
   ]);
+});
+
+test('derives engagement and interaction rates from available reach', () => {
+  assert.deepEqual(
+    addDerivedPerformanceMetrics({
+      reactions: 10,
+      comments: 3,
+      shares: 2,
+      engagement: 22,
+      reach: 1000,
+      engagedUsers: 40
+    }),
+    {
+      reactions: 10,
+      comments: 3,
+      shares: 2,
+      engagement: 22,
+      reach: 1000,
+      engagedUsers: 40,
+      engagementRate: 0.022,
+      reactionRate: 0.01,
+      commentRate: 0.003,
+      shareRate: 0.002,
+      engagedUserRate: 0.04
+    }
+  );
+});
+
+test('does not invent rates when reach is unavailable', () => {
+  const snapshot = { engagement: 10, reactions: 5, comments: 2, shares: 1 };
+  assert.deepEqual(addDerivedPerformanceMetrics(snapshot), snapshot);
 });

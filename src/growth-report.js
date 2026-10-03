@@ -35,6 +35,11 @@ function formatMetric(snapshot, key, fallback = 'n/a') {
   return Number.isFinite(Number(value)) ? formatNumber(value) : fallback;
 }
 
+function formatPercent(snapshot, key, fallback = 'n/a') {
+  const value = Number(snapshot?.[key]);
+  return Number.isFinite(value) && value >= 0 ? `${(value * 100).toFixed(2)}%` : fallback;
+}
+
 function buildReelDraft(topPost) {
   if (!topPost) {
     return 'No post has enough analytics yet to generate a Reel draft.';
@@ -111,7 +116,7 @@ export function buildGrowthReport({
     '## Top posts by engagement',
     topPosts.length
       ? topPosts.map((post, index) =>
-          `${index + 1}. **${post.contentId}** (${post.category}) | engagement ${formatNumber(post.engagement)} | reactions ${formatNumber(post.reactions)} | comments ${formatNumber(post.comments)} | shares ${formatNumber(post.shares)} | reach ${formatMetric(post, 'reach')}`
+          `${index + 1}. **${post.contentId}** (${post.category}) | engagement ${formatNumber(post.engagement)} | rate ${formatPercent(post, 'engagementRate')} | reactions ${formatNumber(post.reactions)} | comments ${formatNumber(post.comments)} | shares ${formatNumber(post.shares)} | reach ${formatMetric(post, 'reach')}`
         ).join('\n')
       : 'No post analytics were captured for this week yet.',
     '',

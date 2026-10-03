@@ -20,6 +20,32 @@ test('does not repeat the same content immediately when history is present', () 
   assert.notEqual(second.contentId, first.contentId);
 });
 
+test('uses performance data to prefer a strong eligible post after the reuse cooldown', () => {
+  const analytics = {
+    snapshots: [
+      {
+        facebookPostId: 'facebook-001',
+        contentId: 'motivation-001',
+        category: 'motivation',
+        capturedDate: '2026-10-31',
+        reach: 1000,
+        engagement: 200,
+        engagementRate: 0.2
+      }
+    ]
+  };
+
+  const history = [
+    { date: '2026-10-01', contentId: 'motivation-001' },
+    { date: '2026-10-31', contentId: 'motivation-002' }
+  ];
+
+  const post = getDailyPost('2026-11-02', history, analytics);
+
+  assert.equal(post.category, 'motivation');
+  assert.equal(post.contentId, 'motivation-001');
+});
+
 test('rejects invalid dates', () => {
   assert.throws(() => getDailyPost('not-a-date', []), /Invalid date/);
 });
