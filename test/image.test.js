@@ -72,8 +72,8 @@ test('short headline uses the larger production font size', () => {
 
 test('branding icon sits beside the centered brand text', () => {
   const svg = buildSvg({ imageText: 'Keep going.' });
-  assert.match(svg, /translate\\(-170 1160\\)/);
-  assert.match(svg, /<text x="0" y="1195" text-anchor="middle" class="brand">A LITTLE BETTER<\\/text>/);
+  assert.ok(svg.includes('translate(-170 1160)'));
+  assert.ok(svg.includes('<text x="0" y="1195" text-anchor="middle" class="brand">A LITTLE BETTER</text>'));
 });
 
 test('branding is centered at the bottom', () => {
