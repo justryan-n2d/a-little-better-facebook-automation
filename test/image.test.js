@@ -37,7 +37,7 @@ test('long text wraps, fits width, and reduces font size instead of overflowing'
 
 test('layout validation rejects collisions and accepts the production layout', () => {
   assert.equal(validateLayout({
-    headline: { x: 120, y: 300, width: 840, height: 500 },
+    headline: { x: 126, y: 300, width: 816, height: 500 },
     support: { x: 150, y: 865, width: 780, height: 90 },
     brand: { x: 360, y: 1156, width: 360, height: 60 }
   }), true);
