@@ -86,13 +86,15 @@ export function buildNewsSvg({
   hook,
   title,
   sourceDomain,
+  angle,
   photoCredit
 }) {
   const hookLines = wrap(hook, 24);
   const titleLines = wrap(title, 28);
   const hookSize = fontSizeFor(hookLines, 60, 34, 900, 1.02);
   const titleSize = fontSizeFor(titleLines, 42, 24, 860, 1.05);
-  const hookHighlights = chooseHighlights(hookLines);\n  const angleLines = wrap(angle, 42).slice(0, 2);
+  const hookHighlights = chooseHighlights(hookLines);
+  const angleLines = wrap(angle, 42).slice(0, 2);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${CANVAS.width}" height="${CANVAS.height}" viewBox="0 0 ${CANVAS.width} ${CANVAS.height}">
@@ -153,6 +155,7 @@ export async function renderNewsImage({
   hook,
   title,
   sourceDomain,
+  angle,
   photoCredit,
   outputPath
 }) {
@@ -168,6 +171,7 @@ export async function renderNewsImage({
       hook,
       title,
       sourceDomain,
+      angle,
       photoCredit
     }), 'utf8');
 
