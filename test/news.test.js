@@ -421,7 +421,7 @@ test('uses a Jina Reader article image when the publisher page hides its image m
       title: 'Community volunteers provide meals to seniors'
     },
     {
-      fetchImpl: async input => {
+      fetchImpl: async (input, init = {}) => {
         const url = String(input);
 
         if (url.includes('news.google.com')) {
@@ -441,6 +441,7 @@ test('uses a Jina Reader article image when the publisher page hides its image m
         }
 
         if (url === 'https://r.jina.ai/https://example.com/story') {
+          assert.equal(init.headers?.['x-with-generated-alt'], 'true');
           return new Response(
             '# Community volunteers provide meals to seniors\n\n' +
             '![Community volunteers provide meals to seniors](https://cdn.example/real-photo.jpg)',
