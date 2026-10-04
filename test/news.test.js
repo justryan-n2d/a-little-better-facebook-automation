@@ -298,6 +298,111 @@ test('provides a direct StockSnap CDN fallback when available', async () => {
   ]);
 });
 
+test('requires explicit reusable rights when the automation asks for a verified source image', async () => {
+  await assert.rejects(
+    findSourceArticleImage(
+      {
+        url: 'https://example.com/story',
+        domain: 'example.com',
+        title: 'Family shares story behind rescued dog'
+      },
+      {
+        requireVerifiedRights: true,
+        fetchImpl: async input => {
+          const url = String(input);
+          if (url === 'https://example.com/story') {
+            return new Response(
+              '<html><head><meta property="og:image" content="https://cdn.example/dog.jpg"></head></html>',
+              { status: 200, headers: { 'content-type': 'text/html' } }
+            );
+          }
+          if (url === 'https://cdn.example/dog.jpg') {
+            return new Response(Buffer.alloc(12000, 9), {
+              status: 200,
+              headers: { 'content-type': 'image/jpeg' }
+            });
+          }
+          throw new Error('unexpected URL: ' + url);
+        }
+      }
+    ),
+    /verified reuse rights/i
+  );
+});
+
+test('accepts a source article photo when the article declares a reusable license', async () => {
+  const result = await findSourceArticleImage(
+    {
+      url: 'https://example.com/story',
+      domain: 'example.com',
+      title: 'Family shares story behind rescued dog'
+    },
+    {
+      requireVerifiedRights: true,
+      fetchImpl: async input => {
+        const url = String(input);
+        if (url === 'https://example.com/story') {
+          return new Response(
+            '<html><head>' +
+            '<link rel="license" href="https://creativecommons.org/licenses/by/4.0/">' +
+            '<meta name="creator" content="Example Photographer">' +
+            '<meta property="og:image" content="https://cdn.example/dog.jpg">' +
+            '</head></html>',
+            { status: 200, headers: { 'content-type': 'text/html' } }
+          );
+        }
+        if (url === 'https://cdn.example/dog.jpg') {
+          return new Response(Buffer.alloc(12000, 9), {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' }
+          });
+        }
+        throw new Error('unexpected URL: ' + url);
+      }
+    }
+  );
+
+  assert.equal(result.url, 'https://cdn.example/dog.jpg');
+  assert.equal(result.license, 'cc-by');
+  assert.equal(result.creator, 'Example Photographer');
+  assert.equal(result.rightsSafe, true);
+  assert.equal(result.sourceArticleRightsVerified, true);
+  assert.equal(result.visualRelation, 'source-event');
+  assert.match(result.rightsBasis, /reusable license: cc-by/i);
+});
+
+test('falls back to a rights-safe visual when the source article photo has no verified reuse rights', async () => {
+  const result = await findSourceArticleImage(
+    {
+      url: 'https://example.com/story',
+      domain: 'example.com',
+      title: 'Family shares story behind rescued dog'
+    },
+    {
+      requireVerifiedRights: false,
+      fetchImpl: async input => {
+        const url = String(input);
+        if (url === 'https://example.com/story') {
+          return new Response(
+            '<html><head><meta property="og:image" content="https://cdn.example/dog.jpg"></head></html>',
+            { status: 200, headers: { 'content-type': 'text/html' } }
+          );
+        }
+        if (url === 'https://cdn.example/dog.jpg') {
+          return new Response(Buffer.alloc(12000, 9), {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' }
+          });
+        }
+        throw new Error('unexpected URL: ' + url);
+      }
+    }
+  );
+
+  assert.equal(result.license, 'article-image');
+  assert.equal(result.sourceArticleRightsVerified, false);
+});
+
 test('accepts the original article Open Graph image when context text is unavailable', async () => {
   const result = await findSourceArticleImage(
     {
@@ -823,6 +928,98 @@ test('rejects rights-unsafe social media media instead of accepting it as the vi
   );
 });
 
+
+test('social story publishing prefers the corroborating article photo when reusable rights are verified', async () => {
+  const dir = await mkdtemp('/tmp/a-little-better-verified-source-test-');
+  const historyPath = join(dir, 'history.json');
+  const width = 400;
+  const height = 400;
+  const pixels = Buffer.alloc(width * height * 3, 120);
+  const imageBuffer = await sharp(pixels, {
+    raw: { width, height, channels: 3 }
+  }).jpeg({ quality: 90 }).toBuffer();
+
+  let searchCall = 0;
+  try {
+    const result = await runNewsPost({
+      today: '2026-10-04',
+      autoPublish: false,
+      historyPath,
+      execFileImpl: async (_command, args) => {
+        searchCall += 1;
+        const query = JSON.parse(args[args.indexOf('--args') + 1]).query;
+        if (searchCall === 1) {
+          return {
+            stdout: JSON.stringify({
+              content: [{
+                type: 'text',
+                text: [
+                  'Title: Dog helps injured owner after accident',
+                  'URL: https://www.tiktok.com/@example/video/123',
+                  'Published: 2026-10-04T03:00:00Z',
+                  'Author: Example Creator',
+                  'Highlights:',
+                  'A rescue dog led deputies to her injured owner.'
+                ].join('\n')
+              }]
+            }),
+            stderr: ''
+          };
+        }
+        assert.match(query, /-site:tiktok\\.com/i);
+        return {
+          stdout: JSON.stringify({
+            content: [{
+              type: 'text',
+              text: [
+                'Title: Rescue dog leads deputies to injured owner',
+                'URL: https://localnews.example/dog-rescue',
+                'Published: 2026-10-04T03:30:00Z',
+                'Author: Example Reporter',
+                'Highlights:',
+                'The rescue dog led deputies to an injured owner after an accident.'
+              ].join('\n')
+            }]
+          }),
+          stderr: ''
+        };
+      },
+      fetchImpl: async input => {
+        const url = String(input);
+        if (url === 'https://localnews.example/dog-rescue') {
+          return new Response(
+            '<html><head>' +
+            '<link rel="license" href="https://creativecommons.org/publicdomain/zero/1.0/">' +
+            '<meta property="og:image" content="https://localnews.example/images/dog.jpg">' +
+            '</head><body>' +
+            '<article>' +
+            '<p>The rescue dog led deputies to the injured owner after an accident.</p>' +
+            '<p>The owner received help after the dog stayed near the roadway.</p>' +
+            '</article>' +
+            '</body></html>',
+            { status: 200, headers: { 'content-type': 'text/html' } }
+          );
+        }
+        if (url === 'https://localnews.example/images/dog.jpg') {
+          return new Response(imageBuffer, {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' }
+          });
+        }
+        throw new Error('Unexpected fetch URL in verified source story test: ' + url);
+      }
+    });
+
+    const history = JSON.parse(await readFile(historyPath, 'utf8'));
+    assert.equal(searchCall, 2);
+    assert.equal(result.imageLicense, 'cc0');
+    assert.equal(history.stories[0].image.selection, 'verified-source-article');
+    assert.equal(history.stories[0].image.sourceArticleRightsVerified, true);
+    assert.equal(history.stories[0].image.rightsSafe, true);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 test('social story publishing path corroborates the lead and uses only the rights-safe visual', async () => {
   const dir = await mkdtemp('/tmp/a-little-better-social-story-test-');
