@@ -7,7 +7,9 @@ import {
   runAgentReachSearch,
   scoutStories,
   PUBLIC_SOCIAL_DISCOVERY_QUERY,
-  detectPublicSocialPlatform
+  detectPublicSocialPlatform,
+  corroborateSocialStory,
+  buildCorroborationQuery
 } from '../src/story-scout.js';
 
 test('keeps Story Scout queries focused on recent positive human-interest news', () => {
@@ -171,4 +173,87 @@ test('recognizes a heartwarming animal story such as a dog protecting a baby', (
   assert.equal(ranked[0].sourceType, 'public-social');
   assert.equal(ranked[0].topic, 'human-kindness');
   assert.ok(ranked[0].score >= 50);
+});
+
+
+test('builds a corroboration query that excludes social-only results', () => {
+  const query = buildCorroborationQuery({
+    title: 'Dog stays beside baby and helps keep child safe',
+    snippet: 'The family says their dog protected the baby and alerted them when the child needed help.'
+  });
+
+  assert.match(query, /Dog stays beside baby/i);
+  assert.match(query, /report|news|confirmed|covered/i);
+  assert.match(query, /-site:x\.com/i);
+  assert.match(query, /-site:tiktok\.com/i);
+});
+
+test('corroborates a public social story with an independent web source', async () => {
+  const socialStory = {
+    title: 'Dog stays beside baby and helps keep child safe',
+    url: 'https://www.tiktok.com/@example/video/123',
+    snippet: 'The family says their dog protected the baby and alerted them when the child needed help.',
+    sourceType: 'public-social',
+    socialPlatform: 'tiktok'
+  };
+
+  const output = JSON.stringify({
+    content: [{
+      type: 'text',
+      text: [
+        'Title: Family dog protects baby and alerts parents when child needs help',
+        'URL: https://localnews.example/dog-baby-story',
+        'Published: 2026-10-04T03:30:00Z',
+        'Author: Example Reporter',
+        'Highlights:',
+        'A local news report says the family dog stayed close to the baby and alerted the parents when the child needed help.'
+      ].join('\\n')
+    }]
+  });
+
+  const result = await corroborateSocialStory(socialStory, {
+    now: new Date('2026-10-04T04:00:00Z'),
+    execFileImpl: async (_command, args) => {
+      const jsonIndex = args.indexOf('--args');
+      const request = JSON.parse(args[jsonIndex + 1]);
+      assert.match(request.query, /-site:tiktok\.com/i);
+      return { stdout: output, stderr: '' };
+    }
+  });
+
+  assert.equal(result.verified, true);
+  assert.equal(result.corroboratingSource.url, 'https://localnews.example/dog-baby-story');
+  assert.equal(result.corroboratingSource.sourceType, 'web');
+  assert.equal(result.lead.url, socialStory.url);
+});
+
+test('rejects a public social story without a matching independent source', async () => {
+  const socialStory = {
+    title: 'Dog protects a baby',
+    url: 'https://www.instagram.com/p/example/',
+    snippet: 'A family dog helped keep the baby safe.',
+    sourceType: 'public-social',
+    socialPlatform: 'instagram'
+  };
+
+  const output = JSON.stringify({
+    content: [{
+      type: 'text',
+      text: [
+        'Title: Celebrity launches a new clothing line',
+        'URL: https://unrelated.example/news',
+        'Published: 2026-10-04T03:00:00Z',
+        'Highlights:',
+        'The announcement is unrelated to the social story.'
+      ].join('\\n')
+    }]
+  });
+
+  await assert.rejects(
+    corroborateSocialStory(socialStory, {
+      now: new Date('2026-10-04T04:00:00Z'),
+      execFileImpl: async () => ({ stdout: output, stderr: '' })
+    }),
+    /could not be independently corroborated/i
+  );
 });
