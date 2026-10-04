@@ -1,3 +1,4 @@
+import { assertStoryNarrativeIntegrity } from './story-copy-guard.js';
 const GDELT_BASE = 'https://api.gdeltproject.org/api/v2/doc/doc';
 const OPENVERSE_BASE = 'https://api.openverse.org/v1/images/';
 
