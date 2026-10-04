@@ -68,14 +68,45 @@ export async function runNewsPost({
   }
 
   const discovery = await searchFreshNews({ fetchImpl });
-  const story = selectFreshStory(discovery.articles, usedStoryValues(history));
-  if (!story) {
-    throw new Error('No safe fresh news story was found.');
+  const storyHistory = usedStoryValues(history);
+  const attemptedUrls = new Set(storyHistory.usedUrls);
+  let story = null;
+  let imageMeta = null;
+  let lastImageError = null;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const candidate = selectFreshStory(discovery.articles, {
+      ...storyHistory,
+      usedUrls: [...attemptedUrls]
+    });
+
+    if (!candidate) break;
+    attemptedUrls.add(candidate.url);
+
+    try {
+      const candidateImage = await findSourceArticleImage(candidate, {
+        fetchImpl
+      });
+      story = candidate;
+      imageMeta = candidateImage;
+      break;
+    } catch (error) {
+      lastImageError = error;
+      console.log(
+        'Fresh News skipped story after source-image verification failed for ' +
+        candidate.url + ': ' +
+        (error instanceof Error ? error.message : String(error))
+      );
+    }
   }
 
-  const imageMeta = await findSourceArticleImage(story, {
-    fetchImpl
-  });
+  if (!story || !imageMeta) {
+    throw new Error(
+      'No safe fresh news story with a verifiable source image was found.' +
+      (lastImageError instanceof Error ? ' Last error: ' + lastImageError.message : '')
+    );
+  }
+
   const imageBuffer = await downloadImage(imageMeta.urlCandidates || imageMeta.url, { fetchImpl });
   const hook = buildNewsHook(story.title);
   const angle = buildNewsAngle(story.title);
