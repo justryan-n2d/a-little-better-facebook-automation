@@ -39,6 +39,58 @@ export async function publishPhoto({
   return { postId, photoId: payload.id || null, raw: payload };
 }
 
+export async function publishPhotoStory({
+  pageId,
+  pageAccessToken,
+  image,
+  graphVersion = DEFAULT_GRAPH_VERSION,
+  fetchImpl = fetch
+}) {
+  if (!pageId) throw new Error('FB_PAGE_ID is required.');
+  if (!pageAccessToken) throw new Error('FB_PAGE_ACCESS_TOKEN is required.');
+  if (!Buffer.isBuffer(image)) throw new Error('image must be a Buffer.');
+
+  const photoUrl = `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(pageId)}/photos`;
+  const photoForm = new FormData();
+  photoForm.append('published', 'false');
+  photoForm.append('access_token', pageAccessToken);
+  photoForm.append('source', new Blob([image], { type: 'image/png' }), 'a-little-better-story.png');
+
+  const uploadResponse = await fetchImpl(photoUrl, { method: 'POST', body: photoForm });
+  const uploadPayload = await uploadResponse.json().catch(() => ({}));
+  if (!uploadResponse.ok || uploadPayload.error) {
+    throw new Error(normalizeMetaError(uploadPayload));
+  }
+
+  const photoId = uploadPayload.id;
+  if (!photoId) throw new Error('Meta API returned success but no Story photo id.');
+
+  const storyUrl = `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(pageId)}/photo_stories`;
+  const storyForm = new URLSearchParams();
+  storyForm.set('photo_id', photoId);
+  storyForm.set('access_token', pageAccessToken);
+
+  const storyResponse = await fetchImpl(storyUrl, {
+    method: 'POST',
+    body: storyForm
+  });
+  const storyPayload = await storyResponse.json().catch(() => ({}));
+  if (!storyResponse.ok || storyPayload.error) {
+    throw new Error(normalizeMetaError(storyPayload));
+  }
+
+  const storyPostId = storyPayload.post_id || storyPayload.id;
+  if (!storyPayload.success && !storyPostId) {
+    throw new Error('Meta API returned no successful Facebook Story publication result.');
+  }
+
+  return {
+    storyPostId: storyPostId || null,
+    photoId,
+    raw: storyPayload
+  };
+}
+
 export async function getPage({
   pageId,
   pageAccessToken,
