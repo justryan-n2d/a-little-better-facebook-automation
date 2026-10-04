@@ -207,7 +207,7 @@ test('corroborates a public social story with an independent web source', async 
         'Author: Example Reporter',
         'Highlights:',
         'A local news report says the family dog stayed close to the baby and alerted the parents when the child needed help.'
-      ].join('\\n')
+      ].join('\n')
     }]
   });
 
@@ -245,7 +245,7 @@ test('rejects a public social story without a matching independent source', asyn
         'Published: 2026-10-04T03:00:00Z',
         'Highlights:',
         'The announcement is unrelated to the social story.'
-      ].join('\\n')
+      ].join('\n')
     }]
   });
 
