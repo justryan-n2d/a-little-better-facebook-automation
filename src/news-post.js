@@ -1,4 +1,4 @@
-import { scoutStories } from './story-scout.js';
+import { corroborateSocialStory, scoutStories } from './story-scout.js';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { publishPhoto } from './facebook.js';
@@ -10,6 +10,7 @@ import {
   buildPhotoCredit,
   downloadImage,
   buildImageQueries,
+  findRightsSafeStoryImage,
   findSourceArticleImage,
   selectFreshStory
 } from './news.js';
@@ -80,14 +81,35 @@ export async function runNewsPost({
     throw new Error('No safe fresh news story was found.');
   }
 
-  const imageMeta = await findSourceArticleImage(story, { fetchImpl });
+  let publishingStory = story;
+  let corroboration = null;
+  let imageMeta;
+
+  if (story.sourceType === 'public-social') {
+    corroboration = await corroborateSocialStory(story, {
+      execFileImpl
+    });
+
+    publishingStory = {
+      ...story,
+      url: corroboration.corroboratingSource.url,
+      domain: corroboration.corroboratingSource.domain,
+      publishedDate: corroboration.corroboratingSource.publishedDate,
+      snippet: corroboration.corroboratingSource.snippet || story.snippet
+    };
+
+    imageMeta = await findRightsSafeStoryImage(publishingStory, { fetchImpl });
+  } else {
+    imageMeta = await findSourceArticleImage(story, { fetchImpl });
+  }
+
   const imageBuffer = await downloadImage(imageMeta.urlCandidates || imageMeta.url, { fetchImpl });
   const storyContext = [story.title, story.snippet].filter(Boolean).join(' ');
   const hook = buildNewsHook(storyContext);
   const angle = buildNewsAngle(storyContext);
   const photoCredit = buildPhotoCredit(imageMeta);
   const displayHeadline = buildDisplayHeadline(story.title);
-  const sourceDomain = story.domain || 'news source';
+  const sourceDomain = publishingStory.domain || story.domain || 'news source';
 
   await mkdir('artifacts', { recursive: true });
   const imagePath = resolve('artifacts', `fresh-news-${date}.png`);
@@ -106,10 +128,18 @@ export async function runNewsPost({
   const record = {
     date,
     title: story.title,
-    url: story.url,
+    url: publishingStory.url,
     sourceDomain,
     provider: discovery.provider,
     topic: story.topic,
+    discoveryLead: story.sourceType === 'public-social'
+      ? {
+          url: story.url,
+          platform: story.socialPlatform || null,
+          title: story.title
+        }
+      : null,
+    corroboration,
     displayHeadline,
     sourceCount: story.sourceCount,
     discoveryScore: story.score,
@@ -122,7 +152,10 @@ export async function runNewsPost({
       license: imageMeta.license,
       licenseVersion: imageMeta.licenseVersion,
       licenseUrl: imageMeta.licenseUrl,
-      landingUrl: imageMeta.landingUrl
+      landingUrl: imageMeta.landingUrl,
+      rightsSafe: imageMeta.rightsSafe ?? false,
+      visualRelation: imageMeta.visualRelation || 'source-event',
+      rightsBasis: imageMeta.rightsBasis || null
     },
     hook,
     angle,
@@ -132,7 +165,7 @@ export async function runNewsPost({
   const caption = buildNewsCaption({
     title: story.title,
     sourceDomain,
-    sourceUrl: story.url,
+    sourceUrl: publishingStory.url,
     hook,
     angle,
     photoCredit
@@ -143,7 +176,7 @@ export async function runNewsPost({
     publishedPostId = (await publishPhoto({
       pageId: requiredEnv('FB_PAGE_ID'),
       pageAccessToken: requiredEnv('FB_PAGE_ACCESS_TOKEN'),
-      message: `${caption}\n\n${story.url}`,
+      message: `${caption}\n\n${publishingStory.url}`,
       image: await readFile(imagePath),
       graphVersion: process.env.META_GRAPH_VERSION || 'v26.0'
     })).postId;
