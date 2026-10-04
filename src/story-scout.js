@@ -8,6 +8,41 @@ import {
 } from './news.js';
 
 const execFileAsync = promisify(defaultExecFile);
+export const PUBLIC_SOCIAL_DISCOVERY_QUERY =
+  'recent heartwarming kindness real life story person or animal helping someone ' +
+  '(site:x.com OR site:twitter.com OR site:instagram.com OR site:facebook.com OR site:tiktok.com OR site:youtube.com OR site:reddit.com OR site:threads.net)';
+
+const PUBLIC_SOCIAL_DOMAINS = [
+  ['x.com', 'x'],
+  ['twitter.com', 'x'],
+  ['instagram.com', 'instagram'],
+  ['facebook.com', 'facebook'],
+  ['tiktok.com', 'tiktok'],
+  ['youtube.com', 'youtube'],
+  ['reddit.com', 'reddit'],
+  ['threads.net', 'threads']
+];
+
+export function detectPublicSocialPlatform(value) {
+  try {
+    const hostname = new URL(value).hostname.replace(/^www\./, '').toLowerCase();
+    for (const [domain, platform] of PUBLIC_SOCIAL_DOMAINS) {
+      if (hostname === domain || hostname.endsWith('.' + domain)) {
+        return platform;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function sourceMetadata(url) {
+  const socialPlatform = detectPublicSocialPlatform(url);
+  return {
+    sourceType: socialPlatform ? 'public-social' : 'web',
+    socialPlatform
+  };
+}
+
 
 export const AGENT_REACH_SEARCH_QUERIES = [
   'category:news recent heartwarming real life story act of kindness one person helping another',
@@ -203,6 +238,7 @@ function parseMcpTextBlock(block) {
         seendate: publishedDate,
         author: cleanText(author),
         snippet: cleanText(snippet),
+        ...sourceMetadata(url),
       };
     })
     .filter(Boolean);
@@ -225,6 +261,7 @@ export function parseAgentReachOutput(stdout, query = '') {
       seendate: item.publishedDate || item.published_at || item.date || null,
       author: cleanText(item.author || ''),
       snippet: searchResultSnippet(item),
+      ...sourceMetadata(item.url),
     }));
 
   const textResults = collectMcpTextBlocks(payload)
@@ -303,6 +340,7 @@ function scoreCandidate(candidate, now) {
   const humanCount = HUMAN_TERMS.filter(term => containsTerm(text, term)).length;
   const queryCount = new Set(candidate.sourceQueries || [candidate.query].filter(Boolean)).size;
   const age = hoursOld(candidate.publishedDate || candidate.seendate, now);
+  const socialPlatform = detectPublicSocialPlatform(candidate.url);
 
   let score = topic.name === 'human-kindness' ? 28 : 18;
 
@@ -312,6 +350,7 @@ function scoreCandidate(candidate, now) {
 
   score += Math.min(15, Math.max(0, queryCount - 1) * 7);
   score += Math.min(12, positiveCount * 3);
+  if (socialPlatform) score += 10;
 
   if (age !== null) {
     if (age <= 12) score += 20;
@@ -395,10 +434,10 @@ function isRateLimitError(error) {
 }
 
 export async function scoutStories({
-  queries = AGENT_REACH_SEARCH_QUERIES,
+  queries = [PUBLIC_SOCIAL_DISCOVERY_QUERY, ...AGENT_REACH_SEARCH_QUERIES],
   numResults = 8,
   now = new Date(),
-  maxQueries = queries.length,
+  maxQueries = 1,
   execFileImpl = execFileAsync,
   fetchImpl = fetch
 } = {}) {
@@ -435,7 +474,9 @@ export async function scoutStories({
 
   if (ranked.length > 0) {
     return {
-      provider: 'agent-reach-exa',
+      provider: ranked.some(item => item.sourceType === 'public-social')
+        ? 'agent-reach-exa-public-social'
+        : 'agent-reach-exa',
       articles: ranked,
       successfulSearches,
       totalQueries: selectedQueries.length
