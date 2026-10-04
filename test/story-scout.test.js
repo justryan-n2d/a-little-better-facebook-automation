@@ -53,7 +53,7 @@ test('parses mcporter MCP text content returned by the live Exa endpoint', () =>
         'Author: Example Reporter',
         'Highlights:',
         'A simple act of kindness helped a family during a difficult day.'
-      ].join('\\n')
+      ].join('\n')
     }]
   };
 
