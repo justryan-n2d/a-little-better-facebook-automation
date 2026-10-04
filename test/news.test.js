@@ -400,6 +400,71 @@ test('uses an article-declared featured image when page-level metadata matches',
 
 
 
+test('uses a Jina Reader article image when the publisher page hides its image markup', async () => {
+  const raw = Buffer.alloc(700 * 500 * 3);
+  for (let y = 0; y < 500; y += 1) {
+    for (let x = 0; x < 700; x += 1) {
+      const index = (y * 700 + x) * 3;
+      raw[index] = (x * 3 + y) % 256;
+      raw[index + 1] = (y * 4 + x) % 256;
+      raw[index + 2] = (x + y) % 256;
+    }
+  }
+  const visual = await sharp(raw, {
+    raw: { width: 700, height: 500, channels: 3 }
+  }).png().toBuffer();
+
+  const result = await findSourceArticleImage(
+    {
+      url: 'https://news.google.com/rss/articles/example',
+      domain: 'Example News',
+      title: 'Community volunteers provide meals to seniors'
+    },
+    {
+      fetchImpl: async input => {
+        const url = String(input);
+
+        if (url.includes('news.google.com')) {
+          return {
+            ok: true,
+            status: 200,
+            url: 'https://example.com/story',
+            text: async () => ''
+          };
+        }
+
+        if (url === 'https://example.com/story') {
+          return new Response(
+            '<html><head><title>Community volunteers provide meals to seniors</title></head></html>',
+            { status: 200, headers: { 'content-type': 'text/html' } }
+          );
+        }
+
+        if (url === 'https://r.jina.ai/https://example.com/story') {
+          return new Response(
+            '# Community volunteers provide meals to seniors\n\n' +
+            '![Community volunteers provide meals to seniors](https://cdn.example/real-photo.jpg)',
+            { status: 200, headers: { 'content-type': 'text/plain' } }
+          );
+        }
+
+        if (url === 'https://cdn.example/real-photo.jpg') {
+          return new Response(visual, {
+            status: 200,
+            headers: { 'content-type': 'image/png' }
+          });
+        }
+
+        return new Response('not found', { status: 404 });
+      }
+    }
+  );
+
+  assert.equal(result.url, 'https://cdn.example/real-photo.jpg');
+  assert.equal(result.visualVerification.verified, true);
+  assert.equal(result.visualVerification.method, 'deterministic');
+});
+
 test('uses the Google News RSS source image when the original article exposes no usable image', async () => {
   const raw = Buffer.alloc(700 * 500 * 3);
   for (let y = 0; y < 500; y += 1) {
