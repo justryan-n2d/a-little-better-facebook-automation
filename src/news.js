@@ -462,6 +462,8 @@ export function selectFreshStory(articles, {
       domain: article.domain || domainFromUrl(url),
       seendate: article.seendate || null,
       socialimage: article.socialimage || null,
+      snippet: article.snippet || '',
+      scoutScore: article.scoutScore ?? null,
       sourceDomains: new Set(),
       ranks: []
     };
@@ -469,6 +471,10 @@ export function selectFreshStory(articles, {
     if (article.domain) group.sourceDomains.add(article.domain);
     group.sourceDomains.add(domainFromUrl(article.url));
     group.ranks.push(Number(article.rank) || 99);
+    if (!group.snippet && article.snippet) group.snippet = article.snippet;
+    if (article.scoutScore != null && (group.scoutScore == null || article.scoutScore > group.scoutScore)) {
+      group.scoutScore = article.scoutScore;
+    }
     if (hoursOld(article.seendate, now) < hoursOld(group.seendate, now)) {
       group.seendate = article.seendate;
       group.socialimage = article.socialimage || group.socialimage;
@@ -548,6 +554,10 @@ export function buildDisplayHeadline(title) {
   const text = cleanText(title)
     .replace(/\s+-\s+[^-]{2,80}$/i, '')
     .trim();
+
+  if (/stranger keeps promise to cover storm-damaged .* home with tarp/i.test(text)) {
+    return 'Stranger Returns to Help Cover a Storm-Damaged Home';
+  }
 
   if (/discusses skills students need for success beyond grades/i.test(text)) {
     return 'Students Need More Than Good Grades';
