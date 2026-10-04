@@ -365,6 +365,35 @@ export function buildSvg({ imageText, variant = 'mint' }) {
   return buildMintSvg({ imageText });
 }
 
+export async function renderPostStoryImage({ imageText, variant = 'mint' }) {
+  const image = await renderPostImage({ imageText, variant });
+  const dir = await mkdtemp(join(tmpdir(), 'a-little-better-story-'));
+  const inputPath = join(dir, 'post.png');
+  const outputPath = join(dir, 'story.png');
+
+  try {
+    await writeFile(inputPath, image);
+    let command = 'magick';
+    try {
+      await execFileAsync(command, ['-version']);
+    } catch {
+      command = 'convert';
+    }
+
+    await execFileAsync(command, [
+      inputPath,
+      '-background', COLORS.mint,
+      '-gravity', 'center',
+      '-extent', '1080x1920',
+      outputPath
+    ]);
+
+    return await readFile(outputPath);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 export async function renderPostImage({ imageText, variant = 'mint' }) {
   const dir = await mkdtemp(join(tmpdir(), 'a-little-better-'));
   const svgPath = join(dir, 'post.svg');
