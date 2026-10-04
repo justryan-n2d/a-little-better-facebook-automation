@@ -150,6 +150,24 @@ test('rejects copy that drops important source attribution', () => {
   );
 });
 
+test('rejects stereotype or unsupported motive language', () => {
+  assert.throws(
+    () => buildNewsCaption({
+      title: 'Stranger shares food with a family',
+      sourceDomain: 'example.com',
+      sourceUrl: 'https://example.com/story',
+      hook: 'A selfless stranger helped because people like him are always kind.',
+      angle: 'He only wanted to get attention.',
+      photoCredit: 'Source article image / example.com',
+      story: {
+        title: 'Stranger shares food with a family',
+        snippet: 'A man offered food to a family waiting outside a shelter.'
+      }
+    }),
+    /bias|stereotype|motive|unsupported|context|narrative/i
+  );
+});
+
 test('does not mistake safe words inside blocked terms', () => {
   const ranked = rankStoryCandidates([{
     title: 'Stranger offers a survivor a warm meal after a difficult day',
