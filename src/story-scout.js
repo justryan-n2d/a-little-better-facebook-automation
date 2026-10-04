@@ -196,7 +196,8 @@ export async function runAgentReachSearch({
     'json',
     '--args',
     JSON.stringify({ query, numResults }),
-    '--no-oauth'
+    '--timeout',
+    String(timeoutMs)
   ];
 
   const result = await execFileImpl('mcporter', args, {
