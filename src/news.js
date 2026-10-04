@@ -1075,7 +1075,7 @@ export async function findSourceArticleImage(story, {
 
   const ranked = articleImageCandidates(html, articleUrl, story)
     .map(candidate => ({ ...candidate, ...imageCandidateScore(candidate, story) }))
-    .filter(candidate => candidate.score >= 10 && candidate.specificEvidence)
+    .filter(candidate => candidate.score >= 10)
     .sort((a, b) => b.score - a.score);
 
   if (!ranked.length && story?.socialimage && !isBlockedSourceDomain(story.socialimage)) {
