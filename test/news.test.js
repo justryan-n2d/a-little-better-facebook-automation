@@ -18,6 +18,7 @@ import {
   searchFreshNews,
   searchGoogleNewsTopStoriesRss,
   findOpenverseImage,
+  findRightsSafeStoryImage,
   findSourceArticleImage,
   downloadImage,
   isPhotoLikeOpenverseImage,
@@ -630,4 +631,65 @@ test('production renderer preserves the source photo and readable text layers', 
 
 test('news post runner is importable', () => {
   assert.equal(typeof runNewsPost, 'function');
+});
+
+
+test('resolves a rights-safe illustrative visual for a public social story', async () => {
+  const result = await findRightsSafeStoryImage({
+    title: 'Dog stays beside baby and helps keep child safe',
+    snippet: 'The family says their dog protected the baby and alerted them when the child needed help.',
+    topic: 'human-kindness'
+  }, {
+    fetchImpl: async input => {
+      const url = String(input);
+      if (url.includes('api.openverse.org')) {
+        return new Response(JSON.stringify({
+          results: [{
+            url: 'https://images.example/dog-baby.jpg',
+            title: 'Dog with baby and family',
+            description: 'A dog staying close to a baby with family nearby.',
+            creator: 'Example Photographer',
+            provider: 'Example Commons',
+            license: 'cc0',
+            width: 1600,
+            height: 1067
+          }]
+        }), { status: 200 });
+      }
+      if (url === 'https://images.example/dog-baby.jpg') {
+        return new Response(Buffer.alloc(12000, 9), {
+          status: 200,
+          headers: { 'content-type': 'image/jpeg' }
+        });
+      }
+      throw new Error('unexpected URL: ' + url);
+    }
+  });
+
+  assert.equal(result.license, 'cc0');
+  assert.equal(result.provider, 'Example Commons');
+  assert.equal(result.rightsSafe, true);
+  assert.equal(result.visualRelation, 'illustrative');
+  assert.ok(result.landingUrl);
+});
+
+test('rejects rights-unsafe social media media instead of accepting it as the visual source', async () => {
+  await assert.rejects(
+    findRightsSafeStoryImage({
+      title: 'Dog stays beside baby and helps keep child safe',
+      snippet: 'A family dog helped keep the baby safe.',
+      topic: 'human-kindness',
+      url: 'https://www.tiktok.com/@example/video/123',
+      sourceType: 'public-social'
+    }, {
+      fetchImpl: async input => {
+        const url = String(input);
+        if (url.includes('api.openverse.org')) {
+          return new Response(JSON.stringify({ results: [] }), { status: 200 });
+        }
+        throw new Error('unexpected URL: ' + url);
+      }
+    }),
+    /No rights-safe visual source could be resolved/i
+  );
 });
