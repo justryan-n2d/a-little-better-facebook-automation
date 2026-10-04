@@ -432,16 +432,59 @@ export async function searchFreshNews({
     const message = error instanceof Error ? error.message : String(error);
     console.log(`GDELT unavailable; using Google News RSS fallback (${message})`);
 
-    const queryArticles = await searchGoogleNewsRss({
+    const queryList = [...new Set(
+      (Array.isArray(queries) ? queries : [])
+        .map(cleanText)
+        .filter(Boolean)
+    )];
+
+    const perQueryLimit = Math.max(
+      6,
+      Math.ceil(Math.min(maxRecords, 50) / Math.max(queryList.length, 1))
+    );
+    const queryArticles = [];
+
+    for (const query of queryList) {
+      try {
+        const articles = await searchGoogleNewsRss({
+          query,
+          maxRecords: perQueryLimit,
+          fetchImpl
+        });
+        queryArticles.push(...articles);
+      } catch (queryError) {
+        console.log(
+          `Google News query failed for "${query}": ` +
+          (queryError instanceof Error ? queryError.message : String(queryError))
+        );
+      }
+    }
+
+    const seenArticleKeys = new Set();
+    const mergedQueryArticles = queryArticles.filter(article => {
+      const key = normalizeUrl(article?.url) || titleFingerprint(article?.title);
+      if (!key || seenArticleKeys.has(key)) return false;
+      seenArticleKeys.add(key);
+      return true;
+    }).slice(0, Math.min(maxRecords, 50));
+
+    if (mergedQueryArticles.length > 0) {
+      return {
+        provider: 'google-news-rss',
+        articles: mergedQueryArticles
+      };
+    }
+
+    const broadQueryArticles = await searchGoogleNewsRss({
       queries,
       maxRecords: Math.min(maxRecords, 50),
       fetchImpl
     });
 
-    if (queryArticles.length > 0) {
+    if (broadQueryArticles.length > 0) {
       return {
         provider: 'google-news-rss',
-        articles: queryArticles
+        articles: broadQueryArticles
       };
     }
 
