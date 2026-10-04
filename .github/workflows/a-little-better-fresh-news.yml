@@ -22,7 +22,8 @@ concurrency:
 jobs:
   fresh-news:
     env:
-      NEWS_AUTO_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.auto_publish || vars.NEWS_AUTO_PUBLISH || 'false' }}
+      NEWS_AUTO_PUBLISH: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.auto_publish) }}
+      STORY_SCOUT_MAX_QUERIES: "1"
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -35,10 +36,15 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Install ImageMagick
         run: sudo apt-get update && sudo apt-get install -y imagemagick
+
+      - name: Configure free Agent-Reach Web Search
+        run: |
+          npm install --global mcporter@0.14.2
+          echo "Configured Agent-Reach Web Search through the free hosted Exa MCP endpoint without EXA_API_KEY or paid credentials."
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund

@@ -17,6 +17,23 @@ Content identity:
 
 The automation should make every post feel like it belongs to A Little Better, not like a generic news page.
 
+### Story example policy
+
+Specific examples such as **"Dog stays beside baby and helps keep child safe"** are only examples of the kind of highly relatable story the system can recognize. They are not fixed topics, required story subjects, or recurring content targets.
+
+The Story Scout should remain flexible and select different stories based on what is timely, trending, heartwarming, and suitable for A Little Better.
+
+### Trend-first discovery principle
+
+When several safe stories are available, prioritize:
+1. very recent stories
+2. stories showing strong trend signals such as viral, trending, widely shared, or strong online attention
+3. public social leads from supported platforms
+4. web stories that are clearly gaining attention
+5. ordinary positive stories when no stronger trending candidate exists
+
+Trend signals must never override the existing safety and credibility gates. A story is not selected merely because it is viral.
+
 ### Core content principle
 
 > **One story → one source → one context → one matching visual**
@@ -27,48 +44,56 @@ The headline and image must clearly refer to the same story.
 
 ## 2. Current architecture
 
+The production story pipeline is now:
+
 ```
-News discovery
+Find story
    ↓
-Safe / positive story filtering
+Agent-Reach Story Scout
    ↓
-Heartwarming human-story priority
+Candidate ranking
    ↓
-Original article resolution
+Resolve original article
    ↓
-Original article image extraction
+Extract article-declared images
    ↓
-Same-story / same-context image validation
+Free image quality checks
    ↓
-Sharp image rendering
+Story ↔ image context score
    ↓
-Headline + branding + source overlay
+Reject if weak
    ↓
-Draft artifact
+Create A LITTLE BETTER graphic
    ↓
-Optional Facebook publishing
+Free visual/layout QA
    ↓
-History recording
+Publish only if passed
 ```
 
----
+Agent-Reach Web Search is the discovery eyes. It finds candidate stories but does not decide that a story is safe to publish and has no publishing authority.
+
+The existing GDELT + Google News RSS + Top Stories path remains as the free fallback when the Story Scout has no usable candidate or the Agent-Reach search path is unavailable.
 
 ## 3. News discovery
 
-### Providers
+### Primary discovery
 
-**Primary**
+- Agent-Reach Web Search
+- Exa Web Search through the free hosted MCP endpoint
+- Four diverse semantic search queries
+- Eight results per query
+- No EXA_API_KEY
+- No paid search API
+
+The workflow installs the pinned MCPORTER client and the Story Scout calls the free hosted Exa MCP endpoint directly. No credentials are stored in the repository.
+
+### Free fallbacks
+
 - GDELT
-
-**Fallback**
 - Google News RSS
-
-**Secondary fallback**
 - Google News Top Stories RSS
 
-GDELT rate limiting was encountered during testing, so the fallback path is an important part of reliability.
-
----
+The fallback path is preserved so a temporary Agent-Reach or Exa availability problem does not become a publishing dependency.
 
 ## 4. Story selection
 
@@ -326,12 +351,87 @@ A user should understand the basic story even when seeing only the image in the 
 
 ## Phase 2 — Fresh News ✅
 
-- [x] GDELT discovery
+- [x] Agent-Reach semantic Web Search discovery
+- [x] Agent-Reach Story Scout candidate pool
+- [x] Candidate ranking
+- [x] Candidate deduplication across search queries
+- [x] GDELT fallback
 - [x] Google News RSS fallback
 - [x] Top Stories fallback
-- [x] Recent-story filtering
+- [x] Recent-story scoring
 - [x] Positive-content filtering
 - [x] Unsafe/divisive content blocking
+- [x] Free-only search configuration with no EXA_API_KEY
+
+### Agent-Reach Story Scout
+
+The Story Scout searches for recent, heartwarming, relatable stories using semantic discovery instead of relying only on exact keywords.
+
+The Scout ranks candidates using:
+- A Little Better topic fit
+- human-kindness strength
+- positive and human-context signals
+- freshness
+- query diversity
+- headline quality
+- a small boost for public social-source candidates
+
+The Scout score is recorded in Fresh News metadata for later analysis.
+
+If no eligible Agent-Reach result survives ranking, the system falls back to the existing free news providers.
+
+### Public Social Story Discovery ✅ on the development branch
+
+The first Agent-Reach discovery query is now a public-web social discovery query covering:
+- X / Twitter
+- Instagram
+- Facebook
+- TikTok
+- YouTube
+- Reddit
+- Threads
+
+The query uses public search indexing with `site:` filters. It does not require social-media logins, browser sessions, cookies, or paid APIs.
+
+Each returned candidate is classified with:
+- `sourceType: public-social`
+- `socialPlatform`
+
+This means a story such as a dog protecting a baby can be recognized as a high-fit A Little Better human-kindness story even when the discovery lead comes from TikTok, Instagram, X, Facebook, or another public social page.
+
+The production Fresh News workflow explicitly limits the default Agent-Reach search to one query per run to protect the free MCP request budget.
+
+### Trend and recency scoring ✅
+
+The Story Scout now gives extra ranking weight to:
+- very recent publication times
+- viral/trending language
+- widely shared or widely viewed signals
+- online/social-media attention signals
+- public social-source candidates
+
+The selected candidate records trendScore and freshnessScore so the ranking decision can be audited later.
+
+This is a heuristic trend signal, not a direct platform engagement count.
+
+### Public social media rights boundary ✅
+
+Public discovery is a **story lead**, not a blanket license to reuse the post or its media.
+
+The automation must not assume that a public social photo or video is reusable.
+
+For a public social lead, the production path now:
+1. excludes the social platform URL from visual reuse
+2. searches for an independent non-social corroborating source
+3. rejects the lead when strong corroboration is not found
+4. resolves a reusable visual through Openverse only
+5. accepts only CC0, PDM, or CC BY image licenses
+6. downloads the visual through the existing image validation guard
+7. records the rights basis and marks the visual as illustrative
+8. labels the photo credit as **Illustrative photo** so the audience is not misled into thinking it is the exact event image
+
+The current social-media path therefore favors **verified story + rights-safe illustrative visual** over copying a public social-media image.
+
 
 ## Phase 3 — Visual System ✅
 
@@ -353,9 +453,15 @@ A user should understand the basic story even when seeing only the image in the 
 - [x] Same-source image requirement
 - [x] Same-context image matching
 - [x] Reject unrelated artwork/graphics
+- [x] Public social lead detection
+- [x] Independent corroboration for public social leads
+- [x] Social-media URL excluded from visual reuse
+- [x] Rights-safe Openverse visual resolution
+- [x] CC0 / PDM / CC BY license gate
+- [x] Illustrative-photo transparency label
 - [ ] Support more publisher-specific article formats
-- [ ] Stronger semantic image/story matching
-- [ ] Automatic visual relevance score
+- [x] Stronger semantic image/story matching
+- [x] Automatic visual relevance score
 - [ ] Automatic visual QA before artifact upload
 
 ## Phase 5 — A Little Better Content Identity 🚧
@@ -473,15 +579,58 @@ The target is:
 
 ---
 
+
+## 19. Agent-Reach Story Scout implementation
+
+### Implemented on feature branch
+
+- [x] Added src/story-scout.js
+- [x] Added focused Story Scout unit tests
+- [x] Added four semantic recent-news queries
+- [x] Added mcporter Exa MCP search invocation
+- [x] Added robust mcporter JSON result parsing
+- [x] Added candidate deduplication
+- [x] Added candidate ranking and scoutScore
+- [x] Reused the existing A Little Better topic and human-kindness filters
+- [x] Added fallback to the existing free news providers
+- [x] Wired Fresh News generation through the Story Scout
+- [x] Configured the free Exa MCP endpoint in GitHub Actions
+- [x] Configured the pinned MCPORTER client for scheduled GitHub Actions execution
+- [x] Prevented EXA_API_KEY from being forwarded by Story Scout
+- [x] Kept the Facebook publishing layer unchanged
+- [x] Corroborated public social story leads before publishing
+- [x] Resolved rights-safe Openverse visuals for public social leads
+- [x] Recorded discovery lead, corroboration, and visual rights metadata
+- [x] Prevented direct social-media media reuse
+
+### Free-only policy
+
+Agent-Reach Web Search must use the free MCP route only. The production workflow must not require an Exa API key, paid Exa API access, or a paid proxy for this Story Scout feature.
+
+If the free search path is unavailable, the system uses the existing GDELT / Google News fallbacks instead of switching to a paid service automatically.
+
 ## Current status
 
 **Repository:** `justryan-n2d/a-little-better-facebook-automation`
 
-**Live branch:** `main`
+**Production branch:** `main`
+
+**Active development branch:** `feat/agent-reach-story-scout`
+
+The Agent-Reach Story Scout implementation is currently isolated on the development branch and has **not** been merged into `main`.
+
+Verified on GitHub Actions:
+- live connection to `https://mcp.exa.ai/mcp`
+- `web_search_exa` returned a real recent news result
+- no `EXA_API_KEY` was used
+- Story Scout and news tests: 114/114 passed
+- production publisher dry-run: passed
+- workflow YAML validation: passed
 
 The system currently includes:
 - daily Fresh News automation
 - human-kindness story prioritization
+- Agent-Reach semantic story discovery
 - same-source / same-context visual rules
 - Sharp-based image rendering
 - layout collision protection
@@ -490,4 +639,49 @@ The system currently includes:
 - growth analytics
 - content/history tracking
 
-The next major focus is making the **story, image, headline, and caption feel like one naturally connected, heartwarming Facebook post**.
+### Real draft verification ✅
+
+A real Fresh News draft was generated on the development branch using the live Agent-Reach Web Search path with Facebook publishing explicitly disabled.
+
+Verified:
+- Agent-Reach returned real recent news stories
+- Story Scout selected a human-kindness story
+- original KCTV5 article was resolved
+- article-declared `og:image` was used
+- story and image matched the same event
+- display headline was shortened for feed readability
+- hook and angle reflected the story context
+- final graphic rendered at 1080 × 1350
+- branding, source, credit, fade, and headline were visually inspected
+- history and metadata were recorded
+- `published: false` and no Facebook post ID was created
+
+The test also exposed and fixed:
+- free MCP rate-limit handling
+- Agent-Reach MCP text-response parsing
+- story-context loss during candidate selection
+- title-only topic filtering
+- overly long display headlines
+
+The one-time draft preview workflow and debug logging were removed after verification.
+
+### Next focus
+
+The next major focus is automated **visual relevance and visual QA** before artifact upload.
+
+For public social story leads, corroboration and rights-safe visual resolution are now implemented. Stronger semantic verification is also implemented so the selected illustrative image is scored against the verified story's subjects, actions, settings, objects, and specific story terms.
+
+The visual gate now:
+- builds a structured story visual profile
+- creates subject-pair and action-aware Openverse queries
+- scores subject, action, context, object, and story-specific term overlap
+- requires the primary subject relationship when two main subjects are identified
+- applies a minimum semantic relevance threshold
+- rejects a rights-safe image when it only matches a partial subject
+- records the semantic score and matched concepts in history
+
+The remaining Phase 4 safety work is automated visual QA before artifact upload.
+
+After that, continue with stronger emotional-quality scoring, story diversity, caption naturalness, and viral-bait detection.
+
+Do not merge to `main` or publish to Facebook until the feature branch is reviewed.

@@ -18,6 +18,9 @@ import {
   searchFreshNews,
   searchGoogleNewsTopStoriesRss,
   findOpenverseImage,
+  findRightsSafeStoryImage,
+  buildStoryVisualProfile,
+  scoreStoryVisualMatch,
   findSourceArticleImage,
   downloadImage,
   isPhotoLikeOpenverseImage,
@@ -25,6 +28,7 @@ import {
   isLittleBetterTopic,
   getLittleBetterTopic,
   isHeartwarmingHumanStory,
+  buildPhotoCredit,
   selectFreshStory
 } from '../src/news.js';
 import { buildNewsSvg, calculateNewsLayout, fitTextToBox, NEWS_PRIMARY, rectanglesOverlap, renderNewsImage } from '../src/news-image.js';
@@ -96,6 +100,80 @@ test('rejects infographic-like Openverse assets', () => {
     width: 1200,
     height: 900
   }), true);
+});
+
+test('builds a semantic visual profile around the people, action, and situation in the story', () => {
+  const profile = buildStoryVisualProfile({
+    title: 'Dog stays beside baby and helps keep child safe',
+    snippet: 'The family says their dog protected the baby and alerted the parents when the child needed help.'
+  });
+
+  assert.ok(profile.subjects.includes('dog'));
+  assert.ok(profile.subjects.includes('baby'));
+  assert.ok(profile.actions.includes('protect'));
+  assert.ok(profile.actions.includes('alert'));
+  assert.ok(profile.requiredSubjects.includes('dog'));
+  assert.ok(profile.requiredSubjects.includes('baby'));
+});
+
+test('semantic visual scoring prefers the combined story scene over a partial subject match', () => {
+  const story = {
+    title: 'Dog stays beside baby and helps keep child safe',
+    snippet: 'The family says their dog protected the baby and alerted the parents when the child needed help.'
+  };
+
+  const strong = scoreStoryVisualMatch({
+    title: 'Dog with baby and family',
+    description: 'A dog staying close to a baby with family nearby.'
+  }, story);
+
+  const partial = scoreStoryVisualMatch({
+    title: 'Dog resting in a city park',
+    description: 'A friendly dog outdoors on a sunny day.'
+  }, story);
+
+  assert.ok(strong.score >= 55);
+  assert.ok(strong.matches.includes('dog'));
+  assert.ok(strong.matches.includes('baby'));
+  assert.ok(strong.relationshipMatch, 'strong image should match the subject relationship');
+  assert.ok(partial.score < 55);
+  assert.ok(!partial.relationshipMatch);
+});
+
+test('rejects a rights-safe illustrative photo that only matches one part of the story', async () => {
+  await assert.rejects(
+    findRightsSafeStoryImage({
+      title: 'Dog stays beside baby and helps keep child safe',
+      snippet: 'The family says their dog protected the baby and alerted the parents when the child needed help.',
+      topic: 'human-kindness'
+    }, {
+      fetchImpl: async input => {
+        const url = String(input);
+        if (url.includes('api.openverse.org')) {
+          return new Response(JSON.stringify({
+            results: [{
+              url: 'https://images.example/dog-only.jpg',
+              title: 'Dog resting in a city park',
+              description: 'A friendly dog outdoors on a sunny day.',
+              creator: 'Example Photographer',
+              provider: 'Example Commons',
+              license: 'cc0',
+              width: 1600,
+              height: 1067
+            }]
+          }), { status: 200 });
+        }
+        if (url === 'https://images.example/dog-only.jpg') {
+          return new Response(Buffer.alloc(12000, 9), {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' }
+          });
+        }
+        throw new Error('unexpected URL: ' + url);
+      }
+    }),
+    /No rights-safe visual source could be resolved/i
+  );
 });
 
 test('builds story-specific image search queries before broad fallbacks', () => {
@@ -630,4 +708,168 @@ test('production renderer preserves the source photo and readable text layers', 
 
 test('news post runner is importable', () => {
   assert.equal(typeof runNewsPost, 'function');
+});
+
+
+test('resolves a rights-safe illustrative visual for a public social story', async () => {
+  const result = await findRightsSafeStoryImage({
+    title: 'Dog stays beside baby and helps keep child safe',
+    snippet: 'The family says their dog protected the baby and alerted them when the child needed help.',
+    topic: 'human-kindness'
+  }, {
+    fetchImpl: async input => {
+      const url = String(input);
+      if (url.includes('api.openverse.org')) {
+        return new Response(JSON.stringify({
+          results: [{
+            url: 'https://images.example/dog-baby.jpg',
+            title: 'Dog with baby and family',
+            description: 'A dog staying close to a baby with family nearby.',
+            creator: 'Example Photographer',
+            provider: 'Example Commons',
+            license: 'cc0',
+            width: 1600,
+            height: 1067
+          }]
+        }), { status: 200 });
+      }
+      if (url === 'https://images.example/dog-baby.jpg') {
+        return new Response(Buffer.alloc(12000, 9), {
+          status: 200,
+          headers: { 'content-type': 'image/jpeg' }
+        });
+      }
+      throw new Error('unexpected URL: ' + url);
+    }
+  });
+
+  assert.equal(result.license, 'cc0');
+  assert.equal(result.provider, 'Example Commons');
+  assert.equal(result.rightsSafe, true);
+  assert.equal(result.visualRelation, 'illustrative');
+  assert.ok(result.landingUrl);
+});
+
+test('rejects rights-unsafe social media media instead of accepting it as the visual source', async () => {
+  await assert.rejects(
+    findRightsSafeStoryImage({
+      title: 'Dog stays beside baby and helps keep child safe',
+      snippet: 'A family dog helped keep the baby safe.',
+      topic: 'human-kindness',
+      url: 'https://www.tiktok.com/@example/video/123',
+      sourceType: 'public-social'
+    }, {
+      fetchImpl: async input => {
+        const url = String(input);
+        if (url.includes('api.openverse.org')) {
+          return new Response(JSON.stringify({ results: [] }), { status: 200 });
+        }
+        throw new Error('unexpected URL: ' + url);
+      }
+    }),
+    /No rights-safe visual source could be resolved/i
+  );
+});
+
+
+test('social story publishing path corroborates the lead and uses only the rights-safe visual', async () => {
+  const dir = await mkdtemp('/tmp/a-little-better-social-story-test-');
+  const historyPath = join(dir, 'history.json');
+  const width = 400;
+  const height = 400;
+  const pixels = Buffer.alloc(width * height * 3);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width + x) * 3;
+      pixels[index] = (x * 17 + y * 11) % 256;
+      pixels[index + 1] = (x * 7 + y * 19) % 256;
+      pixels[index + 2] = (x * 23 + y * 5) % 256;
+    }
+  }
+  const imageBuffer = await sharp(pixels, {
+    raw: { width, height, channels: 3 }
+  }).jpeg({ quality: 90 }).toBuffer();
+
+  let searchCall = 0;
+  const socialLead = [
+    'Title: Dog stays beside baby and helps keep child safe',
+    'URL: https://www.tiktok.com/@example/video/123',
+    'Published: 2026-10-04T03:00:00Z',
+    'Author: Example Creator',
+    'Highlights:',
+    'The family says their dog protected the baby and alerted them when the child needed help.'
+  ].join('\n');
+
+  const corroboratingArticle = [
+    'Title: Family dog protects baby and alerts parents when child needs help',
+    'URL: https://localnews.example/dog-baby-story',
+    'Published: 2026-10-04T03:30:00Z',
+    'Author: Example Reporter',
+    'Highlights:',
+    'A local news report says the family dog stayed close to the baby and alerted the parents when the child needed help.'
+  ].join('\n');
+
+  try {
+    const result = await runNewsPost({
+      today: '2026-10-04',
+      autoPublish: false,
+      historyPath,
+      execFileImpl: async (_command, args) => {
+        searchCall += 1;
+        const query = JSON.parse(args[args.indexOf('--args') + 1]).query;
+        if (searchCall === 1) {
+          assert.match(query, /site:tiktok\.com/i);
+          return { stdout: JSON.stringify({ content: [{ type: 'text', text: socialLead }] }), stderr: '' };
+        }
+        assert.match(query, /-site:tiktok\.com/i);
+        return { stdout: JSON.stringify({ content: [{ type: 'text', text: corroboratingArticle }] }), stderr: '' };
+      },
+      fetchImpl: async input => {
+        const url = String(input);
+        if (url.includes('api.openverse.org')) {
+          return new Response(JSON.stringify({
+            results: [{
+              url: 'https://images.example/right-safe-dog.jpg',
+              title: 'Dog with baby and family',
+              description: 'A dog staying close to a baby with family nearby.',
+              creator: 'Example Photographer',
+              provider: 'Example Commons',
+              license: 'cc0',
+              width: 1600,
+              height: 1067
+            }]
+          }), { status: 200 });
+        }
+        if (url === 'https://images.example/right-safe-dog.jpg') {
+          return new Response(imageBuffer, {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' }
+          });
+        }
+        throw new Error('Social source must never be fetched for image reuse: ' + url);
+      }
+    });
+
+    const history = JSON.parse(await readFile(historyPath, 'utf8'));
+    assert.equal(searchCall, 2);
+    assert.equal(result.sourceDomain, 'localnews.example');
+    assert.equal(result.imageLicense, 'cc0');
+    assert.equal(history.stories[0].discoveryLead.url, 'https://www.tiktok.com/@example/video/123');
+    assert.equal(history.stories[0].corroboration.verified, true);
+    assert.equal(history.stories[0].url, 'https://localnews.example/dog-baby-story');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+
+test('labels rights-safe illustrative visuals as illustrative', () => {
+  const credit = buildPhotoCredit({
+    license: 'cc0',
+    creator: 'Example Photographer',
+    provider: 'Example Commons',
+    visualRelation: 'illustrative'
+  });
+
+  assert.match(credit, /^Illustrative photo \/ Example Photographer \/ Example Commons \/ CC0$/);
 });

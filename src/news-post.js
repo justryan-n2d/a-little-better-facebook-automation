@@ -1,3 +1,4 @@
+import { corroborateSocialStory, scoutStories } from './story-scout.js';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { publishPhoto } from './facebook.js';
@@ -9,8 +10,8 @@ import {
   buildPhotoCredit,
   downloadImage,
   buildImageQueries,
+  findRightsSafeStoryImage,
   findSourceArticleImage,
-  searchFreshNews,
   selectFreshStory
 } from './news.js';
 import { renderNewsImage } from './news-image.js';
@@ -55,6 +56,7 @@ export async function runNewsPost({
   today,
   autoPublish,
   fetchImpl = fetch,
+  execFileImpl,
   historyPath = 'data/news-history.json'
 } = {}) {
   const date = today || new Intl.DateTimeFormat('en-CA', {
@@ -66,19 +68,63 @@ export async function runNewsPost({
     return { skipped: true, reason: 'already-published-today', date };
   }
 
-  const discovery = await searchFreshNews({ fetchImpl });
+  const configuredScoutQueries = Number(process.env.STORY_SCOUT_MAX_QUERIES);
+  const discovery = await scoutStories({
+    fetchImpl,
+    execFileImpl,
+    maxQueries: Number.isInteger(configuredScoutQueries) && configuredScoutQueries > 0
+      ? configuredScoutQueries
+      : undefined
+  });
   const story = selectFreshStory(discovery.articles, usedStoryValues(history));
   if (!story) {
     throw new Error('No safe fresh news story was found.');
   }
 
-  const imageMeta = await findSourceArticleImage(story, { fetchImpl });
+  let publishingStory = story;
+  let corroboration = null;
+  let imageMeta;
+
+  if (story.sourceType === 'public-social') {
+    corroboration = await corroborateSocialStory(story, {
+      execFileImpl
+    });
+
+    publishingStory = {
+      ...story,
+      url: corroboration.corroboratingSource.url,
+      domain: corroboration.corroboratingSource.domain,
+      publishedDate: corroboration.corroboratingSource.publishedDate,
+      snippet: corroboration.corroboratingSource.snippet || story.snippet,
+      corroboration
+    };
+
+    imageMeta = await findRightsSafeStoryImage(publishingStory, { fetchImpl });
+  } else {
+    imageMeta = await findSourceArticleImage(story, { fetchImpl });
+  }
+
   const imageBuffer = await downloadImage(imageMeta.urlCandidates || imageMeta.url, { fetchImpl });
-  const hook = buildNewsHook(story.title);
-  const angle = buildNewsAngle(story.title);
+  const storyContext = [story.title, story.snippet].filter(Boolean).join(' ');
+  const hook = buildNewsHook(storyContext);
+  const angle = buildNewsAngle(storyContext);
   const photoCredit = buildPhotoCredit(imageMeta);
   const displayHeadline = buildDisplayHeadline(story.title);
-  const sourceDomain = story.domain || 'news source';
+  const sourceDomain = publishingStory.domain || story.domain || 'news source';
+
+  const caption = buildNewsCaption({
+    title: story.title,
+    sourceDomain,
+    sourceUrl: publishingStory.url,
+    hook,
+    angle,
+    photoCredit,
+    story: {
+      ...publishingStory,
+      trendScore: story.trendScore ?? null,
+      sourceCount: story.sourceCount ?? 1
+    }
+  });
 
   await mkdir('artifacts', { recursive: true });
   const imagePath = resolve('artifacts', `fresh-news-${date}.png`);
@@ -97,13 +143,22 @@ export async function runNewsPost({
   const record = {
     date,
     title: story.title,
-    url: story.url,
+    url: publishingStory.url,
     sourceDomain,
     provider: discovery.provider,
     topic: story.topic,
+    discoveryLead: story.sourceType === 'public-social'
+      ? {
+          url: story.url,
+          platform: story.socialPlatform || null,
+          title: story.title
+        }
+      : null,
+    corroboration,
     displayHeadline,
     sourceCount: story.sourceCount,
     discoveryScore: story.score,
+    scoutScore: story.scoutScore ?? null,
     published: false,
     image: {
       provider: imageMeta.provider,
@@ -112,28 +167,25 @@ export async function runNewsPost({
       license: imageMeta.license,
       licenseVersion: imageMeta.licenseVersion,
       licenseUrl: imageMeta.licenseUrl,
-      landingUrl: imageMeta.landingUrl
+      landingUrl: imageMeta.landingUrl,
+      rightsSafe: imageMeta.rightsSafe ?? false,
+      visualRelation: imageMeta.visualRelation || 'source-event',
+      rightsBasis: imageMeta.rightsBasis || null,
+      semanticRelevanceScore: imageMeta.semanticRelevanceScore ?? null,
+      semanticMatches: imageMeta.semanticMatches || [],
+      semanticRelationshipMatch: imageMeta.semanticRelationshipMatch ?? null
     },
     hook,
     angle,
     generatedAt: new Date().toISOString()
   };
 
-  const caption = buildNewsCaption({
-    title: story.title,
-    sourceDomain,
-    sourceUrl: story.url,
-    hook,
-    angle,
-    photoCredit
-  });
-
   let publishedPostId = null;
   if (autoPublish) {
     publishedPostId = (await publishPhoto({
       pageId: requiredEnv('FB_PAGE_ID'),
       pageAccessToken: requiredEnv('FB_PAGE_ACCESS_TOKEN'),
-      message: `${caption}\n\n${story.url}`,
+      message: `${caption}\n\n${publishingStory.url}`,
       image: await readFile(imagePath),
       graphVersion: process.env.META_GRAPH_VERSION || 'v26.0'
     })).postId;

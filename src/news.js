@@ -1,3 +1,4 @@
+import { assertStoryNarrativeIntegrity } from './story-copy-guard.js';
 const GDELT_BASE = 'https://api.gdeltproject.org/api/v2/doc/doc';
 const OPENVERSE_BASE = 'https://api.openverse.org/v1/images/';
 
@@ -35,11 +36,179 @@ const STOPWORDS = new Set([
   'were','with','after','before','into','over','new','says','said','from'
 ]);
 
+const STORY_VISUAL_CONCEPTS = [
+  { name: 'dog', type: 'subject', terms: ['dog', 'dogs', 'puppy', 'puppies', 'canine'] },
+  { name: 'cat', type: 'subject', terms: ['cat', 'cats', 'kitten', 'kittens', 'feline'] },
+  { name: 'baby', type: 'subject', terms: ['baby', 'babies', 'infant', 'infants', 'newborn'] },
+  { name: 'child', type: 'subject', terms: ['child', 'children', 'kid', 'kids', 'toddler'] },
+  { name: 'student', type: 'subject', terms: ['student', 'students', 'pupil', 'pupils', 'classmate', 'classmates'] },
+  { name: 'teacher', type: 'subject', terms: ['teacher', 'teachers', 'professor', 'professors', 'educator', 'educators'] },
+  { name: 'scientist', type: 'subject', terms: ['scientist', 'scientists', 'researcher', 'researchers'] },
+  { name: 'volunteer', type: 'subject', terms: ['volunteer', 'volunteers'] },
+  { name: 'senior', type: 'subject', terms: ['senior', 'seniors', 'elderly', 'grandmother', 'grandfather', 'grandparent', 'grandparents'] },
+  { name: 'home', type: 'context', terms: ['home', 'homes', 'house', 'houses', 'apartment', 'apartments'] },
+  { name: 'storm', type: 'context', terms: ['storm', 'storms', 'tornado', 'tornadoes', 'hurricane', 'hurricanes', 'flood', 'flooded', 'flooding'] },
+  { name: 'school', type: 'context', terms: ['school', 'schools', 'classroom', 'classrooms', 'campus'] },
+  { name: 'hospital', type: 'context', terms: ['hospital', 'hospitals', 'clinic', 'clinics', 'nurse', 'nurses', 'patient', 'patients'] },
+  { name: 'laboratory', type: 'context', terms: ['lab', 'laboratory', 'laboratories'] },
+  { name: 'community', type: 'context', terms: ['community', 'communities', 'neighborhood', 'neighborhoods'] },
+  { name: 'beach', type: 'context', terms: ['beach', 'beaches', 'ocean', 'oceans', 'sea', 'seaside'] },
+  { name: 'food', type: 'object', terms: ['food', 'meal', 'meals', 'groceries', 'grocery', 'dinner', 'lunch', 'breakfast'] },
+  { name: 'tarp', type: 'object', terms: ['tarp', 'tarps', 'tarping'] },
+  { name: 'crown', type: 'object', terms: ['crown', 'crowns', 'tiara'] },
+  { name: 'award', type: 'object', terms: ['award', 'awards', 'trophy', 'trophies', 'medal', 'medals', 'prize', 'prizes'] },
+  { name: 'scholarship', type: 'object', terms: ['scholarship', 'scholarships'] },
+  { name: 'wheelchair', type: 'object', terms: ['wheelchair', 'wheelchairs'] },
+  { name: 'protect', type: 'action', terms: ['protect', 'protects', 'protected', 'protecting', 'guard', 'guards', 'guarded', 'guarding'] },
+  { name: 'alert', type: 'action', terms: ['alert', 'alerts', 'alerted', 'alerting', 'warn', 'warns', 'warned', 'warning'] },
+  { name: 'rescue', type: 'action', terms: ['rescue', 'rescues', 'rescued', 'rescuing', 'save', 'saves', 'saved', 'saving'] },
+  { name: 'help', type: 'action', terms: ['help', 'helps', 'helped', 'helping', 'assist', 'assists', 'assisted', 'assisting'] },
+  { name: 'give', type: 'action', terms: ['give', 'gives', 'gave', 'giving', 'gift', 'gifts', 'gifted'] },
+  { name: 'comfort', type: 'action', terms: ['comfort', 'comforts', 'comforted', 'comforting', 'embrace', 'embraced', 'hug', 'hugged'] },
+  { name: 'donate', type: 'action', terms: ['donate', 'donates', 'donated', 'donating', 'donation', 'donations'] },
+  { name: 'support', type: 'action', terms: ['support', 'supports', 'supported', 'supporting'] },
+  { name: 'celebrate', type: 'action', terms: ['celebrate', 'celebrates', 'celebrated', 'celebrating', 'celebration', 'celebrations'] },
+  { name: 'reunite', type: 'action', terms: ['reunite', 'reunites', 'reunited', 'reuniting'] },
+  { name: 'feed', type: 'action', terms: ['feed', 'feeds', 'fed', 'feeding'] }
+];
+
+const STORY_VISUAL_GENERIC_TERMS = new Set([
+  'story', 'says', 'said', 'people', 'person', 'family', 'moment', 'today',
+  'recent', 'news', 'good', 'positive', 'heartwarming', 'kindness', 'inspiring',
+  'help', 'helped', 'helping', 'new', 'first', 'turn', 'uses', 'used', 'become',
+  'becomes', 'with', 'from', 'after', 'before', 'about', 'their', 'this', 'that'
+]);
+
+function storyVisualText(story) {
+  const corroborating = story?.corroboration?.corroboratingSource;
+  return cleanText([
+    story?.title,
+    story?.snippet,
+    corroborating?.title,
+    corroborating?.snippet
+  ].filter(Boolean).join(' '));
+}
+
+function matchingConcepts(text, type) {
+  const lower = cleanText(text).toLowerCase();
+  return STORY_VISUAL_CONCEPTS
+    .filter(concept => concept.type === type && concept.terms.some(term => containsTerm(lower, term)))
+    .map(concept => concept.name);
+}
+
+function storySpecificVisualTerms(story) {
+  const title = cleanText(story?.title);
+  const text = storyVisualText(story);
+  const conceptTerms = new Set(
+    STORY_VISUAL_CONCEPTS.flatMap(concept => [concept.name, ...concept.terms])
+  );
+
+  return [...new Set(
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(token =>
+        token.length >= 5 &&
+        !STOPWORDS.has(token) &&
+        !STORY_VISUAL_GENERIC_TERMS.has(token) &&
+        !conceptTerms.has(token)
+      )
+  )].slice(0, 8).filter(token => containsTerm(text, token));
+}
+
+export function buildStoryVisualProfile(story) {
+  const text = storyVisualText(story);
+  const subjects = matchingConcepts(text, 'subject');
+  const actions = matchingConcepts(text, 'action');
+  const contexts = matchingConcepts(text, 'context');
+  const objects = matchingConcepts(text, 'object');
+  const requiredSubjects = subjects.length >= 2 ? subjects.slice(0, 2) : subjects.slice(0, 1);
+
+  return {
+    subjects,
+    actions,
+    contexts,
+    objects,
+    requiredSubjects,
+    specificTerms: storySpecificVisualTerms(story)
+  };
+}
+
+export function scoreStoryVisualMatch(item, story) {
+  const profile = buildStoryVisualProfile(story);
+  const text = imageTextForFiltering(item);
+
+  const matchedSubjects = profile.subjects.filter(name =>
+    STORY_VISUAL_CONCEPTS.find(concept => concept.name === name)?.terms.some(term => containsTerm(text, term))
+  );
+  const matchedActions = profile.actions.filter(name =>
+    STORY_VISUAL_CONCEPTS.find(concept => concept.name === name)?.terms.some(term => containsTerm(text, term))
+  );
+  const matchedContexts = profile.contexts.filter(name =>
+    STORY_VISUAL_CONCEPTS.find(concept => concept.name === name)?.terms.some(term => containsTerm(text, term))
+  );
+  const matchedObjects = profile.objects.filter(name =>
+    STORY_VISUAL_CONCEPTS.find(concept => concept.name === name)?.terms.some(term => containsTerm(text, term))
+  );
+  const matchedSpecificTerms = profile.specificTerms.filter(term => containsTerm(text, term));
+
+  let score = 0;
+  score += Math.min(40, matchedSubjects.length * 20);
+  score += Math.min(20, matchedActions.length * 10);
+  score += Math.min(16, matchedContexts.length * 8);
+  score += Math.min(20, matchedObjects.length * 10);
+  score += Math.min(16, matchedSpecificTerms.length * 4);
+
+  const relationshipMatch =
+    profile.requiredSubjects.length >= 2 &&
+    profile.requiredSubjects.every(name => matchedSubjects.includes(name));
+
+  if (relationshipMatch) score += 28;
+  if (profile.requiredSubjects.length >= 2 && matchedSubjects.length === 1) score -= 18;
+  if (matchedSubjects.length > 0 && matchedActions.length > 0) score += 8;
+  if (matchedSubjects.length > 0 && matchedContexts.length > 0) score += 6;
+
+  if (
+    profile.subjects.length > 0 &&
+    matchedSubjects.length === 0 &&
+    matchedActions.length === 0 &&
+    matchedContexts.length === 0 &&
+    matchedObjects.length === 0
+  ) {
+    score -= 50;
+  }
+
+  if (/(logo|icon|flag|generic|default|placeholder|template|background|illustration|painting|graphic)/i.test(text)) {
+    score -= 35;
+  }
+
+  const matches = [...new Set([
+    ...matchedSubjects,
+    ...matchedActions,
+    ...matchedContexts,
+    ...matchedObjects,
+    ...matchedSpecificTerms
+  ])];
+
+  return {
+    score: Math.max(0, Math.min(100, score)),
+    matches,
+    matchedSubjects,
+    matchedActions,
+    matchedContexts,
+    matchedObjects,
+    relationshipMatch,
+    requiredSubjects: profile.requiredSubjects,
+    minimumScore: profile.requiredSubjects.length >= 2 ? 55 : 35
+  };
+}
+
 const LITTLE_BETTER_TOPIC_GROUPS = [
   {
     name: 'human-kindness',
-    context: ['person', 'people', 'stranger', 'neighbor', 'family', 'survivor', 'journalist', 'child', 'children', 'woman', 'man', 'worker', 'customer'],
-    positive: ['kindness', 'help', 'helping', 'helps', 'helped', 'offer', 'offers', 'offered', 'share', 'shares', 'shared', 'give', 'gives', 'gave', 'gift', 'gifted', 'comforted', 'supports', 'supported', 'donates', 'donated', 'reunited', 'surprised', 'paid', 'bought', 'feed', 'feeding', 'food', 'meal', 'groceries', 'care', 'compassion', 'generosity', 'embraced', 'welcomed']
+    context: ['person', 'people', 'stranger', 'neighbor', 'family', 'survivor', 'journalist', 'child', 'children', 'baby', 'woman', 'man', 'worker', 'customer', 'pet', 'animal', 'dog', 'cat', 'puppy', 'kitten'],
+    positive: ['kindness', 'help', 'helping', 'helps', 'helped', 'offer', 'offers', 'offered', 'share', 'shares', 'shared', 'give', 'gives', 'gave', 'gift', 'gifted', 'comforted', 'supports', 'supported', 'donates', 'donated', 'reunited', 'surprised', 'paid', 'bought', 'feed', 'feeding', 'food', 'meal', 'groceries', 'care', 'compassion', 'generosity', 'embraced', 'welcomed', 'protect', 'protected', 'save', 'saved', 'rescue', 'rescued', 'guard', 'guarded', 'alerted', 'watched over']
   },
   {
     name: 'kindness-community',
@@ -79,8 +248,8 @@ function containsTerm(text, term) {
 }
 
 const HEARTWARMING_HUMAN_CONTEXT = [
-  'stranger', 'neighbor', 'family', 'survivor', 'journalist', 'child', 'children',
-  'woman', 'man', 'person', 'people', 'worker', 'customer', 'parent', 'mother', 'father'
+  'stranger', 'neighbor', 'family', 'survivor', 'journalist', 'child', 'children', 'baby',
+  'woman', 'man', 'person', 'people', 'worker', 'customer', 'parent', 'mother', 'father', 'pet', 'animal', 'dog', 'cat', 'puppy', 'kitten'
 ];
 
 const HEARTWARMING_HUMAN_ACTIONS = [
@@ -88,7 +257,7 @@ const HEARTWARMING_HUMAN_ACTIONS = [
   'share', 'shares', 'shared', 'give', 'gives', 'gave', 'gift', 'gifted',
   'comforted', 'supported', 'donated', 'reunited', 'surprised', 'paid',
   'bought', 'feed', 'feeding', 'food', 'meal', 'groceries', 'care',
-  'compassion', 'generosity', 'embraced', 'welcomed', 'checked on',
+  'compassion', 'generosity', 'embraced', 'welcomed', 'checked on', 'protect', 'protected', 'save', 'saved', 'rescue', 'rescued', 'guard', 'guarded', 'alerted', 'watched over',
   'eat', 'eats', 'eating'
 ];
 
@@ -449,7 +618,8 @@ export function selectFreshStory(articles, {
   const groups = new Map();
 
   for (const article of Array.isArray(articles) ? articles : []) {
-    if (!isSafeNewsCandidate(article?.title) || !isLittleBetterTopic(article?.title)) continue;
+    const storyContext = cleanText([article?.title, article?.snippet].filter(Boolean).join(' '));
+    if (!isSafeNewsCandidate(storyContext) || !isLittleBetterTopic(storyContext)) continue;
     const url = normalizeUrl(article.url);
     const fingerprint = titleFingerprint(article.title);
     if (!url || usedUrlSet.has(url) || usedTitleSet.has(fingerprint)) continue;
@@ -461,6 +631,10 @@ export function selectFreshStory(articles, {
       domain: article.domain || domainFromUrl(url),
       seendate: article.seendate || null,
       socialimage: article.socialimage || null,
+      snippet: article.snippet || '',
+      scoutScore: article.scoutScore ?? null,
+      sourceType: article.sourceType || 'web',
+      socialPlatform: article.socialPlatform || null,
       sourceDomains: new Set(),
       ranks: []
     };
@@ -468,6 +642,10 @@ export function selectFreshStory(articles, {
     if (article.domain) group.sourceDomains.add(article.domain);
     group.sourceDomains.add(domainFromUrl(article.url));
     group.ranks.push(Number(article.rank) || 99);
+    if (!group.snippet && article.snippet) group.snippet = article.snippet;
+    if (article.scoutScore != null && (group.scoutScore == null || article.scoutScore > group.scoutScore)) {
+      group.scoutScore = article.scoutScore;
+    }
     if (hoursOld(article.seendate, now) < hoursOld(group.seendate, now)) {
       group.seendate = article.seendate;
       group.socialimage = article.socialimage || group.socialimage;
@@ -476,7 +654,7 @@ export function selectFreshStory(articles, {
   }
 
   const heartwarmingGroups = [...groups.values()]
-    .filter(group => isHeartwarmingHumanStory(group.title))
+    .filter(group => isHeartwarmingHumanStory(group.title + ' ' + (group.snippet || '')))
     .sort((a, b) => {
       const aHours = hoursOld(a.seendate, now);
       const bHours = hoursOld(b.seendate, now);
@@ -506,14 +684,16 @@ export function selectFreshStory(articles, {
       };
       delete candidate.sourceDomains;
       delete candidate.ranks;
-      const topic = getLittleBetterTopic(candidate.title);
-      const heartwarmingHuman = isHeartwarmingHumanStory(candidate.title);
+      const topic = getLittleBetterTopic(candidate.title + ' ' + (candidate.snippet || ''));
+      const heartwarmingHuman = isHeartwarmingHumanStory(candidate.title + ' ' + (candidate.snippet || ''));
       const brandScore = Math.min(24, (topic?.matches.length || 0) * 8);
       const heartwarmingBonus = heartwarmingHuman ? 80 : 0;
       return {
         ...candidate,
         topic: topic?.name || null,
         heartwarmingHuman,
+        sourceType: candidate.sourceType || 'web',
+        socialPlatform: candidate.socialPlatform || null,
         score: scoreCandidate(candidate, now) + brandScore + heartwarmingBonus
       };
     })
@@ -548,6 +728,10 @@ export function buildDisplayHeadline(title) {
     .replace(/\s+-\s+[^-]{2,80}$/i, '')
     .trim();
 
+  if (/stranger keeps promise to cover storm-damaged .* home with tarp/i.test(text)) {
+    return 'Stranger Returns to Help Cover a Storm-Damaged Home';
+  }
+
   if (/discusses skills students need for success beyond grades/i.test(text)) {
     return 'Students Need More Than Good Grades';
   }
@@ -573,7 +757,9 @@ export function buildDisplayHeadline(title) {
 }
 
 export function buildImageQueries(title, topic) {
-  const text = cleanText(title).toLowerCase();
+  const story = typeof title === 'string' ? { title } : (title || {});
+  const storyTitle = cleanText(story.title);
+  const text = storyVisualText(story).toLowerCase();
   const topicQueries = {
     'kindness-community': ['community volunteers helping people', 'people helping community'],
     'education-growth': ['students achievement education', 'students celebrating success'],
@@ -590,7 +776,7 @@ export function buildImageQueries(title, topic) {
   if (/(student|graduate|college|school|education)/.test(text)) {
     storySpecific.push('college student science research', 'student scientist laboratory');
   }
-  if (/(crown|pageant|miss\b|beauty queen)/.test(text)) {
+  if (/(crown|pageant|miss\\b|beauty queen)/.test(text)) {
     storySpecific.push('woman community outreach environmental science');
   }
   if (/(scholarship)/.test(text)) {
@@ -600,10 +786,30 @@ export function buildImageQueries(title, topic) {
     storySpecific.push('student award ceremony', 'achievement celebration student');
   }
 
-  const exact = extractImageQuery(title);
+  const profile = buildStoryVisualProfile(story);
+  const semanticQueries = [];
+  if (profile.requiredSubjects.length >= 2) {
+    const pair = profile.requiredSubjects.join(' ');
+    semanticQueries.push(
+      pair,
+      profile.actions[0] ? pair + ' ' + profile.actions[0] : pair
+    );
+  } else if (profile.requiredSubjects.length === 1) {
+    const subject = profile.requiredSubjects[0];
+    if (profile.actions[0]) semanticQueries.push(subject + ' ' + profile.actions[0]);
+    if (profile.contexts[0]) semanticQueries.push(subject + ' ' + profile.contexts[0]);
+    if (profile.objects[0]) semanticQueries.push(subject + ' ' + profile.objects[0]);
+  }
+
+  if (profile.specificTerms.length >= 2) {
+    semanticQueries.push(profile.specificTerms.slice(0, 4).join(' '));
+  }
+
+  const exact = extractImageQuery(storyTitle);
   const fallbacks = topicQueries[topic] || ['positive people community', 'uplifting people'];
   return [...new Set([
     ...storySpecific,
+    ...semanticQueries,
     ...fallbacks,
     exact,
     'people community inspiration'
@@ -696,10 +902,12 @@ function stockSnapDirectImageUrl(landingUrl) {
 
 export async function findOpenverseImage(query, {
   licenses = ['cc0', 'pdm', 'by'],
-  fetchImpl = fetch
+  fetchImpl = fetch,
+  story = null
 } = {}) {
   const queries = Array.isArray(query) ? query : [query];
   let best = null;
+  const minimumSemanticScore = story ? buildStoryVisualProfile(story).requiredSubjects.length >= 2 ? 55 : 35 : 0;
 
   for (const searchQuery of queries.filter(Boolean)) {
     for (const license of licenses) {
@@ -721,9 +929,23 @@ export async function findOpenverseImage(query, {
           const relevance = imageQueryRelevance(item, searchQuery);
           if (tokens.length >= 3 && relevance < 0) continue;
 
-          const score = photoCandidateScore(item, searchQuery);
+          const semantic = story ? scoreStoryVisualMatch(item, story) : null;
+          if (semantic && semantic.score < minimumSemanticScore) continue;
+          if (
+            semantic &&
+            semantic.requiredSubjects.length >= 2 &&
+            !semantic.relationshipMatch
+          ) continue;
+
+          const score = photoCandidateScore(item, searchQuery) + (semantic?.score || 0);
           if (!best || score > best.score) {
-            best = { item, score, searchQuery, license: normalizedLicense };
+            best = {
+              item,
+              score,
+              searchQuery,
+              license: normalizedLicense,
+              semantic
+            };
           }
         }
       } catch (error) {
@@ -756,7 +978,48 @@ export async function findOpenverseImage(query, {
     landingUrl,
     provider,
     searchQuery: best.searchQuery,
-    relevanceScore: best.score
+    relevanceScore: best.score,
+    semanticRelevanceScore: best.semantic?.score ?? null,
+    semanticMatches: best.semantic?.matches || [],
+    semanticRelationshipMatch: best.semantic?.relationshipMatch ?? null
+  };
+}
+
+export async function findRightsSafeStoryImage(story, { fetchImpl = fetch } = {}) {
+  const topic = typeof story?.topic === 'string' ? story.topic : story?.topic?.name;
+  const storyContext = cleanText(
+    [story?.title, story?.snippet].filter(Boolean).join(' ')
+  );
+  const queries = buildImageQueries(storyContext, topic);
+
+  const image = await findOpenverseImage(queries, {
+    licenses: ['cc0', 'pdm', 'by'],
+    fetchImpl,
+    story
+  });
+
+  if (!image || !['cc0', 'pdm', 'by'].includes(String(image.license || '').toLowerCase())) {
+    throw new Error(
+      'No rights-safe visual source could be resolved for: ' +
+      cleanText(story?.title)
+    );
+  }
+
+  try {
+    await downloadImage(image.urlCandidates || image.url, { fetchImpl });
+  } catch (error) {
+    throw new Error(
+      'Rights-safe visual source could not be downloaded for: ' +
+      cleanText(story?.title) +
+      ' (' + (error instanceof Error ? error.message : String(error)) + ')'
+    );
+  }
+
+  return {
+    ...image,
+    rightsSafe: true,
+    visualRelation: 'illustrative',
+    rightsBasis: 'Openverse license: ' + String(image.license).toLowerCase()
   };
 }
 
@@ -794,7 +1057,19 @@ function imageCandidateScore(candidate, story) {
   if (candidate.kind === 'twitter:image' || candidate.kind === 'twitter:image:src') score += 24;
   if (candidate.kind === 'article-image') score += 5;
 
-  return { score, matches };
+  const semantic = scoreStoryVisualMatch({
+    title: candidate.context || '',
+    description: candidate.url || ''
+  }, story);
+
+  score += Math.round(semantic.score * 0.35);
+
+  return {
+    score,
+    matches,
+    semanticRelevanceScore: semantic.score,
+    semanticMatches: semantic.matches
+  };
 }
 
 function articleImageCandidates(html, articleUrl, story) {
@@ -970,8 +1245,16 @@ export function buildNewsCaption({
   sourceUrl,
   hook,
   angle,
-  photoCredit
+  photoCredit,
+  story
 }) {
+  assertStoryNarrativeIntegrity({
+    story,
+    headline: title,
+    hook,
+    angle
+  });
+
   return [
     `📰 A Little Better News`,
     '',
@@ -981,7 +1264,7 @@ export function buildNewsCaption({
     '',
     `A Little Better angle: ${angle}`,
     '',
-    `This story is being widely reported today. Read the full report from ${sourceDomain} for the complete details.`,
+    `Read the full report from ${sourceDomain} for the complete details.`,
     '',
     `Source: ${sourceDomain}`,
     `Photo: ${photoCredit}`,
@@ -997,7 +1280,8 @@ export function buildPhotoCredit(image) {
   const license = String(image?.license || '').toUpperCase();
   const creator = cleanText(image?.creator || 'Unknown creator');
   const provider = cleanText(image?.provider || 'Openverse');
-  return `${creator} / ${provider} / ${license || 'licensed'}`;
+  const prefix = image?.visualRelation === 'illustrative' ? 'Illustrative photo / ' : '';
+  return `${prefix}${creator} / ${provider} / ${license || 'licensed'}`;
 }
 
 export { titleFingerprint };
