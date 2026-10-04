@@ -641,6 +641,21 @@ test('parses Google News RSS fallback articles', () => {
   assert.equal(items[0].domain, 'Example News');
 });
 
+test('extracts a source image from Google News RSS media or description markup', () => {
+  const xml =
+    '<rss><channel><item>' +
+    '<title>Community volunteers help families</title>' +
+    '<link>https://example.com/story</link>' +
+    '<pubDate>Sat, 03 Oct 2026 03:00:00 GMT</pubDate>' +
+    '<source>Example News</source>' +
+    '<media:content url="https://lh3.googleusercontent.com/example-photo=s0-w300" medium="image" />' +
+    '</item></channel></rss>';
+
+  const items = extractGoogleNewsRssArticles(xml);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].socialimage, 'https://lh3.googleusercontent.com/example-photo=s0-w300');
+});
+
 test('falls back to Google News RSS after a GDELT failure', async () => {
   const calls = [];
   const result = await searchFreshNews({
