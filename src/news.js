@@ -1051,25 +1051,41 @@ function articleImageCandidates(html, articleUrl, story) {
 
 function extractExternalUrlCandidates(html, baseUrl, storyTitle = '') {
   const candidates = [];
+  const titleTokens = imageStoryTokens(storyTitle);
 
-  for (const match of String(html || '').matchAll(/(?:href|data-url|url)\s*=\s*["']([^"']+)["']/gi)) {
-    const raw = decodeXmlEntities(match[1] || '').trim();
-    if (!raw) continue;
+  const addCandidate = raw => {
+    const decoded = decodeXmlEntities(raw || '').trim();
+    if (!decoded) return;
 
     try {
-      const candidate = new URL(raw, baseUrl);
-      if (!/^https?:$/i.test(candidate.protocol)) continue;
-      if (candidate.hostname === 'news.google.com' || candidate.hostname.endsWith('.google.com')) continue;
-      if (isBlockedSourceDomain(candidate.href)) continue;
+      const candidate = new URL(decoded, baseUrl);
+      const hostname = candidate.hostname.toLowerCase();
+      const pathname = candidate.pathname.toLowerCase();
 
-      const titleTokens = imageStoryTokens(storyTitle);
+      if (!/^https?:$/i.test(candidate.protocol)) return;
+      if (
+        hostname === 'news.google.com' ||
+        hostname.endsWith('.google.com') ||
+        hostname === 'fonts.googleapis.com'
+      ) return;
+      if (isBlockedSourceDomain(candidate.href)) return;
+      if (pathname.endsWith('.css') || pathname.endsWith('.js') ||
+          pathname.endsWith('.woff') || pathname.endsWith('.woff2') ||
+          pathname.endsWith('.ttf') || pathname.endsWith('.svg') ||
+          pathname.endsWith('.png') || pathname.endsWith('.ico')) return;
+
       const pathText = (candidate.pathname + ' ' + candidate.search).toLowerCase();
       const titleMatches = titleTokens.filter(token => containsTerm(pathText, token)).length;
+      const articlePathBonus = /\/(story|article|news|post|stories|articles)\//i.test(candidate.pathname) ? 18 : 0;
       candidates.push({
         url: candidate.toString(),
-        score: titleMatches * 20 + (candidate.pathname.length > 20 ? 5 : 0)
+        score: titleMatches * 20 + articlePathBonus + (candidate.pathname.length > 20 ? 2 : 0)
       });
     } catch {}
+  };
+
+  for (const match of String(html || '').matchAll(/<a\\b[^>]*\\bhref\\s*=\\s*["']([^"']+)["'][^>]*>/gi)) {
+    addCandidate(match[1]);
   }
 
   return [...new Map(
