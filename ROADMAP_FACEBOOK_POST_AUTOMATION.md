@@ -348,7 +348,7 @@ A user should understand the basic story even when seeing only the image in the 
 
 ### Agent-Reach Story Scout
 
-The Story Scout searches for recent, heartwarming, relatable human-interest stories using semantic queries instead of relying only on exact keywords.
+The Story Scout searches for recent, heartwarming, relatable stories using semantic discovery instead of relying only on exact keywords.
 
 The Scout ranks candidates using:
 - A Little Better topic fit
@@ -357,10 +357,39 @@ The Scout ranks candidates using:
 - freshness
 - query diversity
 - headline quality
+- a small boost for public social-source candidates
 
 The Scout score is recorded in Fresh News metadata for later analysis.
 
 If no eligible Agent-Reach result survives ranking, the system falls back to the existing free news providers.
+
+### Public Social Story Discovery ✅ on the development branch
+
+The first Agent-Reach discovery query is now a public-web social discovery query covering:
+- X / Twitter
+- Instagram
+- Facebook
+- TikTok
+- YouTube
+- Reddit
+- Threads
+
+The query uses public search indexing with `site:` filters. It does not require social-media logins, browser sessions, cookies, or paid APIs.
+
+Each returned candidate is classified with:
+- `sourceType: public-social`
+- `socialPlatform`
+
+This means a story such as a dog protecting a baby can be recognized as a high-fit A Little Better human-kindness story even when the discovery lead comes from TikTok, Instagram, X, Facebook, or another public social page.
+
+The production Fresh News workflow explicitly limits the default Agent-Reach search to one query per run to protect the free MCP request budget.
+
+### Public social media rights boundary
+
+Public discovery is a **story lead**, not a blanket license to reuse the post or its media.
+
+The automation must not assume that a public social photo or video is reusable. Social-only leads still need a rights-aware visual source or a verified original article/media source before they can be safely published.
+
 
 ## Phase 3 — Visual System ✅
 
@@ -586,6 +615,10 @@ The one-time draft preview workflow and debug logging were removed after verific
 
 ### Next focus
 
-The next major focus is automated **visual relevance and visual QA** before artifact upload, followed by stronger emotional-quality scoring, story diversity, and caption naturalness.
+The next major focus is automated **visual relevance and visual QA** before artifact upload.
+
+For public social story leads, the next safety-focused step is **corroboration and rights-aware media resolution** so social discovery can lead to a verified original article or legitimately reusable visual source.
+
+After that, continue with stronger emotional-quality scoring, story diversity, caption naturalness, and viral-bait detection.
 
 Do not merge to `main` or publish to Facebook until the feature branch is reviewed.
