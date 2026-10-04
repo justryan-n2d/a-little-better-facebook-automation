@@ -430,8 +430,8 @@ The current social-media path therefore favors **verified story + rights-safe il
 - [x] CC0 / PDM / CC BY license gate
 - [x] Illustrative-photo transparency label
 - [ ] Support more publisher-specific article formats
-- [ ] Stronger semantic image/story matching
-- [ ] Automatic visual relevance score
+- [x] Stronger semantic image/story matching
+- [x] Automatic visual relevance score
 - [ ] Automatic visual QA before artifact upload
 
 ## Phase 5 — A Little Better Content Identity 🚧
@@ -593,7 +593,7 @@ Verified on GitHub Actions:
 - live connection to `https://mcp.exa.ai/mcp`
 - `web_search_exa` returned a real recent news result
 - no `EXA_API_KEY` was used
-- Story Scout unit tests: 100/100 passed
+- Story Scout and news tests: 114/114 passed
 - production publisher dry-run: passed
 - workflow YAML validation: passed
 
@@ -639,7 +639,18 @@ The one-time draft preview workflow and debug logging were removed after verific
 
 The next major focus is automated **visual relevance and visual QA** before artifact upload.
 
-For public social story leads, corroboration and rights-safe visual resolution are now implemented. The next safety-focused step is stronger semantic verification and visual relevance scoring so the selected illustrative image better matches the people, animal, object, or situation described in the verified story.
+For public social story leads, corroboration and rights-safe visual resolution are now implemented. Stronger semantic verification is also implemented so the selected illustrative image is scored against the verified story's subjects, actions, settings, objects, and specific story terms.
+
+The visual gate now:
+- builds a structured story visual profile
+- creates subject-pair and action-aware Openverse queries
+- scores subject, action, context, object, and story-specific term overlap
+- requires the primary subject relationship when two main subjects are identified
+- applies a minimum semantic relevance threshold
+- rejects a rights-safe image when it only matches a partial subject
+- records the semantic score and matched concepts in history
+
+The remaining Phase 4 safety work is automated visual QA before artifact upload.
 
 After that, continue with stronger emotional-quality scoring, story diversity, caption naturalness, and viral-bait detection.
 
