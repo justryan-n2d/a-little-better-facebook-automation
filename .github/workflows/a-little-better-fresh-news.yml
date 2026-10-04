@@ -40,6 +40,24 @@ jobs:
       - name: Install ImageMagick
         run: sudo apt-get update && sudo apt-get install -y imagemagick
 
+      - name: Configure free Agent-Reach Web Search
+        run: |
+          npm install --global mcporter@latest
+          cat > "$RUNNER_TEMP/mcporter.json" <<'JSON'
+          {
+            "$schema": "https://raw.githubusercontent.com/openclaw/mcporter/main/mcporter.schema.json",
+            "mcpServers": {
+              "exa": {
+                "description": "Agent-Reach Web Search using the free Exa MCP endpoint",
+                "baseUrl": "https://mcp.exa.ai/mcp"
+              }
+            },
+            "imports": []
+          }
+          JSON
+          echo "MCPORTER_CONFIG=$RUNNER_TEMP/mcporter.json" >> "$GITHUB_ENV"
+          echo "Configured Agent-Reach Web Search without EXA_API_KEY or paid credentials."
+
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
