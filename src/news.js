@@ -1095,6 +1095,55 @@ function extractExternalUrlCandidates(html, baseUrl, storyTitle = '') {
   ).values()];
 }
 
+async function decodeGoogleNewsArticleUrl(sourceUrl, { fetchImpl = fetch } = {}) {
+  const parsed = new URL(sourceUrl);
+  if (
+    parsed.hostname !== 'news.google.com' ||
+    !parsed.pathname.includes('/rss/articles/')
+  ) {
+    return sourceUrl;
+  }
+
+  const articleId = parsed.pathname.split('/').filter(Boolean).at(-1);
+  if (!articleId) throw new Error('Google News article id is missing.');
+
+  const request = '[[["Fbv4je","[\\"garturlreq\\",[[\\"en-US\\",\\"US\\",[\\"FINANCE_TOP_INDICES\\",\\"WEB_TEST_1_0_0\\"],null,null,1,1,\\"US:en\\",null,180,null,null,null,null,null,0,null,null,[1608992183,723341000]],\\"en-US\\",\\"US\\",1,[2,3,4,8],1,0,\\"655000234\\",0,0,null,0],\\"' +
+    articleId +
+    '\\"]",null,"generic"]]]';
+
+  const response = await fetchImpl(
+    'https://news.google.com/_/DotsSplashUi/data/batchexecute?rpcids=Fbv4je',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        referer: 'https://news.google.com/'
+      },
+      body: 'f.req=' + encodeURIComponent(request)
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error('Google News decoder HTTP ' + response.status);
+  }
+
+  const body = await response.text();
+  const escapedMatch = body.match(/\\\[\\\"garturlres\\\",\\\"([^"]+?)\\\",/);
+  const plainMatch = body.match(/["']garturlres["']\s*,\s*["']([^"']+)["']/);
+  const encodedUrl = escapedMatch?.[1] || plainMatch?.[1];
+
+  if (!encodedUrl) {
+    throw new Error('Google News decoder did not return a publisher URL.');
+  }
+
+  return encodedUrl
+    .replaceAll('\\u003d', '=')
+    .replaceAll('\\u0026', '&')
+    .replaceAll('\\u003f', '?')
+    .replaceAll('\\u002F', '/')
+    .replaceAll('\\/', '/');
+}
+
 export async function resolveArticleUrl(url, { fetchImpl = fetch, storyTitle = '' } = {}) {
   const response = await fetchImpl(url, {
     redirect: 'follow',
@@ -1105,6 +1154,23 @@ export async function resolveArticleUrl(url, { fetchImpl = fetch, storyTitle = '
   const resolvedUrl = response.url || url;
   if (!isBlockedSourceDomain(resolvedUrl) && !/news\.google\.com$/i.test(domainFromUrl(resolvedUrl))) {
     return resolvedUrl;
+  }
+
+  if (/news\.google\.com$/i.test(domainFromUrl(url))) {
+    try {
+      const decodedUrl = await decodeGoogleNewsArticleUrl(url, { fetchImpl });
+      if (
+        !isBlockedSourceDomain(decodedUrl) &&
+        !/news\.google\.com$/i.test(domainFromUrl(decodedUrl))
+      ) {
+        return decodedUrl;
+      }
+    } catch (error) {
+      console.log(
+        'Google News URL decoder failed for ' + url + ': ' +
+        (error instanceof Error ? error.message : String(error))
+      );
+    }
   }
 
   const html = await response.text();
