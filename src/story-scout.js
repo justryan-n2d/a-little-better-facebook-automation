@@ -137,7 +137,6 @@ export async function corroborateSocialStory(story, {
       };
     })
     .filter(candidate =>
-      candidate.sourceType === 'web' &&
       candidate.corroborationMatches.length >= 3 &&
       candidate.corroborationScore >= 35 &&
       !BLOCKED_STORY_TERMS.some(term =>
