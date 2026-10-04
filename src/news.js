@@ -818,7 +818,8 @@ function imageCandidateScore(candidate, story) {
 }
 
 function extractArticlePageContext(html) {
-  const tags = [...String(html || '').matchAll(/<meta\b[^>]*>/gi)].map(match => match[0]);
+  const source = String(html || '');
+  const tags = [...source.matchAll(/<meta\b[^>]*>/gi)].map(match => match[0]);
   const values = [];
   const wanted = new Set(['og:title', 'twitter:title', 'description', 'og:description', 'twitter:description']);
 
@@ -830,13 +831,38 @@ function extractArticlePageContext(html) {
     }
   }
 
-  const title = String(html || '').match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1];
+  const title = source.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1];
   if (title) values.push(decodeXmlEntities(title).replace(/<[^>]+>/g, ' ').trim());
 
-  const headings = String(html || '').match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi) || [];
+  const headings = source.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi) || [];
   for (const heading of headings.slice(0, 3)) {
     const text = heading.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     if (text) values.push(decodeXmlEntities(text));
+  }
+
+  const jsonLdBlocks = [...source.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
+  const addJsonLdText = node => {
+    if (!node || typeof node !== 'object') return;
+    for (const key of ['headline', 'alternativeHeadline', 'description', 'name', 'caption']) {
+      if (typeof node[key] === 'string') values.push(node[key]);
+    }
+    for (const key of ['headline', 'alternativeHeadline', 'description', 'name', 'caption']) {
+      if (Array.isArray(node[key])) {
+        for (const value of node[key]) if (typeof value === 'string') values.push(value);
+      }
+    }
+  };
+
+  for (const block of jsonLdBlocks) {
+    try {
+      const parsed = JSON.parse(decodeXmlEntities(block[1] || ''));
+      const nodes = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.['@graph'])
+          ? parsed['@graph']
+          : [parsed];
+      nodes.forEach(addJsonLdText);
+    } catch {}
   }
 
   return [...new Set(values.map(cleanText).filter(Boolean))].join(' ');
