@@ -42,6 +42,31 @@ test('parses mcporter JSON output into story candidates', () => {
   assert.match(candidates[0].snippet, /kindness/i);
 });
 
+test('parses mcporter MCP text content returned by the live Exa endpoint', () => {
+  const payload = {
+    content: [{
+      type: 'text',
+      text: [
+        'Title: Stranger helps a family get home safely',
+        'URL: https://example.com/live-story',
+        'Published: 2026-10-04T02:00:00Z',
+        'Author: Example Reporter',
+        'Highlights:',
+        'A simple act of kindness helped a family during a difficult day.'
+      ].join('\\n')
+    }]
+  };
+
+  const candidates = parseAgentReachOutput(JSON.stringify(payload), AGENT_REACH_SEARCH_QUERIES[0]);
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].title, 'Stranger helps a family get home safely');
+  assert.equal(candidates[0].url, 'https://example.com/live-story');
+  assert.equal(candidates[0].publishedDate, '2026-10-04T02:00:00Z');
+  assert.equal(candidates[0].author, 'Example Reporter');
+  assert.match(candidates[0].snippet, /kindness/i);
+});
+
 test('ranks a recent human-kindness story above an older generic achievement story', () => {
   const ranked = rankStoryCandidates([
     {
@@ -99,7 +124,9 @@ test('invokes mcporter Exa search without an API key', async () => {
 
   assert.deepEqual(result, []);
   assert.equal(captured.command, 'mcporter');
-  assert.ok(captured.args.includes('exa.web_search_exa'));
+  assert.ok(captured.args.includes('--http-url'));
+  assert.ok(captured.args.includes('https://mcp.exa.ai/mcp'));
+  assert.ok(captured.args.includes('web_search_exa'));
   assert.equal(captured.options.env.EXA_API_KEY, undefined);
 
   const jsonIndex = captured.args.indexOf('--args');
