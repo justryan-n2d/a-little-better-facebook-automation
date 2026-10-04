@@ -966,7 +966,7 @@ test('social story publishing prefers the corroborating article photo when reusa
             stderr: ''
           };
         }
-        assert.match(query, /-site:tiktok\\.com/i);
+        assert.match(query, /-site:tiktok\.com/i);
         return {
           stdout: JSON.stringify({
             content: [{
