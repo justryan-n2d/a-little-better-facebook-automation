@@ -68,7 +68,7 @@ The existing GDELT + Google News RSS + Top Stories path remains as the free fall
 - No EXA_API_KEY
 - No paid search API
 
-The workflow configures the MCP server in an ephemeral GitHub Actions file and exposes it through MCPORTER_CONFIG. No credentials are stored in the repository.
+The workflow installs the pinned MCPORTER client and the Story Scout calls the free hosted Exa MCP endpoint directly. No credentials are stored in the repository.
 
 ### Free fallbacks
 
@@ -518,7 +518,7 @@ The target is:
 - [x] Added fallback to the existing free news providers
 - [x] Wired Fresh News generation through the Story Scout
 - [x] Configured the free Exa MCP endpoint in GitHub Actions
-- [x] Set MCPORTER_CONFIG explicitly for scheduled GitHub Actions execution
+- [x] Configured the pinned MCPORTER client for scheduled GitHub Actions execution
 - [x] Prevented EXA_API_KEY from being forwarded by Story Scout
 - [x] Kept the Facebook publishing layer unchanged
 
