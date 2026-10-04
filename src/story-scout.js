@@ -178,26 +178,34 @@ function collectMcpTextBlocks(value, found = [], depth = 0) {
 
 function parseMcpTextBlock(block) {
   const text = String(block || '').trim();
-  const title = text.match(/^Title:\s*(.+)$/mi)?.[1]?.trim();
-  const url = text.match(/^URL:\s*(https?:\/\/\S+)$/mi)?.[1]?.trim();
-  if (!title || !url) return null;
+  if (!text) return [];
 
-  const publishedDate = text.match(/^Published:\s*(.+)$/mi)?.[1]?.trim() || null;
-  const author = text.match(/^Author:\s*(.+)$/mi)?.[1]?.trim() || '';
-  const highlightsIndex = text.search(/^Highlights:\s*$/mi);
-  const snippet = highlightsIndex >= 0
-    ? cleanText(text.slice(highlightsIndex + 'Highlights:'.length))
-    : cleanText(text);
+  return text
+    .split(/\n\s*-{3,}\s*\n/)
+    .map(section => section.trim())
+    .map(section => {
+      const title = section.match(/^Title:\s*(.+)$/mi)?.[1]?.trim();
+      const url = section.match(/^URL:\s*(https?:\/\/\S+)$/mi)?.[1]?.trim();
+      if (!title || !url) return null;
 
-  return {
-    title: cleanText(title),
-    url: normalizeUrl(url),
-    domain: domainFromUrl(url),
-    publishedDate,
-    seendate: publishedDate,
-    author: cleanText(author),
-    snippet: cleanText(snippet),
-  };
+      const publishedDate = section.match(/^Published:\s*(.+)$/mi)?.[1]?.trim() || null;
+      const author = section.match(/^Author:\s*(.+)$/mi)?.[1]?.trim() || '';
+      const highlightsIndex = section.search(/^Highlights:\s*$/mi);
+      const snippet = highlightsIndex >= 0
+        ? cleanText(section.slice(highlightsIndex + 'Highlights:'.length))
+        : cleanText(section);
+
+      return {
+        title: cleanText(title),
+        url: normalizeUrl(url),
+        domain: domainFromUrl(url),
+        publishedDate,
+        seendate: publishedDate,
+        author: cleanText(author),
+        snippet: cleanText(snippet),
+      };
+    })
+    .filter(Boolean);
 }
 
 export function parseAgentReachOutput(stdout, query = '') {
@@ -220,8 +228,7 @@ export function parseAgentReachOutput(stdout, query = '') {
     }));
 
   const textResults = collectMcpTextBlocks(payload)
-    .map(parseMcpTextBlock)
-    .filter(Boolean);
+    .flatMap(parseMcpTextBlock);
 
   const combined = [...rawResults, ...textResults];
   const seen = new Set();
@@ -287,8 +294,9 @@ function hoursOld(publishedDate, now) {
 function scoreCandidate(candidate, now) {
   const title = cleanText(candidate.title);
   const text = cleanText([candidate.title, candidate.snippet].join(' ')).toLowerCase();
-  const topic = getLittleBetterTopic(title);
-  if (!isSafeNewsCandidate(title) || !topic) return -Infinity;
+  const storyContext = cleanText([title, candidate.snippet].filter(Boolean).join(' '));
+  const topic = getLittleBetterTopic(storyContext);
+  if (!storyContext || !isSafeNewsCandidate(storyContext) || !topic) return -Infinity;
 
   if (BLOCKED_STORY_TERMS.some(term => containsTerm(text, term))) {
     return -Infinity;
