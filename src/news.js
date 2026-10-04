@@ -330,12 +330,27 @@ export function extractGoogleNewsRssArticles(xml) {
     const pubDate = readTag('pubDate');
     const source = readTag('source');
 
+    const imageUrls = [];
+    const addImageUrl = value => {
+      const decoded = decodeXmlEntities(value || '').trim();
+      if (decoded && !imageUrls.includes(decoded)) imageUrls.push(decoded);
+    };
+
+    for (const imageMatch of item.matchAll(/<(?:media:content|media:thumbnail|enclosure)\b[^>]*\burl\s*=\s*["']([^"']+)["'][^>]*>/gi)) {
+      addImageUrl(imageMatch[1]);
+    }
+
+    const description = readTag('description');
+    for (const imageMatch of description.matchAll(/<(?:img|source)\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi)) {
+      addImageUrl(imageMatch[1]);
+    }
+
     return {
       title,
       url: normalizeUrl(url),
       domain: source || domainFromUrl(url),
       seendate: pubDate || null,
-      socialimage: null,
+      socialimage: imageUrls[0] || null,
       rank: index + 1
     };
   }).filter(item => item.title && item.url);
