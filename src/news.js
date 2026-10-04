@@ -883,7 +883,8 @@ function imageCandidateScore(candidate, story) {
 
   const specificEvidence =
     specificContextMatches.length >= 1 ||
-    urlMatches.length >= 2;
+    urlMatches.length >= 2 ||
+    candidate.kind === 'rss-image';
 
   return {
     score,
@@ -1076,6 +1077,22 @@ export async function findSourceArticleImage(story, {
     .map(candidate => ({ ...candidate, ...imageCandidateScore(candidate, story) }))
     .filter(candidate => candidate.score >= 10 && candidate.specificEvidence)
     .sort((a, b) => b.score - a.score);
+
+  if (!ranked.length && story?.socialimage && !isBlockedSourceDomain(story.socialimage)) {
+    const rssImage = normalizeUrl(story.socialimage);
+    if (rssImage) {
+      ranked.push({
+        url: rssImage,
+        urlCandidates: [rssImage],
+        kind: 'rss-image',
+        imageContext: cleanText(story.title),
+        context: cleanText(story.title),
+        score: 60,
+        matches: imageStoryTokens(story.title),
+        specificEvidence: true
+      });
+    }
+  }
 
   if (!ranked.length) {
     throw new Error('Source article did not expose a context-matching image for: ' + cleanText(story?.title));
