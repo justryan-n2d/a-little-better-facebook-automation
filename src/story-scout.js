@@ -384,6 +384,7 @@ export function rankStoryCandidates(candidates, { now = new Date() } = {}) {
         title,
         url,
         domain: candidate.domain || domainFromUrl(url),
+        ...sourceMetadata(url),
         sourceQueries: [...new Set([
           ...(candidate.sourceQueries || []),
           candidate.query
