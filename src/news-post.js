@@ -67,7 +67,14 @@ export async function runNewsPost({
     return { skipped: true, reason: 'already-published-today', date };
   }
 
-  const discovery = await scoutStories({ fetchImpl, execFileImpl });
+  const configuredScoutQueries = Number(process.env.STORY_SCOUT_MAX_QUERIES);
+  const discovery = await scoutStories({
+    fetchImpl,
+    execFileImpl,
+    maxQueries: Number.isInteger(configuredScoutQueries) && configuredScoutQueries > 0
+      ? configuredScoutQueries
+      : undefined
+  });
   const story = selectFreshStory(discovery.articles, usedStoryValues(history));
   if (!story) {
     throw new Error('No safe fresh news story was found.');
