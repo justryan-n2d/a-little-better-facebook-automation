@@ -907,8 +907,31 @@ export async function findSourceArticleImage(story, {
 
   throw new Error('All context-matching source article images failed to download or verify for: ' + sourceDomain);
 }
+function expandImageDownloadCandidates(url) {
+  const source = String(url || '');
+  if (!/^https?:\/\/[^/]*googleusercontent\.com\//i.test(source)) {
+    return [source];
+  }
+
+  const [withoutFragment, fragment = ''] = source.split('#', 2);
+  const [base, query = ''] = withoutFragment.split('?', 2);
+  const match = base.match(/^(.*)=([^=]+)$/);
+  if (!match || !/^(?:s|w|h)\d+(?:-[a-z0-9]+)*$/i.test(match[2])) {
+    return [source];
+  }
+
+  const suffix = query ? '?' + query : '';
+  const hash = fragment ? '#' + fragment : '';
+  const original = base + suffix + hash;
+  const fullResolution = match[1] + '=s0' + suffix + hash;
+  return [...new Set([fullResolution, original])];
+}
+
 export async function downloadImage(url, { fetchImpl = fetch } = {}) {
-  const candidates = Array.isArray(url) ? url : [url];
+  const requestedCandidates = Array.isArray(url) ? url : [url];
+  const candidates = [...new Set(
+    requestedCandidates.flatMap(expandImageDownloadCandidates).filter(Boolean)
+  )];
   const errors = [];
 
   for (const candidate of candidates.filter(Boolean)) {
