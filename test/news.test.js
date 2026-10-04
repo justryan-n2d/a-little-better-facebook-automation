@@ -698,14 +698,20 @@ test('rejects rights-unsafe social media media instead of accepting it as the vi
 test('social story publishing path corroborates the lead and uses only the rights-safe visual', async () => {
   const dir = await mkdtemp('/tmp/a-little-better-social-story-test-');
   const historyPath = join(dir, 'history.json');
-  const imageBuffer = await sharp({
-    create: {
-      width: 400,
-      height: 400,
-      channels: 3,
-      background: { r: 180, g: 220, b: 200 }
+  const width = 400;
+  const height = 400;
+  const pixels = Buffer.alloc(width * height * 3);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width + x) * 3;
+      pixels[index] = (x * 17 + y * 11) % 256;
+      pixels[index + 1] = (x * 7 + y * 19) % 256;
+      pixels[index + 2] = (x * 23 + y * 5) % 256;
     }
-  }).jpeg().toBuffer();
+  }
+  const imageBuffer = await sharp(pixels, {
+    raw: { width, height, channels: 3 }
+  }).jpeg({ quality: 90 }).toBuffer();
 
   let searchCall = 0;
   const socialLead = [
