@@ -1231,6 +1231,17 @@ test('fresh news runner stores deterministic source and final visual verificatio
   }
 });
 
+test('Fresh News feature-branch preview runs safely without publishing or recording history', async () => {
+  const workflow = await readFile(
+    '.github/workflows/a-little-better-fresh-news.yml',
+    'utf8'
+  );
+
+  assert.match(workflow, /push:\s*\n\s*branches:\s*\[feat\/phase-4-story-visual-accuracy\]/);
+  assert.match(workflow, /NEWS_AUTO_PUBLISH:.*\|\| 'false'/);
+  assert.match(workflow, /Record fresh news history[\s\S]*if:\s*\$\{\{ success\(\) && github\.event_name != 'push' \}\}/);
+});
+
 test('Fresh News workflow uses the free deterministic visual gate and runs three times weekly', async () => {
   const workflow = await readFile(
     '.github/workflows/a-little-better-fresh-news.yml',
