@@ -577,20 +577,24 @@ test('decodes a modern Google News RSS article URL to its real publisher URL', a
   const resolved = await resolveArticleUrl(googleUrl, {
     fetchImpl: async (input, init = {}) => {
       const url = String(input);
-      calls.push({ url, method: init.method || 'GET' });
+      calls.push({ url, method: init.method || 'GET', body: init.body || '' });
 
       if (url === googleUrl) {
         return {
           ok: true,
           status: 200,
           url,
-          text: async () => '<html><body>Google News wrapper</body></html>'
+          text: async () =>
+            '<html><body><c-wiz><div jscontroller="test" data-n-a-sg="SIGNATURE" data-n-a-ts="123456"></div></c-wiz></body></html>'
         };
       }
 
       if (url.includes('news.google.com/_/DotsSplashUi/data/batchexecute')) {
         return new Response(
-          '[["garturlres","https://example.com/story",null,null]]',
+          ')]}\\' + '\n\n' +
+          JSON.stringify([
+            ['wrb.fr', 'Fbv4je', JSON.stringify([null, 'https://example.com/story'])]
+          ]),
           { status: 200, headers: { 'content-type': 'text/plain' } }
         );
       }
@@ -600,14 +604,15 @@ test('decodes a modern Google News RSS article URL to its real publisher URL', a
   });
 
   assert.equal(resolved, 'https://example.com/story');
-  assert.equal(
-    calls.some(call =>
-      call.url.includes('news.google.com/_/DotsSplashUi/data/batchexecute') &&
-      call.method === 'POST'
-    ),
-    true
-  );
+  const batch = calls.find(call => call.method === 'POST');
+  assert.ok(batch);
+  assert.match(batch.body, /Fbv4je/);
+  assert.match(batch.body, /CBMiTESTTOKEN/);
+  assert.match(batch.body, /SIGNATURE/);
+  assert.match(batch.body, /123456/);
 });
+
+
 
 test('resolves a Google News wrapper to the publisher article before image extraction', async () => {
   const calls = [];
