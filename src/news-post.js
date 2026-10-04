@@ -85,6 +85,7 @@ export async function runNewsPost({
   let publishingStory = story;
   let corroboration = null;
   let imageMeta;
+  let imageSelection = 'verified-source-article';
 
   if (story.sourceType === 'public-social') {
     corroboration = await corroborateSocialStory(story, {
@@ -99,10 +100,20 @@ export async function runNewsPost({
       snippet: corroboration.corroboratingSource.snippet || story.snippet,
       corroboration
     };
+  }
 
+  try {
+    imageMeta = await findSourceArticleImage(publishingStory, {
+      fetchImpl,
+      requireVerifiedRights: true
+    });
+  } catch (error) {
+    imageSelection = 'rights-safe-illustrative-fallback';
+    console.log(
+      'Verified source article image unavailable; using rights-safe illustrative fallback: ' +
+      (error instanceof Error ? error.message : String(error))
+    );
     imageMeta = await findRightsSafeStoryImage(publishingStory, { fetchImpl });
-  } else {
-    imageMeta = await findSourceArticleImage(story, { fetchImpl });
   }
 
   const imageBuffer = await downloadImage(imageMeta.urlCandidates || imageMeta.url, { fetchImpl });
@@ -185,6 +196,7 @@ export async function runNewsPost({
     facebookStoryPhotoId: null,
     storyPublishError: null,
     image: {
+      selection: imageSelection,
       provider: imageMeta.provider,
       title: imageMeta.title,
       creator: imageMeta.creator,
@@ -193,6 +205,7 @@ export async function runNewsPost({
       licenseUrl: imageMeta.licenseUrl,
       landingUrl: imageMeta.landingUrl,
       rightsSafe: imageMeta.rightsSafe ?? false,
+      sourceArticleRightsVerified: imageMeta.sourceArticleRightsVerified ?? false,
       visualRelation: imageMeta.visualRelation || 'source-event',
       rightsBasis: imageMeta.rightsBasis || null,
       semanticRelevanceScore: imageMeta.semanticRelevanceScore ?? null,

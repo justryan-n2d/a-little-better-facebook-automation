@@ -1031,6 +1031,175 @@ function extractMetaImages(html) {
     return { property, content: decodeXmlEntities(content || '').trim() };
   });
 }
+
+
+const SOURCE_REUSE_LICENSES = [
+  {
+    id: 'cc0',
+    patterns: [
+      /creativecommons\.org\/(?:publicdomain\/zero|licenses\/zero)/i,
+      /(?:^|\W)cc0(?:\W|$)/i,
+      /public\s*domain\s*zero/i
+    ]
+  },
+  {
+    id: 'cc-by-sa',
+    patterns: [
+      /creativecommons\.org\/licenses\/by-sa(?:[\/\s.-]|$)/i,
+      /(?:^|\W)cc\s*by[- ]sa(?:\W|$)/i
+    ]
+  },
+  {
+    id: 'cc-by',
+    patterns: [
+      /creativecommons\.org\/licenses\/by(?:[\/\s.-]|$)/i,
+      /(?:^|\W)cc\s*by(?:\W|$)/i
+    ]
+  },
+  {
+    id: 'pdm',
+    patterns: [
+      /creativecommons\.org\/publicdomain\/mark/i,
+      /public\s*domain/i,
+      /(?:^|\W)pdm(?:\W|$)/i
+    ]
+  }
+];
+
+function normalizeSourceReuseLicense(value) {
+  const raw = cleanText(value);
+  if (!raw) return null;
+
+  for (const license of SOURCE_REUSE_LICENSES) {
+    if (license.patterns.some(pattern => pattern.test(raw))) {
+      return license.id;
+    }
+  }
+
+  return null;
+}
+
+function extractAttribute(tag, patterns) {
+  for (const pattern of patterns) {
+    const match = String(tag || '').match(pattern);
+    if (match?.[1]) return decodeXmlEntities(match[1]).trim();
+  }
+  return '';
+}
+
+function extractSourceRightsMetadata(html) {
+  const values = [];
+  const creators = [];
+
+  for (const item of extractMetaImages(html)) {
+    if (/(?:^|[.:_-])(license|rights|dcterms\.rights|dc\.rights|copyrightlicense|copyright-rights)$/i.test(item.property || '')) {
+      values.push({
+        value: item.content,
+        evidence: 'article meta: ' + item.property
+      });
+    }
+  }
+
+  for (const match of String(html || '').matchAll(/<link\b[^>]*>/gi)) {
+    const tag = match[0];
+    const rel = extractAttribute(tag, [/(?:rel)\s*=\s*["']([^"']+)["']/i]);
+    if (/\blicense\b/i.test(rel)) {
+      const href = extractAttribute(tag, [/(?:href)\s*=\s*["']([^"']+)["']/i]);
+      if (href) {
+        values.push({ value: href, evidence: 'link rel=license' });
+      }
+    }
+  }
+
+  for (const match of String(html || '').matchAll(/<meta\b[^>]*>/gi)) {
+    const tag = match[0];
+    const property = extractAttribute(tag, [/(?:property|name)\s*=\s*["']([^"']+)["']/i]);
+    const content = extractAttribute(tag, [/(?:content)\s*=\s*["']([^"']+)["']/i]);
+
+    if (/(?:creator|photographer|attribution|photo-credit|photo_credit|copyright-holder)/i.test(property)) {
+      if (content) creators.push(content);
+    }
+  }
+
+  for (const script of String(html || '').matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      const parsed = JSON.parse(script[1]);
+      const visit = value => {
+        if (Array.isArray(value)) {
+          for (const item of value) visit(item);
+          return;
+        }
+        if (!value || typeof value !== 'object') return;
+
+        for (const [key, child] of Object.entries(value)) {
+          if (typeof child === 'string') {
+            if (/^(license|copyrightLicense|rights)$/i.test(key)) {
+              values.push({ value: child, evidence: 'JSON-LD ' + key });
+            }
+            if (/^(photographer|credit|attribution|copyrightHolder)$/i.test(key)) {
+              creators.push(child);
+            }
+          } else {
+            visit(child);
+          }
+        }
+      };
+      visit(parsed);
+    } catch {}
+  }
+
+  const recognized = values
+    .map(item => ({
+      ...item,
+      license: normalizeSourceReuseLicense(item.value)
+    }))
+    .filter(item => item.license);
+
+  const preferred = recognized.find(item => item.license === 'cc0') ||
+    recognized.find(item => item.license === 'pdm') ||
+    recognized.find(item => item.license === 'cc-by-sa') ||
+    recognized.find(item => item.license === 'cc-by');
+
+  return preferred
+    ? {
+        license: preferred.license,
+        licenseUrl: /^https?:\/\//i.test(preferred.value) ? preferred.value : null,
+        evidence: preferred.evidence,
+        creator: cleanText(creators[0] || '')
+      }
+    : null;
+}
+
+function resolveSourceImageRights(candidate, pageRights) {
+  const candidateRightsValue = candidate?.rightsValue || '';
+  const candidateLicense = normalizeSourceReuseLicense(candidateRightsValue);
+  const license = candidateLicense || pageRights?.license || null;
+  if (!license) {
+    return {
+      verified: false,
+      license: null,
+      licenseUrl: null,
+      evidence: null,
+      creator: cleanText(candidate?.credit || '')
+    };
+  }
+
+  const creator = cleanText(candidate?.credit || pageRights?.creator || '');
+  const attributionRequired = license === 'cc-by' || license === 'cc-by-sa';
+
+  return {
+    verified: !attributionRequired || Boolean(creator),
+    license,
+    licenseUrl: candidateLicense && /^https?:\/\//i.test(candidateRightsValue)
+      ? candidateRightsValue
+      : pageRights?.licenseUrl || null,
+    evidence: candidateRightsValue
+      ? 'image metadata: ' + candidateRightsValue
+      : pageRights?.evidence || null,
+    creator
+  };
+}
+
 function imageStoryTokens(title) {
   const tokens = cleanText(title)
     .toLowerCase()
@@ -1074,20 +1243,26 @@ function imageCandidateScore(candidate, story) {
 
 function articleImageCandidates(html, articleUrl, story) {
   const candidates = [];
-  const add = (url, kind, context = '') => {
+  const pageRights = extractSourceRightsMetadata(html);
+
+  const add = (url, kind, context = '', metadata = {}) => {
     if (!url) return;
     try {
       candidates.push({
         url: new URL(url, articleUrl).toString(),
         kind,
-        context
+        context,
+        ...metadata
       });
     } catch {}
   };
 
   for (const item of extractMetaImages(html)) {
     if (['og:image', 'og:image:url', 'twitter:image', 'twitter:image:src'].includes(item.property)) {
-      add(item.content, item.property, item.property);
+      add(item.content, item.property, item.property, {
+        rightsValue: '',
+        credit: ''
+      });
     }
   }
 
@@ -1097,14 +1272,30 @@ function articleImageCandidates(html, articleUrl, story) {
     const alt = tag.match(/alt\s*=\s*["']([^"']+)["']/i)?.[1] || '';
     const title = tag.match(/title\s*=\s*["']([^"']+)["']/i)?.[1] || '';
     const caption = tag.match(/(?:data-caption|aria-label)\s*=\s*["']([^"']+)["']/i)?.[1] || '';
-    add(url, 'article-image', [alt, title, caption, tag].join(' '));
+    const rightsValue = extractAttribute(tag, [
+      /(?:data-license|license)\s*=\s*["']([^"']+)["']/i,
+      /(?:data-rights|rights)\s*=\s*["']([^"']+)["']/i
+    ]);
+    const credit = extractAttribute(tag, [
+      /(?:data-credit|data-photo-credit|data-attribution|photo-credit|credit|attribution)\s*=\s*["']([^"']+)["']/i
+    ]);
+    add(url, 'article-image', [alt, title, caption, tag].join(' '), {
+      rightsValue,
+      credit
+    });
   }
 
   for (const match of String(html || '').matchAll(/"image"\s*:\s*(?:"([^"]+)"|\[\s*"([^"]+)")/gi)) {
-    add(match[1] || match[2], 'article-image', 'json-ld image');
+    add(match[1] || match[2], 'article-image', 'json-ld image', {
+      rightsValue: '',
+      credit: ''
+    });
   }
 
-  return candidates;
+  return {
+    candidates,
+    pageRights
+  };
 }
 
 async function resolveArticleUrl(url, { fetchImpl = fetch } = {}) {
@@ -1116,7 +1307,10 @@ async function resolveArticleUrl(url, { fetchImpl = fetch } = {}) {
   return response.url || url;
 }
 
-export async function findSourceArticleImage(story, { fetchImpl = fetch } = {}) {
+export async function findSourceArticleImage(story, {
+  fetchImpl = fetch,
+  requireVerifiedRights = false
+} = {}) {
   const articleUrl = await resolveArticleUrl(story?.url, { fetchImpl });
   const sourceDomain = story?.domain || domainFromUrl(articleUrl);
   const response = await fetchImpl(articleUrl, {
@@ -1125,13 +1319,25 @@ export async function findSourceArticleImage(story, { fetchImpl = fetch } = {}) 
   if (!response.ok) throw new Error('Source article HTTP ' + response.status);
   const html = await response.text();
 
-  const ranked = articleImageCandidates(html, articleUrl, story)
-    .map(candidate => ({ ...candidate, ...imageCandidateScore(candidate, story) }))
+  const extracted = articleImageCandidates(html, articleUrl, story);
+  const ranked = extracted.candidates
+    .map(candidate => ({
+      ...candidate,
+      ...imageCandidateScore(candidate, story),
+      rights: resolveSourceImageRights(candidate, extracted.pageRights)
+    }))
     .filter(candidate => candidate.score >= 10)
-    .sort((a, b) => b.score - a.score);
+    .filter(candidate => !requireVerifiedRights || candidate.rights.verified)
+    .sort((a, b) =>
+      b.score - a.score ||
+      Number(b.rights.verified) - Number(a.rights.verified)
+    );
 
   if (!ranked.length) {
-    throw new Error('Source article did not expose a context-matching image for: ' + cleanText(story?.title));
+    const reason = requireVerifiedRights
+      ? 'Source article did not expose a context-matching image with verified reuse rights for: '
+      : 'Source article did not expose a context-matching image for: ';
+    throw new Error(reason + cleanText(story?.title));
   }
 
   for (const candidate of ranked) {
@@ -1141,14 +1347,20 @@ export async function findSourceArticleImage(story, { fetchImpl = fetch } = {}) 
         url: candidate.url,
         urlCandidates: [candidate.url],
         title: candidate.context || 'Source article image',
-        creator: sourceDomain,
-        license: 'article-image',
+        creator: candidate.rights.creator || '',
+        license: candidate.rights.verified ? candidate.rights.license : 'article-image',
         licenseVersion: null,
-        licenseUrl: null,
+        licenseUrl: candidate.rights.verified ? candidate.rights.licenseUrl : null,
         landingUrl: articleUrl,
         provider: sourceDomain,
         searchQuery: 'source article image',
-        relevanceMatches: candidate.matches
+        relevanceMatches: candidate.matches,
+        rightsSafe: candidate.rights.verified,
+        visualRelation: 'source-event',
+        rightsBasis: candidate.rights.verified
+          ? 'Source article declared reusable license: ' + candidate.rights.license
+          : null,
+        sourceArticleRightsVerified: candidate.rights.verified
       };
     } catch (error) {
       console.log('Source article image failed for ' + candidate.url + ': ' + (error instanceof Error ? error.message : String(error)));
@@ -1286,6 +1498,13 @@ export function buildNewsCaption({
 }
 
 export function buildPhotoCredit(image) {
+  if (image?.sourceArticleRightsVerified) {
+    const license = String(image?.license || '').toUpperCase();
+    const creator = cleanText(image?.creator || '');
+    const provider = cleanText(image?.provider || 'news source');
+    const attribution = creator ? `${creator} / ${provider}` : provider;
+    return `Source article image / ${attribution} / ${license || 'licensed'}`;
+  }
   if (String(image?.license || '').toLowerCase() === 'article-image') {
     return `Source article image / ${cleanText(image?.provider || 'news source')}`;
   }
