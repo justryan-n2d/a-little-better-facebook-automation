@@ -700,8 +700,8 @@ test('social story publishing path corroborates the lead and uses only the right
   const historyPath = join(dir, 'history.json');
   const imageBuffer = await sharp({
     create: {
-      width: 80,
-      height: 80,
+      width: 400,
+      height: 400,
       channels: 3,
       background: { r: 180, g: 220, b: 200 }
     }
