@@ -38,8 +38,8 @@ const STOPWORDS = new Set([
 const LITTLE_BETTER_TOPIC_GROUPS = [
   {
     name: 'human-kindness',
-    context: ['person', 'people', 'stranger', 'neighbor', 'family', 'survivor', 'journalist', 'child', 'children', 'woman', 'man', 'worker', 'customer'],
-    positive: ['kindness', 'help', 'helping', 'helps', 'helped', 'offer', 'offers', 'offered', 'share', 'shares', 'shared', 'give', 'gives', 'gave', 'gift', 'gifted', 'comforted', 'supports', 'supported', 'donates', 'donated', 'reunited', 'surprised', 'paid', 'bought', 'feed', 'feeding', 'food', 'meal', 'groceries', 'care', 'compassion', 'generosity', 'embraced', 'welcomed']
+    context: ['person', 'people', 'stranger', 'neighbor', 'family', 'survivor', 'journalist', 'child', 'children', 'baby', 'woman', 'man', 'worker', 'customer', 'pet', 'animal', 'dog', 'cat', 'puppy', 'kitten'],
+    positive: ['kindness', 'help', 'helping', 'helps', 'helped', 'offer', 'offers', 'offered', 'share', 'shares', 'shared', 'give', 'gives', 'gave', 'gift', 'gifted', 'comforted', 'supports', 'supported', 'donates', 'donated', 'reunited', 'surprised', 'paid', 'bought', 'feed', 'feeding', 'food', 'meal', 'groceries', 'care', 'compassion', 'generosity', 'embraced', 'welcomed', 'protect', 'protected', 'save', 'saved', 'rescue', 'rescued', 'guard', 'guarded', 'alerted', 'watched over']
   },
   {
     name: 'kindness-community',
@@ -79,8 +79,8 @@ function containsTerm(text, term) {
 }
 
 const HEARTWARMING_HUMAN_CONTEXT = [
-  'stranger', 'neighbor', 'family', 'survivor', 'journalist', 'child', 'children',
-  'woman', 'man', 'person', 'people', 'worker', 'customer', 'parent', 'mother', 'father'
+  'stranger', 'neighbor', 'family', 'survivor', 'journalist', 'child', 'children', 'baby',
+  'woman', 'man', 'person', 'people', 'worker', 'customer', 'parent', 'mother', 'father', 'pet', 'animal', 'dog', 'cat', 'puppy', 'kitten'
 ];
 
 const HEARTWARMING_HUMAN_ACTIONS = [
@@ -88,7 +88,7 @@ const HEARTWARMING_HUMAN_ACTIONS = [
   'share', 'shares', 'shared', 'give', 'gives', 'gave', 'gift', 'gifted',
   'comforted', 'supported', 'donated', 'reunited', 'surprised', 'paid',
   'bought', 'feed', 'feeding', 'food', 'meal', 'groceries', 'care',
-  'compassion', 'generosity', 'embraced', 'welcomed', 'checked on',
+  'compassion', 'generosity', 'embraced', 'welcomed', 'checked on', 'protect', 'protected', 'save', 'saved', 'rescue', 'rescued', 'guard', 'guarded', 'alerted', 'watched over',
   'eat', 'eats', 'eating'
 ];
 
