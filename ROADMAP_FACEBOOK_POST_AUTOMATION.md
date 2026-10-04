@@ -384,11 +384,23 @@ This means a story such as a dog protecting a baby can be recognized as a high-f
 
 The production Fresh News workflow explicitly limits the default Agent-Reach search to one query per run to protect the free MCP request budget.
 
-### Public social media rights boundary
+### Public social media rights boundary ✅
 
 Public discovery is a **story lead**, not a blanket license to reuse the post or its media.
 
-The automation must not assume that a public social photo or video is reusable. Social-only leads still need a rights-aware visual source or a verified original article/media source before they can be safely published.
+The automation must not assume that a public social photo or video is reusable.
+
+For a public social lead, the production path now:
+1. excludes the social platform URL from visual reuse
+2. searches for an independent non-social corroborating source
+3. rejects the lead when strong corroboration is not found
+4. resolves a reusable visual through Openverse only
+5. accepts only CC0, PDM, or CC BY image licenses
+6. downloads the visual through the existing image validation guard
+7. records the rights basis and marks the visual as illustrative
+8. labels the photo credit as **Illustrative photo** so the audience is not misled into thinking it is the exact event image
+
+The current social-media path therefore favors **verified story + rights-safe illustrative visual** over copying a public social-media image.
 
 
 ## Phase 3 — Visual System ✅
@@ -411,6 +423,12 @@ The automation must not assume that a public social photo or video is reusable. 
 - [x] Same-source image requirement
 - [x] Same-context image matching
 - [x] Reject unrelated artwork/graphics
+- [x] Public social lead detection
+- [x] Independent corroboration for public social leads
+- [x] Social-media URL excluded from visual reuse
+- [x] Rights-safe Openverse visual resolution
+- [x] CC0 / PDM / CC BY license gate
+- [x] Illustrative-photo transparency label
 - [ ] Support more publisher-specific article formats
 - [ ] Stronger semantic image/story matching
 - [ ] Automatic visual relevance score
@@ -621,7 +639,7 @@ The one-time draft preview workflow and debug logging were removed after verific
 
 The next major focus is automated **visual relevance and visual QA** before artifact upload.
 
-For public social story leads, the next safety-focused step is **corroboration and rights-aware media resolution** so social discovery can lead to a verified original article or legitimately reusable visual source.
+For public social story leads, corroboration and rights-safe visual resolution are now implemented. The next safety-focused step is stronger semantic verification and visual relevance scoring so the selected illustrative image better matches the people, animal, object, or situation described in the verified story.
 
 After that, continue with stronger emotional-quality scoring, story diversity, caption naturalness, and viral-bait detection.
 
