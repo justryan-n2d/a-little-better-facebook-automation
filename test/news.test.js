@@ -1237,7 +1237,7 @@ test('Fresh News feature-branch preview runs safely without publishing or record
     'utf8'
   );
 
-  assert.match(workflow, /push:\s*\n\s*branches:\s*\[feat\/phase-4-story-visual-accuracy\]/);
+  assert.match(workflow, /push:\s*\n\s*branches:\s*\n\s*- feat\/phase-4-story-visual-accuracy/);
   assert.match(workflow, /NEWS_AUTO_PUBLISH:.*\|\| 'false'/);
   assert.match(workflow, /- name: Record fresh news history\s+if:\s*\$\{\{ success\(\) && github\.event_name != 'push' \}\}/);
 });
