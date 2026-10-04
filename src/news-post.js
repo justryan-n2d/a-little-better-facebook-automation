@@ -82,8 +82,9 @@ export async function runNewsPost({
 
   const imageMeta = await findSourceArticleImage(story, { fetchImpl });
   const imageBuffer = await downloadImage(imageMeta.urlCandidates || imageMeta.url, { fetchImpl });
-  const hook = buildNewsHook(story.title);
-  const angle = buildNewsAngle(story.title);
+  const storyContext = [story.title, story.snippet].filter(Boolean).join(' ');
+  const hook = buildNewsHook(storyContext);
+  const angle = buildNewsAngle(storyContext);
   const photoCredit = buildPhotoCredit(imageMeta);
   const displayHeadline = buildDisplayHeadline(story.title);
   const sourceDomain = story.domain || 'news source';
