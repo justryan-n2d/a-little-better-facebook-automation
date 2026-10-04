@@ -131,6 +131,26 @@ test('does not add an unsupported popularity claim to generated copy', () => {
   assert.doesNotMatch(caption, /widely reported today/i);
 });
 
+test('does not treat a public social source alone as proof of a trend', () => {
+  assert.throws(
+    () => buildNewsCaption({
+      title: 'Stranger helps a family get home safely',
+      sourceDomain: 'example.com',
+      sourceUrl: 'https://example.com/story',
+      hook: 'This story is trending everywhere.',
+      angle: 'Small acts of care can make a hard day feel a little lighter.',
+      photoCredit: 'Illustrative photo / Example / Openverse / CC0',
+      story: {
+        title: 'Stranger helps a family get home safely',
+        snippet: 'A social post shows a stranger helping a family.',
+        sourceType: 'public-social',
+        trendScore: 12
+      }
+    }),
+    /trend|unsupported|context|narrative/i
+  );
+});
+
 test('rejects copy that drops important source attribution', () => {
   assert.throws(
     () => buildNewsCaption({
