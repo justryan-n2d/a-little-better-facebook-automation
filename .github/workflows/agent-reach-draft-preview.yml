@@ -53,6 +53,7 @@ jobs:
           NEWS_AUTO_PUBLISH: "false"
           NEWS_HISTORY_PATH: data/news-history.json
           STORY_SCOUT_MAX_QUERIES: "1"
+          STORY_SCOUT_DEBUG: "true"
         run: node src/news-post.js
 
       - name: Upload draft artifacts
