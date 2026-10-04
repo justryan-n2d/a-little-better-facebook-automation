@@ -589,7 +589,7 @@ test('resolves a Google News wrapper to the publisher article before image extra
             status: 200,
             url,
             text: async () =>
-              '<html><body><a href="https://example.com/story">Open story</a></body></html>'
+              '<html><head><link href="https://fonts.googleapis.com/css?family=Google+Sans+Text:400,500,700"></head><body><a href="https://example.com/story">Open story</a></body></html>'
           };
         }
 
