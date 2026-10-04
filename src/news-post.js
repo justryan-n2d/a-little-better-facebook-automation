@@ -202,7 +202,7 @@ export async function runNewsPost({
     hook,
     angle,
     summary: articleSummary.summary,
-    storyPublishedAt: record.storyPublishedAt ?? null,
+    storyPublishedAt: null,
     generatedAt: new Date().toISOString()
   };
 
