@@ -95,7 +95,8 @@ export async function runNewsPost({
       url: corroboration.corroboratingSource.url,
       domain: corroboration.corroboratingSource.domain,
       publishedDate: corroboration.corroboratingSource.publishedDate,
-      snippet: corroboration.corroboratingSource.snippet || story.snippet
+      snippet: corroboration.corroboratingSource.snippet || story.snippet,
+      corroboration
     };
 
     imageMeta = await findRightsSafeStoryImage(publishingStory, { fetchImpl });
@@ -155,7 +156,10 @@ export async function runNewsPost({
       landingUrl: imageMeta.landingUrl,
       rightsSafe: imageMeta.rightsSafe ?? false,
       visualRelation: imageMeta.visualRelation || 'source-event',
-      rightsBasis: imageMeta.rightsBasis || null
+      rightsBasis: imageMeta.rightsBasis || null,
+      semanticRelevanceScore: imageMeta.semanticRelevanceScore ?? null,
+      semanticMatches: imageMeta.semanticMatches || [],
+      semanticRelationshipMatch: imageMeta.semanticRelationshipMatch ?? null
     },
     hook,
     angle,
