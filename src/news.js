@@ -800,21 +800,16 @@ function imageCandidateScore(candidate, story) {
 }
 
 function extractArticlePageContext(html) {
-  const meta = extractMetaImages(html);
   const tags = [...String(html || '').matchAll(/<meta\\b[^>]*>/gi)].map(match => match[0]);
   const values = [];
-
-  const readAttribute = (tag, names) => {
-    for (const name of names) {
-      const match = tag.match(new RegExp('(?:property|name)\\s*=\\s*["\\']' + name + '["\\'][^>]*content\\s*=\\s*["\\']([^"\\']+)["\\']', 'i'));
-      if (match?.[1]) return decodeXmlEntities(match[1]).trim();
-    }
-    return '';
-  };
+  const wanted = new Set(['og:title', 'twitter:title', 'description', 'og:description', 'twitter:description']);
 
   for (const tag of tags) {
-    const value = readAttribute(tag, ['og:title', 'twitter:title', 'description', 'og:description', 'twitter:description']);
-    if (value) values.push(value);
+    const property = tag.match(/(?:property|name)\\s*=\\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
+    const content = tag.match(/content\\s*=\\s*["']([^"']+)["']/i)?.[1];
+    if (property && wanted.has(property) && content) {
+      values.push(decodeXmlEntities(content).trim());
+    }
   }
 
   const title = String(html || '').match(/<title\\b[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1];
