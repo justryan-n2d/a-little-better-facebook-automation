@@ -1049,13 +1049,53 @@ function articleImageCandidates(html, articleUrl, story) {
   return candidates;
 }
 
-async function resolveArticleUrl(url, { fetchImpl = fetch } = {}) {
+function extractExternalUrlCandidates(html, baseUrl, storyTitle = '') {
+  const candidates = [];
+
+  for (const match of String(html || '').matchAll(/(?:href|data-url|url)\s*=\s*["']([^"']+)["']/gi)) {
+    const raw = decodeXmlEntities(match[1] || '').trim();
+    if (!raw) continue;
+
+    try {
+      const candidate = new URL(raw, baseUrl);
+      if (!/^https?:$/i.test(candidate.protocol)) continue;
+      if (candidate.hostname === 'news.google.com' || candidate.hostname.endsWith('.google.com')) continue;
+      if (isBlockedSourceDomain(candidate.href)) continue;
+
+      const titleTokens = imageStoryTokens(storyTitle);
+      const pathText = (candidate.pathname + ' ' + candidate.search).toLowerCase();
+      const titleMatches = titleTokens.filter(token => containsTerm(pathText, token)).length;
+      candidates.push({
+        url: candidate.toString(),
+        score: titleMatches * 20 + (candidate.pathname.length > 20 ? 5 : 0)
+      });
+    } catch {}
+  }
+
+  return [...new Map(
+    candidates
+      .sort((a, b) => b.score - a.score)
+      .map(item => [item.url, item])
+  ).values()];
+}
+
+async function resolveArticleUrl(url, { fetchImpl = fetch, storyTitle = '' } = {}) {
   const response = await fetchImpl(url, {
     redirect: 'follow',
     headers: { 'user-agent': 'A-Little-Better-News/1.0' }
   });
   if (!response.ok) throw new Error('Article URL HTTP ' + response.status);
-  return response.url || url;
+
+  const resolvedUrl = response.url || url;
+  if (!isBlockedSourceDomain(resolvedUrl) && !/news\.google\.com$/i.test(domainFromUrl(resolvedUrl))) {
+    return resolvedUrl;
+  }
+
+  const html = await response.text();
+  const candidates = extractExternalUrlCandidates(html, resolvedUrl, storyTitle);
+  if (candidates.length > 0) return candidates[0].url;
+
+  return resolvedUrl;
 }
 
 function markdownImageCandidates(markdown, articleUrl, story) {
@@ -1124,7 +1164,10 @@ async function fetchJinaArticleImages(articleUrl, story, { fetchImpl = fetch } =
 export async function findSourceArticleImage(story, {
   fetchImpl = fetch
 } = {}) {
-  const articleUrl = await resolveArticleUrl(story?.url, { fetchImpl });
+  const articleUrl = await resolveArticleUrl(story?.url, {
+    fetchImpl,
+    storyTitle: story?.title
+  });
   const resolvedDomain = domainFromUrl(articleUrl);
   if (isBlockedSourceDomain(resolvedDomain)) {
     throw new Error('Resolved article source is a blocked social platform: ' + resolvedDomain);
