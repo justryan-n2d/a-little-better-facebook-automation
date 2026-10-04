@@ -771,6 +771,43 @@ export async function findOpenverseImage(query, {
   };
 }
 
+export async function findRightsSafeStoryImage(story, { fetchImpl = fetch } = {}) {
+  const topic = typeof story?.topic === 'string' ? story.topic : story?.topic?.name;
+  const storyContext = cleanText(
+    [story?.title, story?.snippet].filter(Boolean).join(' ')
+  );
+  const queries = buildImageQueries(storyContext, topic);
+
+  const image = await findOpenverseImage(queries, {
+    licenses: ['cc0', 'pdm', 'by'],
+    fetchImpl
+  });
+
+  if (!image || !['cc0', 'pdm', 'by'].includes(String(image.license || '').toLowerCase())) {
+    throw new Error(
+      'No rights-safe visual source could be resolved for: ' +
+      cleanText(story?.title)
+    );
+  }
+
+  try {
+    await downloadImage(image.urlCandidates || image.url, { fetchImpl });
+  } catch (error) {
+    throw new Error(
+      'Rights-safe visual source could not be downloaded for: ' +
+      cleanText(story?.title) +
+      ' (' + (error instanceof Error ? error.message : String(error)) + ')'
+    );
+  }
+
+  return {
+    ...image,
+    rightsSafe: true,
+    visualRelation: 'illustrative',
+    rightsBasis: 'Openverse license: ' + String(image.license).toLowerCase()
+  };
+}
+
 function extractMetaImages(html) {
   return [...String(html || '').matchAll(/<meta\b[^>]*>/gi)].map(match => {
     const tag = match[0];
