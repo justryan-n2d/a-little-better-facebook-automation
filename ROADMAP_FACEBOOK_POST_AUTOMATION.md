@@ -550,6 +550,10 @@ The target is:
 - [x] Configured the pinned MCPORTER client for scheduled GitHub Actions execution
 - [x] Prevented EXA_API_KEY from being forwarded by Story Scout
 - [x] Kept the Facebook publishing layer unchanged
+- [x] Corroborated public social story leads before publishing
+- [x] Resolved rights-safe Openverse visuals for public social leads
+- [x] Recorded discovery lead, corroboration, and visual rights metadata
+- [x] Prevented direct social-media media reuse
 
 ### Free-only policy
 
