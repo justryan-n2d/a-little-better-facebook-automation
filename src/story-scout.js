@@ -191,7 +191,9 @@ export async function runAgentReachSearch({
   const { EXA_API_KEY: _ignoredExaApiKey, ...safeEnv } = env || {};
   const args = [
     'call',
-    'exa.web_search_exa',
+    '--http-url',
+    'https://mcp.exa.ai/mcp',
+    'web_search_exa',
     '--output',
     'json',
     '--args',
