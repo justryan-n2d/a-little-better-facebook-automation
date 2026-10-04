@@ -6,53 +6,53 @@ const STOPWORDS = new Set([
 ]);
 
 const ATTRIBUTION_PATTERNS = [
-  /\\bfamily says\\b/i,
-  /\\baccording to\\b/i,
-  /\\breportedly\\b/i,
-  /\\bclaims?\\b/i,
-  /\\ballegedly\\b/i,
-  /\\bofficials? (?:say|said)\\b/i,
-  /\\bpolice (?:say|said)\\b/i,
-  /\\b(?:the|a) report says\\b/i,
-  /\\bappears to\\b/i,
-  /\\bmay have\\b/i
+  /\bfamily says\b/i,
+  /\baccording to\b/i,
+  /\breportedly\b/i,
+  /\bclaims?\b/i,
+  /\ballegedly\b/i,
+  /\bofficials? (?:say|said)\b/i,
+  /\bpolice (?:say|said)\b/i,
+  /\b(?:the|a) report says\b/i,
+  /\bappears to\b/i,
+  /\bmay have\b/i
 ];
 
 const RISK_PATTERNS = [
-  { type: 'stereotype', pattern: /\\bpeople like (?:him|her|them)\\b/i },
-  { type: 'stereotype', pattern: /\\b(?:all|every) (?:people|men|women|immigrants|homeless people|poor people|rich people|elderly people|disabled people)\\b/i },
-  { type: 'stereotype', pattern: /\\b(?:people|men|women|immigrants|homeless people|poor people|rich people|elderly people|disabled people)\\s+(?:are|will|always|never)\\b/i },
-  { type: 'stereotype', pattern: /\\bdespite being (?:homeless|poor|an immigrant|elderly|disabled)\\b/i },
-  { type: 'motive-inference', pattern: /\\b(?:selfless|selflessly)\\b/i },
-  { type: 'motive-inference', pattern: /\\b(?:only|just) wanted to (?:get attention|look good|go viral|gain followers)\\b/i },
-  { type: 'motive-inference', pattern: /\\b(?:did it|did this|helped) because (?:he|she|they)\\b/i },
-  { type: 'motive-inference', pattern: /\\bfor (?:clout|attention|followers)\\b/i },
-  { type: 'universalization', pattern: /\\b(?:proves|shows) that (?:all|people|men|women)\\b/i }
+  { type: 'stereotype', pattern: /\bpeople like (?:him|her|them)\b/i },
+  { type: 'stereotype', pattern: /\b(?:all|every) (?:people|men|women|immigrants|homeless people|poor people|rich people|elderly people|disabled people)\b/i },
+  { type: 'stereotype', pattern: /\b(?:people|men|women|immigrants|homeless people|poor people|rich people|elderly people|disabled people)\s+(?:are|will|always|never)\b/i },
+  { type: 'stereotype', pattern: /\bdespite being (?:homeless|poor|an immigrant|elderly|disabled)\b/i },
+  { type: 'motive-inference', pattern: /\b(?:selfless|selflessly)\b/i },
+  { type: 'motive-inference', pattern: /\b(?:only|just) wanted to (?:get attention|look good|go viral|gain followers)\b/i },
+  { type: 'motive-inference', pattern: /\b(?:did it|did this|helped) because (?:he|she|they)\b/i },
+  { type: 'motive-inference', pattern: /\bfor (?:clout|attention|followers)\b/i },
+  { type: 'universalization', pattern: /\b(?:proves|shows) that (?:all|people|men|women)\b/i }
 ];
 
 const TREND_CLAIM_PATTERNS = [
-  /\\bwidely reported\\b/i,
-  /\\bgoing viral\\b/i,
-  /\\bgone viral\\b/i,
-  /\\btrending\\b/i,
-  /\\bwidely shared\\b/i,
-  /\\bwidely viewed\\b/i,
-  /\\beveryone is talking\\b/i,
-  /\\bthe internet is loving\\b/i,
-  /\\bpeople are loving\\b/i,
-  /\\ball over social media\\b/i
+  /\bwidely reported\b/i,
+  /\bgoing viral\b/i,
+  /\bgone viral\b/i,
+  /\btrending\b/i,
+  /\bwidely shared\b/i,
+  /\bwidely viewed\b/i,
+  /\beveryone is talking\b/i,
+  /\bthe internet is loving\b/i,
+  /\bpeople are loving\b/i,
+  /\ball over social media\b/i
 ];
 
 function cleanText(value) {
-  return String(value ?? '').replace(/\\s+/g, ' ').trim();
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
 
 function meaningfulTerms(value) {
   return [...new Set(
     cleanText(value)
       .toLowerCase()
-      .replace(/[^a-z0-9\\s]/g, ' ')
-      .split(/\\s+/)
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
       .filter(word => word.length >= 5 && !STOPWORDS.has(word))
   )];
 }
@@ -63,10 +63,6 @@ function hasAnyPattern(text, patterns) {
 
 function hasAttribution(text) {
   return ATTRIBUTION_PATTERNS.some(pattern => pattern.test(text));
-}
-
-function hasAttributionMarker(text) {
-  return hasAttribution(text);
 }
 
 function trendEvidenceSupports(story, sourceText) {
@@ -107,7 +103,7 @@ export function validateStoryNarrative({
     riskFlags.push('unsupported-trend-claim');
   }
 
-  if (hasAttribution(sourceText) && !hasAttributionMarker(headlineText)) {
+  if (hasAttribution(sourceText) && !hasAttribution(headlineText)) {
     riskFlags.push('dropped-source-attribution');
   }
 
