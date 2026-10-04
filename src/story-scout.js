@@ -155,6 +155,51 @@ function searchResultSnippet(item) {
   return cleanText(item?.summary || item?.text || highlights[0] || item?.snippet || '');
 }
 
+function collectMcpTextBlocks(value, found = [], depth = 0) {
+  if (value == null || depth > 8) return found;
+
+  if (Array.isArray(value)) {
+    for (const item of value) collectMcpTextBlocks(item, found, depth + 1);
+    return found;
+  }
+
+  if (typeof value !== 'object') return found;
+
+  if (value.type === 'text' && typeof value.text === 'string') {
+    found.push(value.text);
+  }
+
+  for (const child of Object.values(value)) {
+    collectMcpTextBlocks(child, found, depth + 1);
+  }
+
+  return found;
+}
+
+function parseMcpTextBlock(block) {
+  const text = String(block || '').trim();
+  const title = text.match(/^Title:\s*(.+)$/mi)?.[1]?.trim();
+  const url = text.match(/^URL:\s*(https?:\/\/\S+)$/mi)?.[1]?.trim();
+  if (!title || !url) return null;
+
+  const publishedDate = text.match(/^Published:\s*(.+)$/mi)?.[1]?.trim() || null;
+  const author = text.match(/^Author:\s*(.+)$/mi)?.[1]?.trim() || '';
+  const highlightsIndex = text.search(/^Highlights:\s*$/mi);
+  const snippet = highlightsIndex >= 0
+    ? cleanText(text.slice(highlightsIndex + 'Highlights:'.length))
+    : cleanText(text);
+
+  return {
+    title: cleanText(title),
+    url: normalizeUrl(url),
+    domain: domainFromUrl(url),
+    publishedDate,
+    seendate: publishedDate,
+    author: cleanText(author),
+    snippet: cleanText(snippet),
+  };
+}
+
 export function parseAgentReachOutput(stdout, query = '') {
   const payload = parseJsonDocument(stdout);
   if (!payload) {
@@ -162,11 +207,9 @@ export function parseAgentReachOutput(stdout, query = '') {
   }
 
   const arrays = collectSearchResultArrays(payload);
-  const rawResults = arrays.flat();
-
-  return rawResults
+  const rawResults = arrays.flat()
     .filter(item => item && typeof item === 'object' && item.url && item.title)
-    .map((item, index) => ({
+    .map(item => ({
       title: cleanText(item.title),
       url: normalizeUrl(item.url),
       domain: domainFromUrl(item.url),
@@ -174,6 +217,24 @@ export function parseAgentReachOutput(stdout, query = '') {
       seendate: item.publishedDate || item.published_at || item.date || null,
       author: cleanText(item.author || ''),
       snippet: searchResultSnippet(item),
+    }));
+
+  const textResults = collectMcpTextBlocks(payload)
+    .map(parseMcpTextBlock)
+    .filter(Boolean);
+
+  const combined = [...rawResults, ...textResults];
+  const seen = new Set();
+
+  return combined
+    .filter(item => {
+      const key = normalizeUrl(item.url) || titleFingerprint(item.title);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((item, index) => ({
+      ...item,
       query,
       rank: index + 1
     }));
