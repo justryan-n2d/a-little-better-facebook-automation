@@ -60,7 +60,8 @@ jobs:
           NEWS_HISTORY_PATH: data/news-history.json
         run: node src/news-post.js
 
-      - name: Upload fresh news draft
+      - name: Upload fresh news artifacts
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: a-little-better-fresh-news
@@ -68,14 +69,14 @@ jobs:
             artifacts/fresh-news-*.png
             artifacts/fresh-news-*.json
             artifacts/fresh-news-status.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Record fresh news history
-        if: ${{ success() }}
+        if: ${{ always() }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/news-history.json
           git diff --cached --quiet || git commit -m "chore: record fresh news post"
-          git push
+          if ! git diff --cached --quiet; then git push; fi
