@@ -414,9 +414,13 @@ export function rankStoryCandidates(candidates, { now = new Date() } = {}) {
   return [...groups.values()]
     .map(candidate => {
       const score = scoreCandidate(candidate, now);
+      const topic = getLittleBetterTopic(
+        cleanText([candidate.title, candidate.snippet].filter(Boolean).join(' '))
+      );
       return {
         ...candidate,
         sourceCount: new Set(candidate.sourceQueries || []).size || 1,
+        topic: topic?.name || null,
         scoutScore: score,
         score
       };
