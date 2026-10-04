@@ -464,6 +464,8 @@ export function selectFreshStory(articles, {
       socialimage: article.socialimage || null,
       snippet: article.snippet || '',
       scoutScore: article.scoutScore ?? null,
+      sourceType: article.sourceType || 'web',
+      socialPlatform: article.socialPlatform || null,
       sourceDomains: new Set(),
       ranks: []
     };
@@ -521,6 +523,8 @@ export function selectFreshStory(articles, {
         ...candidate,
         topic: topic?.name || null,
         heartwarmingHuman,
+        sourceType: candidate.sourceType || 'web',
+        socialPlatform: candidate.socialPlatform || null,
         score: scoreCandidate(candidate, now) + brandScore + heartwarmingBonus
       };
     })
