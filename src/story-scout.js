@@ -80,6 +80,20 @@ function titleFingerprint(title) {
     .join(' ');
 }
 
+function containsTerm(text, term) {
+  const escaped = String(term).replace(/[.*+?^$()|[\]\\{}]/g, '\\function titleFingerprint(title) {
+  return cleanText(title)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(word => word.length > 2)
+    .slice(0, 18)
+    .join(' ');
+}
+');
+  return new RegExp('\\b' + escaped + '\\b', 'i').test(text);
+}
+
 function parseJsonDocument(stdout) {
   const text = cleanText(stdout);
   if (!text) return null;
@@ -216,13 +230,13 @@ function scoreCandidate(candidate, now) {
   const topic = getLittleBetterTopic(title);
   if (!isSafeNewsCandidate(title) || !topic) return -Infinity;
 
-  if (BLOCKED_STORY_TERMS.some(term => text.includes(term))) {
+  if (BLOCKED_STORY_TERMS.some(term => containsTerm(text, term))) {
     return -Infinity;
   }
 
   const isHumanKindness = isHeartwarmingHumanStory(title);
-  const positiveCount = POSITIVE_TERMS.filter(term => text.includes(term)).length;
-  const humanCount = HUMAN_TERMS.filter(term => text.includes(term)).length;
+  const positiveCount = POSITIVE_TERMS.filter(term => containsTerm(text, term)).length;
+  const humanCount = HUMAN_TERMS.filter(term => containsTerm(text, term)).length;
   const queryCount = new Set(candidate.sourceQueries || [candidate.query].filter(Boolean)).size;
   const age = hoursOld(candidate.publishedDate || candidate.seendate, now);
 
