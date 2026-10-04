@@ -32,20 +32,6 @@ jobs:
       - name: Install dependencies
         run: npm install --ignore-scripts
 
-      - name: Verify free Agent-Reach Web Search live
-        if: ${{ startsWith(github.ref_name, 'feat/agent-reach-story-scout') }}
-        run: |
-          set -euo pipefail
-
-          unset EXA_API_KEY
-          npx --yes mcporter@0.14.2 list --http-url https://mcp.exa.ai/mcp --brief
-          npx --yes mcporter@0.14.2 call --http-url https://mcp.exa.ai/mcp web_search_exa \
-            --output json \
-            --timeout 60000 \
-            --args '{"query":"recent heartwarming act of kindness news","numResults":1}'
-
-          echo "Live free Agent-Reach Web Search request completed without an API key."
-
       - name: Run tests
         run: npm test
 
@@ -75,7 +61,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Verify GitHub Actions API access
         env:
