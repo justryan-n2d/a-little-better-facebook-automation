@@ -1095,7 +1095,7 @@ function extractExternalUrlCandidates(html, baseUrl, storyTitle = '') {
   ).values()];
 }
 
-async function resolveArticleUrl(url, { fetchImpl = fetch, storyTitle = '' } = {}) {
+export async function resolveArticleUrl(url, { fetchImpl = fetch, storyTitle = '' } = {}) {
   const response = await fetchImpl(url, {
     redirect: 'follow',
     headers: { 'user-agent': 'A-Little-Better-News/1.0' }
