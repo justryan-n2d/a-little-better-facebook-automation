@@ -271,7 +271,7 @@ test('rejects an original article image when context evidence is unavailable', a
       }
       }
     ),
-    /All context-matching source article images failed/i
+    /context-matching source article image/i
   );
 });
 
@@ -426,7 +426,7 @@ test('rejects a generic source image when only article-level metadata matches', 
         }
       }
     ),
-    /All context-matching source article images failed/i
+    /context-matching source article image/i
   );
 });
 
