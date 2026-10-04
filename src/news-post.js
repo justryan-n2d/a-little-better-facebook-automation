@@ -15,6 +15,7 @@ import {
   selectFreshStory
 } from './news.js';
 import { renderNewsImage } from './news-image.js';
+import { fetchArticleSummary } from './article-summary.js';
 
 function isTrue(value) {
   return ['1', 'true', 'yes', 'on'].includes(String(value ?? '').toLowerCase());
@@ -111,14 +112,20 @@ export async function runNewsPost({
   const photoCredit = buildPhotoCredit(imageMeta);
   const displayHeadline = buildDisplayHeadline(story.title);
   const sourceDomain = publishingStory.domain || story.domain || 'news source';
+  const articleSummary = await fetchArticleSummary({
+    story: publishingStory,
+    fetchImpl
+  });
 
   const caption = buildNewsCaption({
     title: story.title,
     sourceDomain,
-    sourceUrl: publishingStory.url,
+    sourceUrl: articleSummary.url,
     hook,
     angle,
+    summary: articleSummary.summary,
     photoCredit,
+    sourceArticleText: articleSummary.sourceText,
     story: {
       ...publishingStory,
       trendScore: story.trendScore ?? null,
@@ -177,6 +184,7 @@ export async function runNewsPost({
     },
     hook,
     angle,
+    summary: articleSummary.summary,
     generatedAt: new Date().toISOString()
   };
 
@@ -222,6 +230,7 @@ export async function runNewsPost({
     imageCredit: photoCredit,
     score: story.score,
     sourceCount: story.sourceCount,
+    summary: articleSummary.summary,
     facebookPostId: publishedPostId
   };
 }
