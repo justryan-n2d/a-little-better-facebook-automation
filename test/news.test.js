@@ -472,6 +472,29 @@ test('extracts GDELT article list', () => {
   assert.equal(items[0].title, 'A story');
 });
 
+test('skips social-platform URLs when selecting a news source', () => {
+  const selected = selectFreshStory([
+    {
+      title: 'Heartwarming student helps children with school supplies',
+      url: 'https://www.facebook.com/example/story',
+      domain: 'Example News',
+      seendate: '20261004030000',
+      rank: 1
+    },
+    {
+      title: 'Heartwarming neighbor helps family with groceries',
+      url: 'https://example.com/story',
+      domain: 'Example News',
+      seendate: '20261004020000',
+      rank: 2
+    }
+  ], {
+    now: new Date('2026-10-04T04:00:00Z')
+  });
+
+  assert.equal(selected?.url, 'https://example.com/story');
+});
+
 test('skips unrelated or negative stories even when they are ranked highly', () => {
   const selected = selectFreshStory([
     {
