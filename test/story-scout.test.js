@@ -169,6 +169,6 @@ test('recognizes a heartwarming animal story such as a dog protecting a baby', (
   assert.equal(ranked.length, 1);
   assert.equal(ranked[0].socialPlatform, 'tiktok');
   assert.equal(ranked[0].sourceType, 'public-social');
-  assert.equal(ranked[0].topic.name, 'human-kindness');
+  assert.equal(ranked[0].topic, 'human-kindness');
   assert.ok(ranked[0].score >= 50);
 });
