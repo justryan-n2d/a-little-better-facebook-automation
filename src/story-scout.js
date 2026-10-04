@@ -317,32 +317,45 @@ export function rankStoryCandidates(candidates, { now = new Date() } = {}) {
     );
 }
 
+function isRateLimitError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /(?:HTTP\\s*429|free MCP rate limit|rate limit)/i.test(message);
+}
+
 export async function scoutStories({
   queries = AGENT_REACH_SEARCH_QUERIES,
   numResults = 8,
   now = new Date(),
+  maxQueries = queries.length,
   execFileImpl = execFileAsync,
   fetchImpl = fetch
 } = {}) {
-  const searchResults = await Promise.allSettled(
-    queries.map(query => runAgentReachSearch({
-      query,
-      numResults,
-      execFileImpl
-    }))
-  );
-
+  const selectedQueries = queries.slice(0, Math.max(1, Number(maxQueries) || queries.length));
   const candidates = [];
   let successfulSearches = 0;
 
-  for (const result of searchResults) {
-    if (result.status === 'fulfilled') {
+  for (const query of selectedQueries) {
+    try {
+      const results = await runAgentReachSearch({
+        query,
+        numResults,
+        execFileImpl
+      });
       successfulSearches += 1;
-      candidates.push(...result.value);
-    } else {
-      console.log('Agent-Reach Story Scout query failed: ' + (
-        result.reason instanceof Error ? result.reason.message : String(result.reason)
-      ));
+      candidates.push(...results);
+
+      const rankedSoFar = rankStoryCandidates(candidates, { now });
+      if (rankedSoFar.length >= numResults) {
+        break;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log('Agent-Reach Story Scout query failed: ' + message);
+
+      if (isRateLimitError(error)) {
+        console.log('Agent-Reach free MCP rate limit reached; stopping further searches and using fallback if needed.');
+        break;
+      }
     }
   }
 
@@ -353,7 +366,7 @@ export async function scoutStories({
       provider: 'agent-reach-exa',
       articles: ranked,
       successfulSearches,
-      totalQueries: queries.length
+      totalQueries: selectedQueries.length
     };
   }
 
@@ -364,6 +377,6 @@ export async function scoutStories({
     provider: 'fallback:' + fallback.provider,
     articles: fallback.articles,
     successfulSearches,
-    totalQueries: queries.length
+    totalQueries: selectedQueries.length
   };
 }
