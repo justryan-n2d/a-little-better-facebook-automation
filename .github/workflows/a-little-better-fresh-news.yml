@@ -23,6 +23,7 @@ jobs:
   fresh-news:
     env:
       NEWS_AUTO_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.auto_publish || vars.NEWS_AUTO_PUBLISH || 'false' }}
+      STORY_SCOUT_MAX_QUERIES: "1"
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
