@@ -732,7 +732,7 @@ test('buildNewsCaption runs the summary through the same narrative guard', () =>
       sourceUrl: 'https://example.com/story',
       hook: 'A simple act of kindness is reminding people what matters.',
       angle: 'Small acts of care can make a hard day feel a little lighter.',
-      summary: 'Everyone is going viral over this stranger and the internet is loving it.',
+      summary: 'Everyone is going viral over this stranger and the internet is loving it. People across social media are sharing the story.',
       photoCredit: 'Source article image / example.com',
       story: { title: 'Stranger helps storm-damaged home', trendScore: 0 },
       sourceArticleText: 'A local report describes the stranger helping a storm-damaged home.'
@@ -749,7 +749,7 @@ test('buildNewsCaption preserves attribution required by the verified source art
       sourceUrl: 'https://example.com/story',
       hook: 'A simple act of kindness is reminding people what matters.',
       angle: 'Small acts of care can make a hard day feel a little lighter.',
-      summary: 'A neighbor arrived with materials and helped repair the home.',
+      summary: 'A neighbor arrived with materials and helped repair the home. The family received support during a difficult time.',
       photoCredit: 'Source article image / example.com',
       story: { title: 'Family receives help after storm damage' },
       sourceArticleText: 'The family says a neighbor arrived with materials and helped repair the home.'
