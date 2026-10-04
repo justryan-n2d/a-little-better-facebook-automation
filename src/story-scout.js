@@ -81,16 +81,7 @@ function titleFingerprint(title) {
 }
 
 function containsTerm(text, term) {
-  const escaped = String(term).replace(/[.*+?^$()|[\]\\{}]/g, '\\function titleFingerprint(title) {
-  return cleanText(title)
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter(word => word.length > 2)
-    .slice(0, 18)
-    .join(' ');
-}
-');
+  const escaped = String(term).replace(/[.*+?^$()|[\]\\{}]/g, '\\$&');
   return new RegExp('\\b' + escaped + '\\b', 'i').test(text);
 }
 
