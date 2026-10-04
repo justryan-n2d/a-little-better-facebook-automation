@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: a-little-better-agent-reach-draft-preview
+  cancel-in-progress: true
+
+
 jobs:
   draft-preview:
     runs-on: ubuntu-latest
@@ -53,7 +58,6 @@ jobs:
           NEWS_AUTO_PUBLISH: "false"
           NEWS_HISTORY_PATH: data/news-history.json
           STORY_SCOUT_MAX_QUERIES: "1"
-          STORY_SCOUT_DEBUG: "true"
         run: node src/news-post.js
 
       - name: Upload draft artifacts
