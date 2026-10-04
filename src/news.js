@@ -35,6 +35,174 @@ const STOPWORDS = new Set([
   'were','with','after','before','into','over','new','says','said','from'
 ]);
 
+const STORY_VISUAL_CONCEPTS = [
+  { name: 'dog', type: 'subject', terms: ['dog', 'dogs', 'puppy', 'puppies', 'canine'] },
+  { name: 'cat', type: 'subject', terms: ['cat', 'cats', 'kitten', 'kittens', 'feline'] },
+  { name: 'baby', type: 'subject', terms: ['baby', 'babies', 'infant', 'infants', 'newborn'] },
+  { name: 'child', type: 'subject', terms: ['child', 'children', 'kid', 'kids', 'toddler'] },
+  { name: 'student', type: 'subject', terms: ['student', 'students', 'pupil', 'pupils', 'classmate', 'classmates'] },
+  { name: 'teacher', type: 'subject', terms: ['teacher', 'teachers', 'professor', 'professors', 'educator', 'educators'] },
+  { name: 'scientist', type: 'subject', terms: ['scientist', 'scientists', 'researcher', 'researchers'] },
+  { name: 'volunteer', type: 'subject', terms: ['volunteer', 'volunteers'] },
+  { name: 'senior', type: 'subject', terms: ['senior', 'seniors', 'elderly', 'grandmother', 'grandfather', 'grandparent', 'grandparents'] },
+  { name: 'home', type: 'context', terms: ['home', 'homes', 'house', 'houses', 'apartment', 'apartments'] },
+  { name: 'storm', type: 'context', terms: ['storm', 'storms', 'tornado', 'tornadoes', 'hurricane', 'hurricanes', 'flood', 'flooded', 'flooding'] },
+  { name: 'school', type: 'context', terms: ['school', 'schools', 'classroom', 'classrooms', 'campus'] },
+  { name: 'hospital', type: 'context', terms: ['hospital', 'hospitals', 'clinic', 'clinics', 'nurse', 'nurses', 'patient', 'patients'] },
+  { name: 'laboratory', type: 'context', terms: ['lab', 'laboratory', 'laboratories'] },
+  { name: 'community', type: 'context', terms: ['community', 'communities', 'neighborhood', 'neighborhoods'] },
+  { name: 'beach', type: 'context', terms: ['beach', 'beaches', 'ocean', 'oceans', 'sea', 'seaside'] },
+  { name: 'food', type: 'object', terms: ['food', 'meal', 'meals', 'groceries', 'grocery', 'dinner', 'lunch', 'breakfast'] },
+  { name: 'tarp', type: 'object', terms: ['tarp', 'tarps', 'tarping'] },
+  { name: 'crown', type: 'object', terms: ['crown', 'crowns', 'tiara'] },
+  { name: 'award', type: 'object', terms: ['award', 'awards', 'trophy', 'trophies', 'medal', 'medals', 'prize', 'prizes'] },
+  { name: 'scholarship', type: 'object', terms: ['scholarship', 'scholarships'] },
+  { name: 'wheelchair', type: 'object', terms: ['wheelchair', 'wheelchairs'] },
+  { name: 'protect', type: 'action', terms: ['protect', 'protects', 'protected', 'protecting', 'guard', 'guards', 'guarded', 'guarding'] },
+  { name: 'alert', type: 'action', terms: ['alert', 'alerts', 'alerted', 'alerting', 'warn', 'warns', 'warned', 'warning'] },
+  { name: 'rescue', type: 'action', terms: ['rescue', 'rescues', 'rescued', 'rescuing', 'save', 'saves', 'saved', 'saving'] },
+  { name: 'help', type: 'action', terms: ['help', 'helps', 'helped', 'helping', 'assist', 'assists', 'assisted', 'assisting'] },
+  { name: 'give', type: 'action', terms: ['give', 'gives', 'gave', 'giving', 'gift', 'gifts', 'gifted'] },
+  { name: 'comfort', type: 'action', terms: ['comfort', 'comforts', 'comforted', 'comforting', 'embrace', 'embraced', 'hug', 'hugged'] },
+  { name: 'donate', type: 'action', terms: ['donate', 'donates', 'donated', 'donating', 'donation', 'donations'] },
+  { name: 'support', type: 'action', terms: ['support', 'supports', 'supported', 'supporting'] },
+  { name: 'celebrate', type: 'action', terms: ['celebrate', 'celebrates', 'celebrated', 'celebrating', 'celebration', 'celebrations'] },
+  { name: 'reunite', type: 'action', terms: ['reunite', 'reunites', 'reunited', 'reuniting'] },
+  { name: 'feed', type: 'action', terms: ['feed', 'feeds', 'fed', 'feeding'] }
+];
+
+const STORY_VISUAL_GENERIC_TERMS = new Set([
+  'story', 'says', 'said', 'people', 'person', 'family', 'moment', 'today',
+  'recent', 'news', 'good', 'positive', 'heartwarming', 'kindness', 'inspiring',
+  'help', 'helped', 'helping', 'new', 'first', 'turn', 'uses', 'used', 'become',
+  'becomes', 'with', 'from', 'after', 'before', 'about', 'their', 'this', 'that'
+]);
+
+function storyVisualText(story) {
+  const corroborating = story?.corroboration?.corroboratingSource;
+  return cleanText([
+    story?.title,
+    story?.snippet,
+    corroborating?.title,
+    corroborating?.snippet
+  ].filter(Boolean).join(' '));
+}
+
+function matchingConcepts(text, type) {
+  const lower = cleanText(text).toLowerCase();
+  return STORY_VISUAL_CONCEPTS
+    .filter(concept => concept.type === type && concept.terms.some(term => containsTerm(lower, term)))
+    .map(concept => concept.name);
+}
+
+function storySpecificVisualTerms(story) {
+  const title = cleanText(story?.title);
+  const text = storyVisualText(story);
+  const conceptTerms = new Set(
+    STORY_VISUAL_CONCEPTS.flatMap(concept => [concept.name, ...concept.terms])
+  );
+
+  return [...new Set(
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(token =>
+        token.length >= 5 &&
+        !STOPWORDS.has(token) &&
+        !STORY_VISUAL_GENERIC_TERMS.has(token) &&
+        !conceptTerms.has(token)
+      )
+  )].slice(0, 8).filter(token => containsTerm(text, token));
+}
+
+export function buildStoryVisualProfile(story) {
+  const text = storyVisualText(story);
+  const subjects = matchingConcepts(text, 'subject');
+  const actions = matchingConcepts(text, 'action');
+  const contexts = matchingConcepts(text, 'context');
+  const objects = matchingConcepts(text, 'object');
+  const requiredSubjects = subjects.length >= 2 ? subjects.slice(0, 2) : subjects.slice(0, 1);
+
+  return {
+    subjects,
+    actions,
+    contexts,
+    objects,
+    requiredSubjects,
+    specificTerms: storySpecificVisualTerms(story)
+  };
+}
+
+export function scoreStoryVisualMatch(item, story) {
+  const profile = buildStoryVisualProfile(story);
+  const text = imageTextForFiltering(item);
+
+  const matchedSubjects = profile.subjects.filter(name =>
+    STORY_VISUAL_CONCEPTS.find(concept => concept.name === name)?.terms.some(term => containsTerm(text, term))
+  );
+  const matchedActions = profile.actions.filter(name =>
+    STORY_VISUAL_CONCEPTS.find(concept => concept.name === name)?.terms.some(term => containsTerm(text, term))
+  );
+  const matchedContexts = profile.contexts.filter(name =>
+    STORY_VISUAL_CONCEPTS.find(concept => concept.name === name)?.terms.some(term => containsTerm(text, term))
+  );
+  const matchedObjects = profile.objects.filter(name =>
+    STORY_VISUAL_CONCEPTS.find(concept => concept.name === name)?.terms.some(term => containsTerm(text, term))
+  );
+  const matchedSpecificTerms = profile.specificTerms.filter(term => containsTerm(text, term));
+
+  let score = 0;
+  score += Math.min(40, matchedSubjects.length * 20);
+  score += Math.min(20, matchedActions.length * 10);
+  score += Math.min(16, matchedContexts.length * 8);
+  score += Math.min(20, matchedObjects.length * 10);
+  score += Math.min(16, matchedSpecificTerms.length * 4);
+
+  const relationshipMatch =
+    profile.requiredSubjects.length >= 2 &&
+    profile.requiredSubjects.every(name => matchedSubjects.includes(name));
+
+  if (relationshipMatch) score += 28;
+  if (profile.requiredSubjects.length >= 2 && matchedSubjects.length === 1) score -= 18;
+  if (matchedSubjects.length > 0 && matchedActions.length > 0) score += 8;
+  if (matchedSubjects.length > 0 && matchedContexts.length > 0) score += 6;
+
+  if (
+    profile.subjects.length > 0 &&
+    matchedSubjects.length === 0 &&
+    matchedActions.length === 0 &&
+    matchedContexts.length === 0 &&
+    matchedObjects.length === 0
+  ) {
+    score -= 50;
+  }
+
+  if (/(logo|icon|flag|generic|default|placeholder|template|background|illustration|painting|graphic)/i.test(text)) {
+    score -= 35;
+  }
+
+  const matches = [...new Set([
+    ...matchedSubjects,
+    ...matchedActions,
+    ...matchedContexts,
+    ...matchedObjects,
+    ...matchedSpecificTerms
+  ])];
+
+  return {
+    score: Math.max(0, Math.min(100, score)),
+    matches,
+    matchedSubjects,
+    matchedActions,
+    matchedContexts,
+    matchedObjects,
+    relationshipMatch,
+    requiredSubjects: profile.requiredSubjects,
+    minimumScore: profile.requiredSubjects.length >= 2 ? 55 : 35
+  };
+}
+
 const LITTLE_BETTER_TOPIC_GROUPS = [
   {
     name: 'human-kindness',
