@@ -4,7 +4,10 @@ import {
   AGENT_REACH_SEARCH_QUERIES,
   parseAgentReachOutput,
   rankStoryCandidates,
-  runAgentReachSearch
+  runAgentReachSearch,
+  scoutStories,
+  PUBLIC_SOCIAL_DISCOVERY_QUERY,
+  detectPublicSocialPlatform
 } from '../src/story-scout.js';
 
 test('keeps Story Scout queries focused on recent positive human-interest news', () => {
