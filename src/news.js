@@ -843,23 +843,38 @@ function imageStoryTokens(title) {
 }
 
 function imageCandidateScore(candidate, story) {
-  const text = cleanText([candidate.context, candidate.url].filter(Boolean).join(' ')).toLowerCase();
+  const pageText = cleanText([candidate.context, candidate.url].filter(Boolean).join(' ')).toLowerCase();
+  const specificText = cleanText([candidate.imageContext, candidate.url].filter(Boolean).join(' ')).toLowerCase();
   const tokens = imageStoryTokens(story?.title || '');
-  const matches = tokens.filter(token => containsTerm(text, token));
-  let score = matches.length * 10;
+  const pageMatches = tokens.filter(token => containsTerm(pageText, token));
+  const specificContextMatches = tokens.filter(token =>
+    containsTerm(cleanText(candidate.imageContext), token)
+  );
+  const urlMatches = tokens.filter(token => containsTerm(String(candidate.url || ''), token));
+  const specificMatches = [...new Set([...specificContextMatches, ...urlMatches])];
 
+  let score = specificMatches.length * 22 + Math.min(12, pageMatches.length * 2);
   const genericVisualTerms = [
     'logo', 'icon', 'patriot', 'mask', 'flag', 'generic', 'default', 'placeholder',
-    'template', 'background', 'stock', 'illustration', 'painting', 'graphic', 'forms'
+    'template', 'background', 'stock', 'illustration', 'painting', 'graphic', 'forms',
+    'wordmark', 'brand mark'
   ];
-  if (genericVisualTerms.some(term => containsTerm(text, term))) score -= 30;
+  if (genericVisualTerms.some(term => containsTerm(specificText, term))) score -= 60;
 
-  if (candidate.kind === 'og:image') score += 28;
-  if (candidate.kind === 'og:image:url') score += 26;
-  if (candidate.kind === 'twitter:image' || candidate.kind === 'twitter:image:src') score += 24;
-  if (candidate.kind === 'article-image') score += 5;
+  if (candidate.kind === 'og:image') score += 12;
+  if (candidate.kind === 'og:image:url') score += 10;
+  if (candidate.kind === 'twitter:image' || candidate.kind === 'twitter:image:src') score += 9;
+  if (candidate.kind === 'article-image') score += 6;
 
-  return { score, matches };
+  const specificEvidence =
+    specificContextMatches.length >= 1 ||
+    urlMatches.length >= 2;
+
+  return {
+    score,
+    matches: specificMatches,
+    specificEvidence
+  };
 }
 
 function extractArticlePageContext(html) {
@@ -912,23 +927,93 @@ function extractArticlePageContext(html) {
 
   return [...new Set(values.map(cleanText).filter(Boolean))].join(' ');
 }
+function extractJsonLdImageCandidates(html) {
+  const source = String(html || '');
+  const candidates = [];
+  const blocks = [...source.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
+
+  const visitImage = (image, parentContext = '') => {
+    if (!image) return;
+
+    if (typeof image === 'string') {
+      candidates.push({
+        url: image,
+        context: parentContext
+      });
+      return;
+    }
+
+    if (Array.isArray(image)) {
+      image.forEach(item => visitImage(item, parentContext));
+      return;
+    }
+
+    if (typeof image !== 'object') return;
+
+    const url = image.url || image.contentUrl || image.thumbnailUrl;
+    const context = cleanText([
+      parentContext,
+      image.caption,
+      image.name,
+      image.description,
+      image.alt
+    ].filter(value => typeof value === 'string').join(' '));
+
+    if (url) {
+      candidates.push({ url, context });
+    }
+  };
+
+  const visitNode = node => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      node.forEach(visitNode);
+      return;
+    }
+    if (Array.isArray(node['@graph'])) {
+      node['@graph'].forEach(visitNode);
+    }
+
+    const parentContext = cleanText([
+      node.headline,
+      node.alternativeHeadline,
+      node.description,
+      node.name,
+      node.caption
+    ].filter(value => typeof value === 'string').join(' '));
+
+    if (node.image) visitImage(node.image, parentContext);
+    if (node.thumbnailUrl) visitImage(node.thumbnailUrl, parentContext);
+  };
+
+  for (const block of blocks) {
+    try {
+      const parsed = JSON.parse(decodeXmlEntities(block[1] || ''));
+      visitNode(parsed);
+    } catch {}
+  }
+
+  return candidates;
+}
+
 function articleImageCandidates(html, articleUrl, story) {
   const pageContext = extractArticlePageContext(html);
   const candidates = [];
-  const add = (url, kind, context = '') => {
+  const add = (url, kind, imageContext = '') => {
     if (!url) return;
     try {
       candidates.push({
         url: new URL(url, articleUrl).toString(),
         kind,
-        context: cleanText([pageContext, context].filter(Boolean).join(' '))
+        imageContext: cleanText(imageContext),
+        context: cleanText([pageContext, imageContext].filter(Boolean).join(' '))
       });
     } catch {}
   };
 
   for (const item of extractMetaImages(html)) {
     if (['og:image', 'og:image:url', 'twitter:image', 'twitter:image:src'].includes(item.property)) {
-      add(item.content, item.property, item.property);
+      add(item.content, item.property);
     }
   }
 
@@ -938,11 +1023,11 @@ function articleImageCandidates(html, articleUrl, story) {
     const alt = tag.match(/alt\s*=\s*["']([^"']+)["']/i)?.[1] || '';
     const title = tag.match(/title\s*=\s*["']([^"']+)["']/i)?.[1] || '';
     const caption = tag.match(/(?:data-caption|aria-label)\s*=\s*["']([^"']+)["']/i)?.[1] || '';
-    add(url, 'article-image', [alt, title, caption, tag].join(' '));
+    add(url, 'article-image', [alt, title, caption].join(' '));
   }
 
-  for (const match of String(html || '').matchAll(/"image"\s*:\s*(?:"([^"]+)"|\[\s*"([^"]+)")/gi)) {
-    add(match[1] || match[2], 'article-image', 'json-ld image');
+  for (const candidate of extractJsonLdImageCandidates(html)) {
+    add(candidate.url, 'article-image', candidate.context);
   }
 
   return candidates;
@@ -974,7 +1059,7 @@ export async function findSourceArticleImage(story, {
 
   const ranked = articleImageCandidates(html, articleUrl, story)
     .map(candidate => ({ ...candidate, ...imageCandidateScore(candidate, story) }))
-    .filter(candidate => candidate.score >= 10)
+    .filter(candidate => candidate.score >= 10 && candidate.specificEvidence)
     .sort((a, b) => b.score - a.score);
 
   if (!ranked.length) {
