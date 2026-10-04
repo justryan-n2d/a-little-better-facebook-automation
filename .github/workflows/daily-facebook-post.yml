@@ -4,9 +4,7 @@ run-name: A Little Better Facebook Post${{ github.event_name == 'repository_disp
 
 on:
   schedule:
-    - cron: "0 9 * * *"
-      timezone: "Asia/Manila"
-    - cron: "0 18 * * 3"
+    - cron: "0 16 * * *"
       timezone: "Asia/Manila"
   workflow_dispatch:
     inputs:

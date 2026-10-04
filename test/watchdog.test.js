@@ -75,9 +75,8 @@ test('marks analytics healthy when today has successful collection', () => {
 
 test('dispatches recovery when the daily run is missing after the grace period', () => {
   const action = decideWatchdogAction({
-    now: '2026-10-04T02:30:00.000Z',
+    now: '2026-10-04T09:30:00.000Z',
     today: '2026-10-04',
-    scheduleHour: 9,
     scheduleMinute: 0,
     graceMinutes: 60,
     runs: []
@@ -90,7 +89,7 @@ test('retries a failed record job but does not re-run a publish failure', () => 
   const recordAction = decideWatchdogAction({
     now: '2026-10-04T02:00:00.000Z',
     today: '2026-10-04',
-    scheduleHour: 9,
+    scheduleHour: 16,
     scheduleMinute: 0,
     graceMinutes: 60,
     runs: [{
@@ -113,7 +112,7 @@ test('retries a failed record job but does not re-run a publish failure', () => 
   const publishAction = decideWatchdogAction({
     now: '2026-10-04T02:00:00.000Z',
     today: '2026-10-04',
-    scheduleHour: 9,
+    scheduleHour: 16,
     scheduleMinute: 0,
     graceMinutes: 60,
     runs: [{
@@ -138,7 +137,7 @@ test('waits when the scheduled run is still active', () => {
   const action = decideWatchdogAction({
     now: '2026-10-04T02:00:00.000Z',
     today: '2026-10-04',
-    scheduleHour: 9,
+    scheduleHour: 16,
     scheduleMinute: 0,
     graceMinutes: 60,
     runs: [{
@@ -162,7 +161,7 @@ test('handles a watchdog recovery run separately from the missing scheduled run'
   const action = decideWatchdogAction({
     now: '2026-10-04T03:00:00.000Z',
     today: '2026-10-04',
-    scheduleHour: 9,
+    scheduleHour: 16,
     scheduleMinute: 0,
     graceMinutes: 60,
     runs: [{
