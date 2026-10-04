@@ -569,6 +569,70 @@ test('rejects a graphic Google News RSS source image instead of using it as a ph
   );
 });
 
+test('resolves a Google News wrapper to the publisher article before image extraction', async () => {
+  const calls = [];
+
+  const result = await findSourceArticleImage(
+    {
+      url: 'https://news.google.com/rss/articles/example',
+      domain: 'Example News',
+      title: 'Community volunteers provide meals to seniors'
+    },
+    {
+      fetchImpl: async (input, init = {}) => {
+        const url = String(input);
+        calls.push(url);
+
+        if (url === 'https://news.google.com/rss/articles/example') {
+          return {
+            ok: true,
+            status: 200,
+            url,
+            text: async () =>
+              '<html><body><a href="https://example.com/story">Open story</a></body></html>'
+          };
+        }
+
+        if (url === 'https://example.com/story') {
+          return new Response(
+            '<html><head>' +
+            '<title>Community volunteers provide meals to seniors</title>' +
+            '<meta property="og:title" content="Community volunteers provide meals to seniors">' +
+            '<meta property="og:image" content="https://cdn.example/community.jpg">' +
+            '</head></html>',
+            { status: 200, headers: { 'content-type': 'text/html' } }
+          );
+        }
+
+        if (url === 'https://cdn.example/community.jpg') {
+          const raw = Buffer.alloc(700 * 500 * 3);
+          for (let y = 0; y < 500; y += 1) {
+            for (let x = 0; x < 700; x += 1) {
+              const index = (y * 700 + x) * 3;
+              raw[index] = (x * 3 + y) % 256;
+              raw[index + 1] = (y * 4 + x) % 256;
+              raw[index + 2] = (x + y) % 256;
+            }
+          }
+          const image = await sharp(raw, {
+            raw: { width: 700, height: 500, channels: 3 }
+          }).png().toBuffer();
+          return new Response(image, {
+            status: 200,
+            headers: { 'content-type': 'image/png' }
+          });
+        }
+
+        throw new Error('unexpected request: ' + url);
+      }
+    }
+  );
+
+  assert.equal(result.url, 'https://cdn.example/community.jpg');
+  assert.ok(calls.includes('https://example.com/story'));
+  assert.ok(!calls.some(url => url === 'https://r.jina.ai/https://news.google.com/rss/articles/example'));
+});
+
 test('uses the source article image that matches the story context', async () => {
   const calls = [];
 
