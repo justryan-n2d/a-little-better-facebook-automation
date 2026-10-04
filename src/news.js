@@ -475,17 +475,19 @@ export async function searchFreshNews({
       };
     }
 
-    const broadQueryArticles = await searchGoogleNewsRss({
-      queries,
-      maxRecords: Math.min(maxRecords, 50),
-      fetchImpl
-    });
+    if (queryList.length === 0) {
+      const broadQueryArticles = await searchGoogleNewsRss({
+        queries,
+        maxRecords: Math.min(maxRecords, 50),
+        fetchImpl
+      });
 
-    if (broadQueryArticles.length > 0) {
-      return {
-        provider: 'google-news-rss',
-        articles: broadQueryArticles
-      };
+      if (broadQueryArticles.length > 0) {
+        return {
+          provider: 'google-news-rss',
+          articles: broadQueryArticles
+        };
+      }
     }
 
     console.log('Google News query returned no articles; using Top Stories fallback.');
