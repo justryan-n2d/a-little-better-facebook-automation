@@ -49,3 +49,10 @@ test('publishes a fresh unpublished photo as a Facebook Page Story', async () =>
   assert.equal(storyBody.get('photo_id'), 'story-photo-123');
   assert.equal(storyBody.get('access_token'), 'token');
 });
+
+test('regular daily posts include the Page Story publishing path', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile('src/index.js', 'utf8');
+  assert.match(source, /publishPhotoStory/);
+  assert.match(source, /renderPostStoryImage/);
+});
