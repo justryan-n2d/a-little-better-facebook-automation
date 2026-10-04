@@ -1058,6 +1058,68 @@ async function resolveArticleUrl(url, { fetchImpl = fetch } = {}) {
   return response.url || url;
 }
 
+function markdownImageCandidates(markdown, articleUrl, story) {
+  const candidates = [];
+
+  for (const match of String(markdown || '').matchAll(/!\[([^\]]*)\]\(([^\s)]+)(?:\s+["'][^"']*["'])?\)/g)) {
+    const alt = cleanText(match[1] || '');
+    const rawUrl = String(match[2] || '').trim();
+    if (!rawUrl) continue;
+
+    try {
+      candidates.push({
+        url: new URL(rawUrl, articleUrl).toString(),
+        kind: 'jina-image',
+        imageContext: alt,
+        context: cleanText([story?.title, alt].filter(Boolean).join(' ')),
+        matches: imageStoryTokens(story?.title || '')
+      });
+    } catch {}
+  }
+
+  for (const match of String(markdown || '').matchAll(/<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi)) {
+    const tag = match[0];
+    const alt = tag.match(/alt\s*=\s*["']([^"']+)["']/i)?.[1] || '';
+
+    try {
+      candidates.push({
+        url: new URL(match[1], articleUrl).toString(),
+        kind: 'jina-image',
+        imageContext: alt,
+        context: cleanText([story?.title, alt].filter(Boolean).join(' ')),
+        matches: imageStoryTokens(story?.title || '')
+      });
+    } catch {}
+  }
+
+  return candidates;
+}
+
+async function fetchJinaArticleImages(articleUrl, story, { fetchImpl = fetch } = {}) {
+  const readerUrl = 'https://r.jina.ai/' + articleUrl;
+
+  try {
+    const response = await fetchImpl(readerUrl, {
+      headers: {
+        'user-agent': 'A-Little-Better-News/1.0',
+        accept: 'text/markdown'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Jina Reader HTTP ' + response.status);
+    }
+
+    return markdownImageCandidates(await response.text(), articleUrl, story);
+  } catch (error) {
+    console.log(
+      'Jina Reader fallback failed for ' + articleUrl + ': ' +
+      (error instanceof Error ? error.message : String(error))
+    );
+    return [];
+  }
+}
+
 export async function findSourceArticleImage(story, {
   fetchImpl = fetch
 } = {}) {
@@ -1066,6 +1128,7 @@ export async function findSourceArticleImage(story, {
   if (isBlockedSourceDomain(resolvedDomain)) {
     throw new Error('Resolved article source is a blocked social platform: ' + resolvedDomain);
   }
+
   const sourceDomain = story?.domain || resolvedDomain;
   const response = await fetchImpl(articleUrl, {
     headers: { 'user-agent': 'A-Little-Better-News/1.0' }
@@ -1083,7 +1146,6 @@ export async function findSourceArticleImage(story, {
     if (rssImage) {
       ranked.push({
         url: rssImage,
-        urlCandidates: [rssImage],
         kind: 'rss-image',
         imageContext: cleanText(story.title),
         context: cleanText(story.title),
@@ -1094,53 +1156,65 @@ export async function findSourceArticleImage(story, {
     }
   }
 
-  if (!ranked.length) {
-    throw new Error('Source article did not expose a context-matching image for: ' + cleanText(story?.title));
-  }
+  const tryCandidates = async candidates => {
+    for (const candidate of candidates) {
+      try {
+        const imageBuffer = await downloadImage(candidate.url, { fetchImpl });
+        const visualVerification = await verifyImageStoryAlignment({
+          imageBuffer,
+          storyTitle: story?.title,
+          sourceDomain,
+          candidateContext: candidate.context,
+          candidateUrl: candidate.url,
+          candidateKind: candidate.kind
+        });
 
-  for (const candidate of ranked) {
-    try {
-      const imageBuffer = await downloadImage(candidate.url, { fetchImpl });
-      const visualVerification = await verifyImageStoryAlignment({
-        imageBuffer,
-        storyTitle: story?.title,
-        sourceDomain,
-        candidateContext: candidate.context,
-        candidateUrl: candidate.url,
-        candidateKind: candidate.kind
-      });
+        if (!visualVerification.verified) {
+          console.log(
+            'Source article image rejected by visual verification for ' +
+            candidate.url + ': ' + visualVerification.reason
+          );
+          continue;
+        }
 
-      if (visualVerification.verified === false) {
+        return {
+          url: candidate.url,
+          urlCandidates: [candidate.url],
+          title: candidate.context || 'Source article image',
+          creator: sourceDomain,
+          license: 'article-image',
+          licenseVersion: null,
+          licenseUrl: null,
+          landingUrl: articleUrl,
+          provider: sourceDomain,
+          searchQuery: candidate.kind === 'jina-image'
+            ? 'source article image via Jina Reader'
+            : 'source article image',
+          relevanceMatches: candidate.matches || imageStoryTokens(story?.title || ''),
+          visualVerification
+        };
+      } catch (error) {
         console.log(
-          'Source article image rejected by visual verification for ' +
-          candidate.url + ': ' + visualVerification.reason
+          'Source article image candidate failed for ' + candidate.url + ': ' +
+          (error instanceof Error ? error.message : String(error))
         );
-        continue;
       }
-
-      return {
-        url: candidate.url,
-        urlCandidates: [candidate.url],
-        title: candidate.context || 'Source article image',
-        creator: sourceDomain,
-        license: 'article-image',
-        licenseVersion: null,
-        licenseUrl: null,
-        landingUrl: articleUrl,
-        provider: sourceDomain,
-        searchQuery: 'source article image',
-        relevanceMatches: candidate.matches,
-        visualVerification
-      };
-    } catch (error) {
-      console.log(
-        'Source article image candidate failed for ' + candidate.url + ': ' +
-        (error instanceof Error ? error.message : String(error))
-      );
     }
-  }
 
-  throw new Error('All context-matching source article images failed to download or verify for: ' + sourceDomain);
+    return null;
+  };
+
+  const directResult = await tryCandidates(ranked);
+  if (directResult) return directResult;
+
+  const readerCandidates = await fetchJinaArticleImages(articleUrl, story, { fetchImpl });
+  const readerResult = await tryCandidates(readerCandidates);
+  if (readerResult) return readerResult;
+
+  throw new Error(
+    'All context-matching source article images failed to download or verify for: ' +
+    sourceDomain
+  );
 }
 function expandImageDownloadCandidates(url) {
   const source = String(url || '');
