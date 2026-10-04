@@ -9,7 +9,8 @@ import {
   PUBLIC_SOCIAL_DISCOVERY_QUERY,
   detectPublicSocialPlatform,
   corroborateSocialStory,
-  buildCorroborationQuery
+  buildCorroborationQuery,
+  scoreTrendSignals
 } from '../src/story-scout.js';
 
 test('keeps Story Scout queries focused on recent positive human-interest news', () => {
@@ -70,6 +71,28 @@ test('parses mcporter MCP text content returned by the live Exa endpoint', () =>
   assert.equal(candidates[0].publishedDate, '2026-10-04T02:00:00Z');
   assert.equal(candidates[0].author, 'Example Reporter');
   assert.match(candidates[0].snippet, /kindness/i);
+});
+
+test('trending fresh kindness stories outrank ordinary fresh kindness stories', () => {
+  const ranked = rankStoryCandidates([
+    {
+      title: 'Stranger helps family during a difficult day',
+      url: 'https://example.com/ordinary',
+      publishedDate: '2026-10-04T03:00:00Z',
+      snippet: 'A kind act helped the family when they needed support.'
+    },
+    {
+      title: 'Heartwarming kindness story is going viral online',
+      url: 'https://www.tiktok.com/@example/video/456',
+      publishedDate: '2026-10-04T03:00:00Z',
+      snippet: 'The moment is trending and being widely shared across social media.'
+    }
+  ], { now: new Date('2026-10-04T04:00:00Z') });
+
+  assert.ok(scoreTrendSignals(ranked[0]) > scoreTrendSignals(ranked[1]));
+  assert.equal(ranked[0].url, 'https://www.tiktok.com/@example/video/456');
+  assert.ok(ranked[0].trendScore >= 25);
+  assert.ok(ranked[0].freshnessScore >= 17);
 });
 
 test('ranks a recent human-kindness story above an older generic achievement story', () => {
@@ -148,6 +171,7 @@ test('public social discovery searches major public social platforms', () => {
   assert.match(PUBLIC_SOCIAL_DISCOVERY_QUERY, /site:tiktok\.com/i);
   assert.match(PUBLIC_SOCIAL_DISCOVERY_QUERY, /site:youtube\.com/i);
   assert.match(PUBLIC_SOCIAL_DISCOVERY_QUERY, /site:reddit\.com/i);
+  assert.match(PUBLIC_SOCIAL_DISCOVERY_QUERY, /(trending|viral|widely shared)/i);
 });
 
 test('classifies supported public social source domains', () => {
