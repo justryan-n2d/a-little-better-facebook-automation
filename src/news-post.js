@@ -1,3 +1,4 @@
+import { scoutStories } from './story-scout.js';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { publishPhoto } from './facebook.js';
@@ -10,7 +11,6 @@ import {
   downloadImage,
   buildImageQueries,
   findSourceArticleImage,
-  searchFreshNews,
   selectFreshStory
 } from './news.js';
 import { renderNewsImage } from './news-image.js';
@@ -55,6 +55,7 @@ export async function runNewsPost({
   today,
   autoPublish,
   fetchImpl = fetch,
+  execFileImpl,
   historyPath = 'data/news-history.json'
 } = {}) {
   const date = today || new Intl.DateTimeFormat('en-CA', {
@@ -66,7 +67,7 @@ export async function runNewsPost({
     return { skipped: true, reason: 'already-published-today', date };
   }
 
-  const discovery = await searchFreshNews({ fetchImpl });
+  const discovery = await scoutStories({ fetchImpl, execFileImpl });
   const story = selectFreshStory(discovery.articles, usedStoryValues(history));
   if (!story) {
     throw new Error('No safe fresh news story was found.');
@@ -104,6 +105,7 @@ export async function runNewsPost({
     displayHeadline,
     sourceCount: story.sourceCount,
     discoveryScore: story.score,
+    scoutScore: story.scoutScore ?? null,
     published: false,
     image: {
       provider: imageMeta.provider,
