@@ -1037,31 +1037,31 @@ const SOURCE_REUSE_LICENSES = [
   {
     id: 'cc0',
     patterns: [
-      /creativecommons\\.org\\/(?:publicdomain\\/zero|licenses\\/zero)/i,
-      /(?:^|\\W)cc0(?:\\W|$)/i,
-      /public\\s*domain\\s*zero/i
+      /creativecommons\.org\/(?:publicdomain\/zero|licenses\/zero)/i,
+      /(?:^|\W)cc0(?:\W|$)/i,
+      /public\s*domain\s*zero/i
     ]
   },
   {
     id: 'cc-by-sa',
     patterns: [
-      /creativecommons\\.org\\/licenses\\/by-sa(?:[\\/\\s.-]|$)/i,
-      /(?:^|\\W)cc\\s*by[- ]sa(?:\\W|$)/i
+      /creativecommons\.org\/licenses\/by-sa(?:[\/\s.-]|$)/i,
+      /(?:^|\W)cc\s*by[- ]sa(?:\W|$)/i
     ]
   },
   {
     id: 'cc-by',
     patterns: [
-      /creativecommons\\.org\\/licenses\\/by(?:[\\/\\s.-]|$)/i,
-      /(?:^|\\W)cc\\s*by(?:\\W|$)/i
+      /creativecommons\.org\/licenses\/by(?:[\/\s.-]|$)/i,
+      /(?:^|\W)cc\s*by(?:\W|$)/i
     ]
   },
   {
     id: 'pdm',
     patterns: [
-      /creativecommons\\.org\\/publicdomain\\/mark/i,
-      /public\\s*domain/i,
-      /(?:^|\\W)pdm(?:\\W|$)/i
+      /creativecommons\.org\/publicdomain\/mark/i,
+      /public\s*domain/i,
+      /(?:^|\W)pdm(?:\W|$)/i
     ]
   }
 ];
@@ -1092,7 +1092,7 @@ function extractSourceRightsMetadata(html) {
   const creators = [];
 
   for (const item of extractMetaImages(html)) {
-    if (/(?:^|[.:_-])(license|rights|dcterms\\.rights|dc\\.rights|copyrightlicense|copyright-rights)$/i.test(item.property || '')) {
+    if (/(?:^|[.:_-])(license|rights|dcterms\.rights|dc\.rights|copyrightlicense|copyright-rights)$/i.test(item.property || '')) {
       values.push({
         value: item.content,
         evidence: 'article meta: ' + item.property
@@ -1100,28 +1100,28 @@ function extractSourceRightsMetadata(html) {
     }
   }
 
-  for (const match of String(html || '').matchAll(/<link\\b[^>]*>/gi)) {
+  for (const match of String(html || '').matchAll(/<link\b[^>]*>/gi)) {
     const tag = match[0];
-    const rel = extractAttribute(tag, [/(?:rel)\\s*=\\s*["']([^"']+)["']/i]);
-    if (/\\blicense\\b/i.test(rel)) {
-      const href = extractAttribute(tag, [/(?:href)\\s*=\\s*["']([^"']+)["']/i]);
+    const rel = extractAttribute(tag, [/(?:rel)\s*=\s*["']([^"']+)["']/i]);
+    if (/\blicense\b/i.test(rel)) {
+      const href = extractAttribute(tag, [/(?:href)\s*=\s*["']([^"']+)["']/i]);
       if (href) {
         values.push({ value: href, evidence: 'link rel=license' });
       }
     }
   }
 
-  for (const match of String(html || '').matchAll(/<meta\\b[^>]*>/gi)) {
+  for (const match of String(html || '').matchAll(/<meta\b[^>]*>/gi)) {
     const tag = match[0];
-    const property = extractAttribute(tag, [/(?:property|name)\\s*=\\s*["']([^"']+)["']/i]);
-    const content = extractAttribute(tag, [/(?:content)\\s*=\\s*["']([^"']+)["']/i]);
+    const property = extractAttribute(tag, [/(?:property|name)\s*=\s*["']([^"']+)["']/i]);
+    const content = extractAttribute(tag, [/(?:content)\s*=\s*["']([^"']+)["']/i]);
 
     if (/(?:creator|photographer|attribution|photo-credit|photo_credit|copyright-holder)/i.test(property)) {
       if (content) creators.push(content);
     }
   }
 
-  for (const script of String(html || '').matchAll(/<script\\b[^>]*type\\s*=\\s*["']application\\/ld\\+json["'][^>]*>([\\s\\S]*?)<\\/script>/gi)) {
+  for (const script of String(html || '').matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
     try {
       const parsed = JSON.parse(script[1]);
       const visit = value => {
@@ -1163,7 +1163,7 @@ function extractSourceRightsMetadata(html) {
   return preferred
     ? {
         license: preferred.license,
-        licenseUrl: /^https?:\\/\\//i.test(preferred.value) ? preferred.value : null,
+        licenseUrl: /^https?:\/\//i.test(preferred.value) ? preferred.value : null,
         evidence: preferred.evidence,
         creator: cleanText(creators[0] || '')
       }
@@ -1190,7 +1190,7 @@ function resolveSourceImageRights(candidate, pageRights) {
   return {
     verified: !attributionRequired || Boolean(creator),
     license,
-    licenseUrl: candidateLicense && /^https?:\\/\\//i.test(candidateRightsValue)
+    licenseUrl: candidateLicense && /^https?:\/\//i.test(candidateRightsValue)
       ? candidateRightsValue
       : pageRights?.licenseUrl || null,
     evidence: candidateRightsValue
