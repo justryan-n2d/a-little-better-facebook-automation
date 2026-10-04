@@ -392,6 +392,109 @@ test('rejects a generic source image when only article-level metadata matches', 
   );
 });
 
+test('uses the Google News RSS source image when the original article exposes no usable image', async () => {
+  const raw = Buffer.alloc(700 * 500 * 3);
+  for (let y = 0; y < 500; y += 1) {
+    for (let x = 0; x < 700; x += 1) {
+      const index = (y * 700 + x) * 3;
+      raw[index] = (x * 3 + y) % 256;
+      raw[index + 1] = (y * 4 + x) % 256;
+      raw[index + 2] = (x + y) % 256;
+    }
+  }
+  const visual = await sharp(raw, {
+    raw: { width: 700, height: 500, channels: 3 }
+  }).png().toBuffer();
+
+  const result = await findSourceArticleImage(
+    {
+      url: 'https://news.google.com/rss/articles/example',
+      domain: 'Example News',
+      title: 'Community volunteers provide meals to seniors',
+      socialimage: 'https://lh3.googleusercontent.com/source-photo=s0-w300'
+    },
+    {
+      fetchImpl: async input => {
+        const url = String(input);
+        if (url.includes('news.google.com')) {
+          return {
+            ok: true,
+            status: 200,
+            url: 'https://example.com/story',
+            text: async () => ''
+          };
+        }
+        if (url === 'https://example.com/story') {
+          return new Response(
+            '<html><head><title>Community volunteers provide meals to seniors</title></head><body></body></html>',
+            { status: 200, headers: { 'content-type': 'text/html' } }
+          );
+        }
+        if (url.includes('lh3.googleusercontent.com')) {
+          return new Response(visual, {
+            status: 200,
+            headers: { 'content-type': 'image/png' }
+          });
+        }
+        return new Response('not found', { status: 404 });
+      }
+    }
+  );
+
+  assert.equal(result.url, 'https://lh3.googleusercontent.com/source-photo=s0-w300');
+  assert.equal(result.visualVerification.verified, true);
+  assert.equal(result.visualVerification.method, 'deterministic');
+});
+
+test('rejects a graphic Google News RSS source image instead of using it as a photo', async () => {
+  const graphic = await sharp({
+    create: {
+      width: 700,
+      height: 500,
+      channels: 3,
+      background: { r: 32, g: 120, b: 80 }
+    }
+  }).png().toBuffer();
+
+  await assert.rejects(
+    () => findSourceArticleImage(
+      {
+        url: 'https://news.google.com/rss/articles/example',
+        domain: 'Example News',
+        title: 'Community volunteers provide meals to seniors',
+        socialimage: 'https://lh3.googleusercontent.com/source-graphic=s0-w300'
+      },
+      {
+        fetchImpl: async input => {
+          const url = String(input);
+          if (url.includes('news.google.com')) {
+            return {
+              ok: true,
+              status: 200,
+              url: 'https://example.com/story',
+              text: async () => ''
+            };
+          }
+          if (url === 'https://example.com/story') {
+            return new Response('<html><head><title>Community volunteers provide meals to seniors</title></head></html>', {
+              status: 200,
+              headers: { 'content-type': 'text/html' }
+            });
+          }
+          if (url.includes('lh3.googleusercontent.com')) {
+            return new Response(graphic, {
+              status: 200,
+              headers: { 'content-type': 'image/png' }
+            });
+          }
+          return new Response('not found', { status: 404 });
+        }
+      }
+    ),
+    /context-matching.*image/i
+  );
+});
+
 test('uses the source article image that matches the story context', async () => {
   const calls = [];
 
