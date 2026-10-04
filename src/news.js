@@ -449,7 +449,8 @@ export function selectFreshStory(articles, {
   const groups = new Map();
 
   for (const article of Array.isArray(articles) ? articles : []) {
-    if (!isSafeNewsCandidate(article?.title) || !isLittleBetterTopic(article?.title)) continue;
+    const storyContext = cleanText([article?.title, article?.snippet].filter(Boolean).join(' '));
+    if (!isSafeNewsCandidate(storyContext) || !isLittleBetterTopic(storyContext)) continue;
     const url = normalizeUrl(article.url);
     const fingerprint = titleFingerprint(article.title);
     if (!url || usedUrlSet.has(url) || usedTitleSet.has(fingerprint)) continue;
@@ -476,7 +477,7 @@ export function selectFreshStory(articles, {
   }
 
   const heartwarmingGroups = [...groups.values()]
-    .filter(group => isHeartwarmingHumanStory(group.title))
+    .filter(group => isHeartwarmingHumanStory(group.title + ' ' + (group.snippet || '')))
     .sort((a, b) => {
       const aHours = hoursOld(a.seendate, now);
       const bHours = hoursOld(b.seendate, now);
@@ -506,8 +507,8 @@ export function selectFreshStory(articles, {
       };
       delete candidate.sourceDomains;
       delete candidate.ranks;
-      const topic = getLittleBetterTopic(candidate.title);
-      const heartwarmingHuman = isHeartwarmingHumanStory(candidate.title);
+      const topic = getLittleBetterTopic(candidate.title + ' ' + (candidate.snippet || ''));
+      const heartwarmingHuman = isHeartwarmingHumanStory(candidate.title + ' ' + (candidate.snippet || ''));
       const brandScore = Math.min(24, (topic?.matches.length || 0) * 8);
       const heartwarmingBonus = heartwarmingHuman ? 80 : 0;
       return {
