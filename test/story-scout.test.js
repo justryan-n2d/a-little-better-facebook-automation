@@ -64,6 +64,18 @@ test('ranks a recent human-kindness story above an older generic achievement sto
   assert.ok(ranked[0].score > ranked[1].score);
 });
 
+test('does not mistake safe words inside blocked terms', () => {
+  const ranked = rankStoryCandidates([{
+    title: 'Stranger offers a survivor a warm meal after a difficult day',
+    url: 'https://example.com/warm-meal',
+    publishedDate: '2026-10-04T02:00:00Z',
+    snippet: 'A warm meal helped the survivor feel cared for.'
+  }], { now: new Date('2026-10-04T04:00:00Z') });
+
+  assert.equal(ranked.length, 1);
+  assert.equal(ranked[0].url, 'https://example.com/warm-meal');
+});
+
 test('invokes mcporter Exa search without an API key', async () => {
   let captured = null;
   const output = JSON.stringify({
