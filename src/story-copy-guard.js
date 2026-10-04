@@ -74,17 +74,21 @@ export function validateStoryNarrative({
   story,
   headline,
   hook,
-  angle
+  angle,
+  summary,
+  sourceArticleText
 } = {}) {
   const sourceText = cleanText([
     story?.title,
-    story?.snippet
+    story?.snippet,
+    sourceArticleText
   ].filter(Boolean).join(' '));
   const headlineText = cleanText(headline);
   const copyText = cleanText([
     headline,
     hook,
-    angle
+    angle,
+    summary
   ].filter(Boolean).join(' '));
 
   const riskFlags = [];
