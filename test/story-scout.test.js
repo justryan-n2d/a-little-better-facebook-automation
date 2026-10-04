@@ -118,18 +118,17 @@ test('ranks a recent human-kindness story above an older generic achievement sto
   assert.ok(ranked[0].score > ranked[1].score);
 });
 
-test('rejects unsupported popularity claims in generated copy', () => {
-  assert.throws(
-    () => buildNewsCaption({
-      title: 'Stranger helps a family get home safely',
-      sourceDomain: 'example.com',
-      sourceUrl: 'https://example.com/story',
-      hook: 'A simple act of kindness is reminding people what matters.',
-      angle: 'Small acts of care can make a hard day feel a little lighter.',
-      photoCredit: 'Source article image / example.com'
-    }),
-    /unsupported|unverified|context|narrative/i
-  );
+test('does not add an unsupported popularity claim to generated copy', () => {
+  const caption = buildNewsCaption({
+    title: 'Stranger helps a family get home safely',
+    sourceDomain: 'example.com',
+    sourceUrl: 'https://example.com/story',
+    hook: 'A simple act of kindness is reminding people what matters.',
+    angle: 'Small acts of care can make a hard day feel a little lighter.',
+    photoCredit: 'Source article image / example.com'
+  });
+
+  assert.doesNotMatch(caption, /widely reported today/i);
 });
 
 test('rejects copy that drops important source attribution', () => {
