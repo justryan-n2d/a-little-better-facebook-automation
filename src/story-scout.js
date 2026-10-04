@@ -277,10 +277,6 @@ export async function runAgentReachSearch({
   });
 
   const stdout = result?.stdout || '';
-  if (process.env.STORY_SCOUT_DEBUG === 'true') {
-    console.log('Agent-Reach raw stdout prefix: ' + stdout.slice(0, 5000));
-  }
-
   return parseAgentReachOutput(stdout, query);
 }
 
