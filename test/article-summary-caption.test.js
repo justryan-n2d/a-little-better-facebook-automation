@@ -22,7 +22,7 @@ test('caption guard rejects unsupported trend language inside summary', () => {
   assert.throws(
     () => buildNewsCaption({
       ...base,
-      summary: 'Everyone is going viral over this stranger and the internet is loving it.'
+      summary: 'Everyone is going viral over this stranger and the internet is loving it. People across social media are sharing the story.'
     }),
     /unsupported-trend-claim/i
   );
@@ -33,7 +33,7 @@ test('caption guard checks summary against verified article attribution', () => 
     () => buildNewsCaption({
       ...base,
       title: 'Family receives help after storm damage',
-      summary: 'A neighbor arrived with materials and helped repair the home.',
+      summary: 'A neighbor arrived with materials and helped repair the home. The family received support during a difficult time.',
       sourceArticleText: 'The family says a neighbor arrived with materials and helped repair the home.'
     }),
     /dropped-source-attribution/i
