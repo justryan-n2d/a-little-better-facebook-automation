@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: "0 11 * * 2,4,6"
       timezone: "Asia/Manila"
+  push:
+    branches:
+      - feat/phase-4-story-visual-accuracy
   workflow_dispatch:
     inputs:
       auto_publish:
@@ -66,7 +69,7 @@ jobs:
           retention-days: 14
 
       - name: Record fresh news history
-        if: ${{ success() }}
+        if: ${{ success() && github.event_name != 'push' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
