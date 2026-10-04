@@ -470,7 +470,7 @@ test('rejects a graphic Google News RSS source image instead of using it as a ph
         url: 'https://news.google.com/rss/articles/example',
         domain: 'Example News',
         title: 'Community volunteers provide meals to seniors',
-        socialimage: 'https://lh3.googleusercontent.com/source-graphic=s0-w300'
+        socialimage: 'https://cdn.example/source-graphic.png'
       },
       {
         fetchImpl: async input => {
@@ -489,7 +489,7 @@ test('rejects a graphic Google News RSS source image instead of using it as a ph
               headers: { 'content-type': 'text/html' }
             });
           }
-          if (url.includes('lh3.googleusercontent.com')) {
+          if (url.includes('cdn.example/source-graphic.png')) {
             return new Response(graphic, {
               status: 200,
               headers: { 'content-type': 'image/png' }
