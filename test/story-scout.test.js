@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { buildNewsCaption } from '../src/news.js';
 import {
   AGENT_REACH_SEARCH_QUERIES,
   parseAgentReachOutput,
@@ -115,6 +116,38 @@ test('ranks a recent human-kindness story above an older generic achievement sto
 
   assert.equal(ranked[0].url, 'https://example.com/kind');
   assert.ok(ranked[0].score > ranked[1].score);
+});
+
+test('rejects unsupported popularity claims in generated copy', () => {
+  assert.throws(
+    () => buildNewsCaption({
+      title: 'Stranger helps a family get home safely',
+      sourceDomain: 'example.com',
+      sourceUrl: 'https://example.com/story',
+      hook: 'A simple act of kindness is reminding people what matters.',
+      angle: 'Small acts of care can make a hard day feel a little lighter.',
+      photoCredit: 'Source article image / example.com'
+    }),
+    /unsupported|unverified|context|narrative/i
+  );
+});
+
+test('rejects copy that drops important source attribution', () => {
+  assert.throws(
+    () => buildNewsCaption({
+      title: 'Dog protected a baby',
+      sourceDomain: 'example.com',
+      sourceUrl: 'https://example.com/story',
+      hook: 'A simple act of kindness is reminding people what matters.',
+      angle: 'Small acts of care can make a hard day feel a little lighter.',
+      photoCredit: 'Source article image / example.com',
+      story: {
+        title: 'Family says their dog protected a baby',
+        snippet: 'The family says their dog stayed close to the baby and alerted the parents.'
+      }
+    }),
+    /attribution|context|claim/i
+  );
 });
 
 test('does not mistake safe words inside blocked terms', () => {
