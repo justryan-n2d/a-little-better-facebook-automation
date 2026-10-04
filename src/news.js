@@ -1245,8 +1245,16 @@ export function buildNewsCaption({
   sourceUrl,
   hook,
   angle,
-  photoCredit
+  photoCredit,
+  story
 }) {
+  assertStoryNarrativeIntegrity({
+    story,
+    headline: title,
+    hook,
+    angle
+  });
+
   return [
     `📰 A Little Better News`,
     '',
@@ -1256,7 +1264,7 @@ export function buildNewsCaption({
     '',
     `A Little Better angle: ${angle}`,
     '',
-    `This story is being widely reported today. Read the full report from ${sourceDomain} for the complete details.`,
+    `Read the full report from ${sourceDomain} for the complete details.`,
     '',
     `Source: ${sourceDomain}`,
     `Photo: ${photoCredit}`,
