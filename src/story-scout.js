@@ -43,6 +43,135 @@ function sourceMetadata(url) {
   };
 }
 
+const CORROBORATION_EXCLUDED_SOCIAL_SITES = [
+  'x.com', 'twitter.com', 'instagram.com', 'facebook.com',
+  'tiktok.com', 'youtube.com', 'reddit.com', 'threads.net'
+];
+
+function storyTokens(story) {
+  return [...new Set(
+    cleanText([story?.title, story?.snippet].filter(Boolean).join(' '))
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(token =>
+        token.length >= 4 &&
+        !['story', 'says', 'said', 'family', 'people', 'person', 'helped', 'helping', 'recent'].includes(token)
+      )
+  )];
+}
+
+function corroborationMatchScore(story, candidate) {
+  const tokens = storyTokens(story);
+  const text = cleanText([candidate?.title, candidate?.snippet].filter(Boolean).join(' ')).toLowerCase();
+  const matches = tokens.filter(token => containsTerm(text, token));
+  const uniqueMatches = [...new Set(matches)];
+
+  let score = uniqueMatches.length * 10;
+  if (uniqueMatches.length >= 3) score += 15;
+  if (uniqueMatches.length >= 5) score += 10;
+
+  return {
+    score: Math.min(100, score),
+    matches: uniqueMatches
+  };
+}
+
+export function buildCorroborationQuery(story) {
+  const title = cleanText(story?.title);
+  const phrase = title.length > 120 ? title.slice(0, 120) : title;
+  const exclusions = CORROBORATION_EXCLUDED_SOCIAL_SITES
+    .map(site => '-site:' + site)
+    .join(' ');
+
+  return `"${phrase}" recent report news confirmed covered ${exclusions}`;
+}
+
+export async function corroborateSocialStory(story, {
+  numResults = 8,
+  now = new Date(),
+  execFileImpl = execFileAsync
+} = {}) {
+  if (story?.sourceType !== 'public-social') {
+    return {
+      verified: false,
+      reason: 'not-a-public-social-lead',
+      lead: story
+    };
+  }
+
+  const query = buildCorroborationQuery(story);
+  let candidates = [];
+
+  try {
+    candidates = await runAgentReachSearch({
+      query,
+      numResults,
+      execFileImpl
+    });
+  } catch (error) {
+    throw new Error(
+      'Public social story corroboration search failed: ' +
+      (error instanceof Error ? error.message : String(error))
+    );
+  }
+
+  const ranked = candidates
+    .filter(candidate => candidate?.url && !detectPublicSocialPlatform(candidate.url))
+    .filter(candidate => candidate.url !== story.url)
+    .map(candidate => {
+      const match = corroborationMatchScore(story, candidate);
+      const age = hoursOld(candidate.publishedDate || candidate.seendate, now);
+      const freshnessBonus = age === null
+        ? 0
+        : age <= 48 ? 10
+        : age <= 120 ? 5
+        : age <= 168 ? 2
+        : -10;
+
+      return {
+        ...candidate,
+        ...sourceMetadata(candidate.url),
+        corroborationScore: Math.max(0, Math.min(100, match.score + freshnessBonus)),
+        corroborationMatches: match.matches
+      };
+    })
+    .filter(candidate =>
+      candidate.sourceType === 'web' &&
+      candidate.corroborationMatches.length >= 3 &&
+      candidate.corroborationScore >= 35 &&
+      isSafeNewsCandidate(cleanText([candidate.title, candidate.snippet].filter(Boolean).join(' ')))
+    )
+    .sort((a, b) =>
+      b.corroborationScore - a.corroborationScore ||
+      String(a.domain).localeCompare(String(b.domain))
+    );
+
+  const corroboratingSource = ranked[0] || null;
+  if (!corroboratingSource) {
+    throw new Error(
+      'Public social story could not be independently corroborated: ' +
+      cleanText(story?.title)
+    );
+  }
+
+  return {
+    verified: true,
+    lead: story,
+    corroboratingSource: {
+      title: corroboratingSource.title,
+      url: corroboratingSource.url,
+      domain: corroboratingSource.domain,
+      publishedDate: corroboratingSource.publishedDate || null,
+      author: corroboratingSource.author || '',
+      snippet: corroboratingSource.snippet || '',
+      sourceType: 'web',
+      corroborationScore: corroboratingSource.corroborationScore,
+      corroborationMatches: corroboratingSource.corroborationMatches
+    }
+  };
+}
+
 
 export const AGENT_REACH_SEARCH_QUERIES = [
   'category:news recent heartwarming real life story act of kindness one person helping another',
