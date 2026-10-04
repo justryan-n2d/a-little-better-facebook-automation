@@ -1239,7 +1239,7 @@ test('Fresh News feature-branch preview runs safely without publishing or record
 
   assert.match(workflow, /push:\s*\n\s*branches:\s*\[feat\/phase-4-story-visual-accuracy\]/);
   assert.match(workflow, /NEWS_AUTO_PUBLISH:.*\|\| 'false'/);
-  assert.match(workflow, /Record fresh news history[\s\S]*if:\s*\$\{\{ success\(\) && github\.event_name != 'push' \}\}/);
+  assert.match(workflow, /- name: Record fresh news history\s+if:\s*\$\{\{ success\(\) && github\.event_name != 'push' \}\}/);
 });
 
 test('Fresh News workflow uses the free deterministic visual gate and runs three times weekly', async () => {
