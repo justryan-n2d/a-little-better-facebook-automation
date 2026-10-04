@@ -3,8 +3,9 @@
 This private repository automates one daily post for the A Little Better Facebook Page.
 
 Schedule:
-- 9:00 AM Asia/Manila every day
-- one original content item per run
+- 11:00 AM Asia/Manila every day: Fresh News
+- 4:00 PM Asia/Manila every day: regular daily post
+- one Fresh News item and one regular content item per day
 - one 1080 x 1350 PNG image
 - Facebook Page publishing through Meta Graph API
 - posting history recorded after a successful publish
