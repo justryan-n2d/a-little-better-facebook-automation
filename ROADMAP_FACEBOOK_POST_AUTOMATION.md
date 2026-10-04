@@ -532,11 +532,24 @@ If the free search path is unavailable, the system uses the existing GDELT / Goo
 
 **Repository:** `justryan-n2d/a-little-better-facebook-automation`
 
-**Live branch:** `main`
+**Production branch:** `main`
+
+**Active development branch:** `feat/agent-reach-story-scout`
+
+The Agent-Reach Story Scout implementation is currently isolated on the development branch and has **not** been merged into `main`.
+
+Verified on GitHub Actions:
+- live connection to `https://mcp.exa.ai/mcp`
+- `web_search_exa` returned a real recent news result
+- no `EXA_API_KEY` was used
+- Story Scout unit tests: 100/100 passed
+- production publisher dry-run: passed
+- workflow YAML validation: passed
 
 The system currently includes:
 - daily Fresh News automation
 - human-kindness story prioritization
+- Agent-Reach semantic story discovery
 - same-source / same-context visual rules
 - Sharp-based image rendering
 - layout collision protection
@@ -544,5 +557,18 @@ The system currently includes:
 - workflow watchdog
 - growth analytics
 - content/history tracking
+
+### Immediate next verification
+
+Generate **one real Fresh News draft** on the development branch using Agent-Reach Web Search, with Facebook publishing disabled, then inspect:
+- selected story
+- original source
+- article-declared image
+- story/image context match
+- generated headline and caption
+- final 1080 × 1350 graphic
+- history and metadata recording
+
+Do not merge to `main` or publish to Facebook until the real draft passes visual and content inspection.
 
 The next major focus is making the **story, image, headline, and caption feel like one naturally connected, heartwarming Facebook post**.
