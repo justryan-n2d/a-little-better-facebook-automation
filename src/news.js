@@ -1104,39 +1104,84 @@ async function decodeGoogleNewsArticleUrl(sourceUrl, { fetchImpl = fetch } = {})
     return sourceUrl;
   }
 
-  const articleId = parsed.pathname.split('/').filter(Boolean).at(-1);
-  if (!articleId) throw new Error('Google News article id is missing.');
+  const base64Str = parsed.pathname.split('/').filter(Boolean).at(-1);
+  if (!base64Str) throw new Error('Google News article id is missing.');
 
-  const request = '[[["Fbv4je","[\\"garturlreq\\",[[\\"en-US\\",\\"US\\",[\\"FINANCE_TOP_INDICES\\",\\"WEB_TEST_1_0_0\\"],null,null,1,1,\\"US:en\\",null,180,null,null,null,null,null,0,null,null,[1608992183,723341000]],\\"en-US\\",\\"US\\",1,[2,3,4,8],1,0,\\"655000234\\",0,0,null,0],\\"' +
-    articleId +
-    '\\"]",null,"generic"]]]';
+  const headers = {
+    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/129 Safari/537.36',
+    accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'accept-language': 'en-US,en;q=0.9',
+    'cache-control': 'max-age=0'
+  };
 
-  const response = await fetchImpl(
-    'https://news.google.com/_/DotsSplashUi/data/batchexecute?rpcids=Fbv4je',
+  const pageResponse = await fetchImpl(sourceUrl, { headers });
+  if (!pageResponse.ok) {
+    throw new Error('Google News article page HTTP ' + pageResponse.status);
+  }
+
+  const html = await pageResponse.text();
+  const dataTags = [...html.matchAll(/<div\b[^>]*>/gi)]
+    .map(match => match[0])
+    .filter(tag => /\bjscontroller\s*=/.test(tag) && /\bdata-n-a-sg\s*=/.test(tag));
+
+  const dataTag = dataTags[0];
+  const signature = dataTag?.match(/\bdata-n-a-sg\s*=\s*["']([^"']+)["']/i)?.[1];
+  const timestamp = dataTag?.match(/\bdata-n-a-ts\s*=\s*["']([^"']+)["']/i)?.[1];
+
+  if (!signature || !timestamp) {
+    throw new Error('Google News decoder did not expose signature/timestamp.');
+  }
+
+  const payload = [
+    'Fbv4je',
+    `["garturlreq",[["X","X",["X","X"],null,null,1,1,"US:en",null,1,null,null,null,null,null,0,1],"X","X",1,[1,1,1],1,1,null,0,0,null,0],"${base64Str}",${timestamp},"${signature}"]`
+  ];
+
+  const requestBody = 'f.req=' + encodeURIComponent(JSON.stringify([[payload]]));
+
+  const batchResponse = await fetchImpl(
+    'https://news.google.com/_/DotsSplashUi/data/batchexecute',
     {
       method: 'POST',
       headers: {
+        ...headers,
         'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        accept: '*/*',
+        origin: 'https://news.google.com',
         referer: 'https://news.google.com/'
       },
-      body: 'f.req=' + encodeURIComponent(request)
+      body: requestBody
     }
   );
 
-  if (!response.ok) {
-    throw new Error('Google News decoder HTTP ' + response.status);
+  if (!batchResponse.ok) {
+    throw new Error('Google News decoder HTTP ' + batchResponse.status);
   }
 
-  const body = await response.text();
-  const escapedMatch = body.match(/\\\[\\\"garturlres\\\",\\\"([^"]+?)\\\",/);
-  const plainMatch = body.match(/["']garturlres["']\s*,\s*["']([^"']+)["']/);
-  const encodedUrl = escapedMatch?.[1] || plainMatch?.[1];
+  const body = await batchResponse.text();
+  const parts = body.split('\n\n').filter(Boolean);
+  const jsonText = parts.at(-1);
+  if (!jsonText) throw new Error('Google News decoder returned an empty response.');
 
-  if (!encodedUrl) {
+  const parsedResponse = JSON.parse(jsonText);
+  const batch = parsedResponse.find(
+    item => Array.isArray(item) &&
+      (item[0] === 'wrb.fr' || item[0] === 'w779db') &&
+      item[1] === 'Fbv4je'
+  );
+
+  if (!batch?.[2]) {
     throw new Error('Google News decoder did not return a publisher URL.');
   }
 
-  return encodedUrl
+  const inner = JSON.parse(batch[2]);
+  const decodedUrl = typeof inner?.[1] === 'string' ? inner[1] : '';
+
+  if (!decodedUrl || !/^https?:\/\//i.test(decodedUrl)) {
+    throw new Error('Google News decoder returned an invalid publisher URL.');
+  }
+
+  return decodedUrl
     .replaceAll('\\u003d', '=')
     .replaceAll('\\u0026', '&')
     .replaceAll('\\u003f', '?')
