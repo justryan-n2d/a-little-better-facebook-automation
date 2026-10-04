@@ -9,7 +9,7 @@ import {
 
 const execFileAsync = promisify(defaultExecFile);
 export const PUBLIC_SOCIAL_DISCOVERY_QUERY =
-  'recent heartwarming kindness real life story person or animal helping someone ' +
+  'recent trending viral widely shared heartwarming kindness real life story person or animal helping someone ' +
   '(site:x.com OR site:twitter.com OR site:instagram.com OR site:facebook.com OR site:tiktok.com OR site:youtube.com OR site:reddit.com OR site:threads.net)';
 
 const PUBLIC_SOCIAL_DOMAINS = [
@@ -206,6 +206,21 @@ const HUMAN_TERMS = [
   'stranger', 'neighbor', 'family', 'child', 'children', 'woman', 'man',
   'person', 'people', 'parent', 'mother', 'father', 'worker', 'customer',
   'survivor', 'journalist'
+];
+
+const TREND_SIGNAL_PATTERNS = [
+  { pattern: /going viral/i, score: 14 },
+  { pattern: /gone viral/i, score: 14 },
+  { pattern: /viral/i, score: 11 },
+  { pattern: /trending/i, score: 11 },
+  { pattern: /widely shared/i, score: 10 },
+  { pattern: /widely viewed/i, score: 9 },
+  { pattern: /shared across social media/i, score: 8 },
+  { pattern: /internet (?:is|was) loving/i, score: 8 },
+  { pattern: /people (?:are|were) sharing/i, score: 8 },
+  { pattern: /caught the internet/i, score: 7 },
+  { pattern: /making the rounds online/i, score: 7 },
+  { pattern: /all over social media/i, score: 7 }
 ];
 
 function cleanText(value) {
@@ -454,6 +469,30 @@ function hoursOld(publishedDate, now) {
   return Math.max(0, (now.getTime() - parsed.getTime()) / 3600000);
 }
 
+export function scoreTrendSignals(candidate) {
+  const text = cleanText([candidate?.title, candidate?.snippet].filter(Boolean).join(' '));
+  let score = 0;
+  for (const signal of TREND_SIGNAL_PATTERNS) {
+    if (signal.pattern.test(text)) score += signal.score;
+  }
+
+  const socialPlatform = detectPublicSocialPlatform(candidate?.url);
+  if (socialPlatform) score += 12;
+
+  return Math.min(60, score);
+}
+
+function freshnessScoreFor(age) {
+  if (age === null) return 0;
+  if (age <= 6) return 28;
+  if (age <= 12) return 24;
+  if (age <= 24) return 20;
+  if (age <= 48) return 14;
+  if (age <= 72) return 8;
+  if (age <= 120) return 3;
+  return -18;
+}
+
 function scoreCandidate(candidate, now) {
   const title = cleanText(candidate.title);
   const text = cleanText([candidate.title, candidate.snippet].join(' ')).toLowerCase();
@@ -471,6 +510,8 @@ function scoreCandidate(candidate, now) {
   const queryCount = new Set(candidate.sourceQueries || [candidate.query].filter(Boolean)).size;
   const age = hoursOld(candidate.publishedDate || candidate.seendate, now);
   const socialPlatform = detectPublicSocialPlatform(candidate.url);
+  const trendScore = scoreTrendSignals(candidate);
+  const freshnessScore = freshnessScoreFor(age);
 
   let score = topic.name === 'human-kindness' ? 28 : 18;
 
@@ -480,21 +521,16 @@ function scoreCandidate(candidate, now) {
 
   score += Math.min(15, Math.max(0, queryCount - 1) * 7);
   score += Math.min(12, positiveCount * 3);
-  if (socialPlatform) score += 10;
-
-  if (age !== null) {
-    if (age <= 12) score += 20;
-    else if (age <= 24) score += 17;
-    else if (age <= 48) score += 12;
-    else if (age <= 72) score += 7;
-    else if (age <= 120) score += 2;
-    else score -= 15;
-  }
+  score += trendScore;
+  score += freshnessScore;
 
   if (title.length >= 40 && title.length <= 150) score += 4;
   if (/[!?]{2,}/.test(title)) score -= 4;
 
-  return Math.max(0, Math.min(100, score));
+  const boundedScore = Math.max(0, Math.min(100, score));
+  candidate.trendScore = trendScore;
+  candidate.freshnessScore = freshnessScore;
+  return boundedScore;
 }
 
 export function rankStoryCandidates(candidates, { now = new Date() } = {}) {
