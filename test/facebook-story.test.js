@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { publishPhotoStory } from '../src/facebook.js';
+import sharp from 'sharp';
+import { renderPostStoryImage } from '../src/image.js';
 
 test('publishes a fresh unpublished photo as a Facebook Page Story', async () => {
   const calls = [];
@@ -48,4 +50,21 @@ test('publishes a fresh unpublished photo as a Facebook Page Story', async () =>
   const storyBody = new URLSearchParams(calls[1].options.body);
   assert.equal(storyBody.get('photo_id'), 'story-photo-123');
   assert.equal(storyBody.get('access_token'), 'token');
+});
+
+test('regular daily posts include the Page Story publishing path', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile('src/index.js', 'utf8');
+  assert.match(source, /publishPhotoStory/);
+  assert.match(source, /renderPostStoryImage/);
+});
+
+test('renders a daily post in Story-safe 9:16 dimensions', async () => {
+  const image = await renderPostStoryImage({
+    imageText: 'Keep going. Small steps count.',
+    variant: 'mint'
+  });
+  const metadata = await sharp(image).metadata();
+  assert.equal(metadata.width, 1080);
+  assert.equal(metadata.height, 1920);
 });

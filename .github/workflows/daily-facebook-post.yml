@@ -69,11 +69,12 @@ jobs:
 
       - name: Read publish result
         id: publish_result
+        if: ${{ always() }}
         run: |
           if [ -f artifacts/publish-status.json ]; then
             node -e 'const fs = require("fs"); const value = JSON.parse(fs.readFileSync("artifacts/publish-status.json", "utf8")); fs.appendFileSync(process.env.GITHUB_OUTPUT, `did_publish=${value.published ? "true" : "false"}\n`);'
           else
-            echo "did_publish=true" >> "$GITHUB_OUTPUT"
+            echo "did_publish=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Upload dry-run image preview
@@ -86,7 +87,7 @@ jobs:
           retention-days: 3
 
       - name: Upload posting state for record job
-        if: ${{ success() && env.DRY_RUN != 'true' && steps.publish_result.outputs.did_publish == 'true' }}
+        if: ${{ always() && env.DRY_RUN != 'true' && steps.publish_result.outputs.did_publish == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: a-little-better-posting-state
@@ -96,7 +97,7 @@ jobs:
 
   record:
     needs: publish
-    if: ${{ needs.publish.result == 'success' && needs.publish.outputs.did_publish == 'true' && (github.event_name != 'workflow_dispatch' || inputs.dry_run != true) }}
+    if: ${{ always() && needs.publish.outputs.did_publish == 'true' && (github.event_name != 'workflow_dispatch' || inputs.dry_run != true) }}
     permissions:
       contents: write
     runs-on: ubuntu-latest
