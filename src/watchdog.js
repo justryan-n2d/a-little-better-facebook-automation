@@ -110,7 +110,7 @@ export function decideAnalyticsHealthAction({
 export function decideWatchdogAction({
   now,
   today,
-  scheduleHour = 9,
+  scheduleHour = 16,
   scheduleMinute = 0,
   graceMinutes = 60,
   maxAttempts = DEFAULT_MAX_ATTEMPTS,
@@ -398,7 +398,7 @@ async function main() {
   const today = todayInManila(now);
   const graceMinutes = envInt('WATCHDOG_GRACE_MINUTES', 60);
   const maxAttempts = envInt('WATCHDOG_MAX_ATTEMPTS', DEFAULT_MAX_ATTEMPTS);
-  const scheduleHour = envInt('WATCHDOG_SCHEDULE_HOUR', 9);
+  const scheduleHour = envInt('WATCHDOG_SCHEDULE_HOUR', 16);
   const scheduleMinute = envInt('WATCHDOG_SCHEDULE_MINUTE', 0);
   const encodedWorkflow = encodeURIComponent(workflowFile);
 
