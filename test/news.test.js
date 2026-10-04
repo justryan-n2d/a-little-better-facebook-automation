@@ -898,7 +898,13 @@ test('social story publishing path corroborates the lead and uses only the right
             headers: { 'content-type': 'image/jpeg' }
           });
         }
-        throw new Error('Social source must never be fetched for image reuse: ' + url);
+        if (url === 'https://localnews.example/dog-baby-story') {
+          return new Response('<article><p>A local news report says the family dog stayed close to the baby and alerted the parents when the child needed help.</p><p>The family said the dog remained nearby and helped during the frightening moment.</p></article>', {
+            status: 200,
+            headers: { 'content-type': 'text/html' }
+          });
+        }
+        throw new Error('Unexpected fetch URL in social story test: ' + url);
       }
     });
 
@@ -909,6 +915,7 @@ test('social story publishing path corroborates the lead and uses only the right
     assert.equal(history.stories[0].discoveryLead.url, 'https://www.tiktok.com/@example/video/123');
     assert.equal(history.stories[0].corroboration.verified, true);
     assert.equal(history.stories[0].url, 'https://localnews.example/dog-baby-story');
+    assert.equal(result.summary, 'A local news report says the family dog stayed close to the baby and alerted the parents when the child needed help. The family said the dog remained nearby and helped during the frightening moment.');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
