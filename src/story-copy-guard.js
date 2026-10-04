@@ -65,6 +65,10 @@ function hasAttribution(text) {
   return ATTRIBUTION_PATTERNS.some(pattern => pattern.test(text));
 }
 
+function hasAttributionMarker(text) {
+  return ATTRIBUTION_PATTERNS.some(pattern => pattern.test(text));
+}
+
 function trendEvidenceSupports(story, sourceText) {
   if (story?.trendScore >= 25) return true;
   return hasAnyPattern(sourceText, TREND_CLAIM_PATTERNS);
