@@ -31,6 +31,24 @@ const BLOCKED_IMAGE_TERMS = [
   'drawing', 'sculpture', 'statue', 'museum', 'canvas'
 ];
 
+const BLOCKED_SOURCE_DOMAINS = new Set([
+  'facebook.com',
+  'instagram.com',
+  'threads.net',
+  'x.com',
+  'twitter.com',
+  'tiktok.com',
+  'linkedin.com'
+]);
+
+function isBlockedSourceDomain(value) {
+  const domain = domainFromUrl(value) || cleanText(value).toLowerCase().replace(/^www\./, '');
+  if (!domain) return false;
+  return [...BLOCKED_SOURCE_DOMAINS].some(blocked =>
+    domain === blocked || domain.endsWith('.' + blocked)
+  );
+}
+
 const STOPWORDS = new Set([
   'a','an','and','are','as','at','be','by','for','from','has','have','how',
   'in','is','it','its','of','on','or','that','the','their','this','to','was',
@@ -454,7 +472,7 @@ export function selectFreshStory(articles, {
     if (!isSafeNewsCandidate(article?.title) || !isLittleBetterTopic(article?.title)) continue;
     const url = normalizeUrl(article.url);
     const fingerprint = titleFingerprint(article.title);
-    if (!url || usedUrlSet.has(url) || usedTitleSet.has(fingerprint)) continue;
+    if (!url || isBlockedSourceDomain(url) || isBlockedSourceDomain(article.domain) || usedUrlSet.has(url) || usedTitleSet.has(fingerprint)) continue;
 
     const key = fingerprint || url;
     const group = groups.get(key) || {
@@ -872,7 +890,11 @@ export async function findSourceArticleImage(story, {
   fetchImpl = fetch
 } = {}) {
   const articleUrl = await resolveArticleUrl(story?.url, { fetchImpl });
-  const sourceDomain = story?.domain || domainFromUrl(articleUrl);
+  const resolvedDomain = domainFromUrl(articleUrl);
+  if (isBlockedSourceDomain(resolvedDomain)) {
+    throw new Error('Resolved article source is a blocked social platform: ' + resolvedDomain);
+  }
+  const sourceDomain = story?.domain || resolvedDomain;
   const response = await fetchImpl(articleUrl, {
     headers: { 'user-agent': 'A-Little-Better-News/1.0' }
   });
