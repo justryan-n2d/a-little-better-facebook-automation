@@ -4,6 +4,7 @@ import { calculateNewsLayout, fitTextToBox, rectanglesOverlap } from './news-ima
 export const SOURCE_ALIGNMENT_THRESHOLD = 50;
 export const FINAL_ALIGNMENT_THRESHOLD = 50;
 export const FINAL_READABILITY_THRESHOLD = 75;
+export const PHOTO_LIKE_THRESHOLD = 55;
 
 const STOPWORDS = new Set([
   'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'has', 'have',
@@ -116,6 +117,49 @@ async function inspectImage(imageBuffer) {
     : 0;
   const entropy = Number(stats.entropy || 0);
 
+  const sample = await image
+    .clone()
+    .removeAlpha()
+    .resize({ width: 64, height: 64, fit: 'fill' })
+    .raw()
+    .toBuffer();
+
+  const quantized = new Set();
+  let horizontalDelta = 0;
+  let verticalDelta = 0;
+  for (let y = 0; y < 64; y += 1) {
+    for (let x = 0; x < 64; x += 1) {
+      const offset = (y * 64 + x) * 3;
+      const r = sample[offset];
+      const g = sample[offset + 1];
+      const b = sample[offset + 2];
+      quantized.add(((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4));
+
+      if (x < 63) {
+        const next = offset + 3;
+        horizontalDelta +=
+          Math.abs(r - sample[next]) +
+          Math.abs(g - sample[next + 1]) +
+          Math.abs(b - sample[next + 2]);
+      }
+      if (y < 63) {
+        const next = offset + (64 * 3);
+        verticalDelta +=
+          Math.abs(r - sample[next]) +
+          Math.abs(g - sample[next + 1]) +
+          Math.abs(b - sample[next + 2]);
+      }
+    }
+  }
+
+  const colorDiversity = quantized.size / 4096;
+  const neighborPairs = (63 * 64) * 2;
+  const neighborDelta = (horizontalDelta + verticalDelta) / (neighborPairs * 3);
+  const photoLikeScore = Math.max(0, Math.min(
+    100,
+    Math.round((colorDiversity * 125) + (neighborDelta * 2))
+  ));
+
   const dimensionScore = Math.min(50, Math.min(width, height) / 700 * 50);
   const variationScore = Math.min(30, meanStdDev * 2);
   const entropyScore = Math.min(20, entropy * 3);
@@ -130,7 +174,8 @@ async function inspectImage(imageBuffer) {
     mean,
     meanStdDev,
     entropy,
-    photoQualityScore
+    photoQualityScore,
+    photoLikeScore
   };
 }
 
@@ -191,6 +236,9 @@ export async function verifyImageStoryAlignment({
   }
   if (inspection.photoQualityScore < 60) {
     failures.push('photo quality score is below 60');
+  }
+  if (inspection.photoLikeScore < PHOTO_LIKE_THRESHOLD) {
+    failures.push('image does not have enough photographic texture and color variation');
   }
   if (genericGraphic) failures.push('image metadata indicates artwork or a generic graphic');
   if (unsafe) failures.push('image context contains unsafe content');
