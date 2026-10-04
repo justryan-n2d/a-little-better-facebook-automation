@@ -19,6 +19,7 @@ import {
   searchGoogleNewsTopStoriesRss,
   findOpenverseImage,
   findSourceArticleImage,
+  resolveArticleUrl,
   downloadImage,
   isPhotoLikeOpenverseImage,
   isSafeNewsCandidate,
@@ -566,6 +567,45 @@ test('rejects a graphic Google News RSS source image instead of using it as a ph
       }
     ),
     /context-matching.*image/i
+  );
+});
+
+test('decodes a modern Google News RSS article URL to its real publisher URL', async () => {
+  const calls = [];
+  const googleUrl = 'https://news.google.com/rss/articles/CBMiTESTTOKEN?oc=5';
+
+  const resolved = await resolveArticleUrl(googleUrl, {
+    fetchImpl: async (input, init = {}) => {
+      const url = String(input);
+      calls.push({ url, method: init.method || 'GET' });
+
+      if (url === googleUrl) {
+        return {
+          ok: true,
+          status: 200,
+          url,
+          text: async () => '<html><body>Google News wrapper</body></html>'
+        };
+      }
+
+      if (url.includes('news.google.com/_/DotsSplashUi/data/batchexecute')) {
+        return new Response(
+          '[["garturlres","https://example.com/story",null,null]]',
+          { status: 200, headers: { 'content-type': 'text/plain' } }
+        );
+      }
+
+      throw new Error('unexpected request: ' + url);
+    }
+  });
+
+  assert.equal(resolved, 'https://example.com/story');
+  assert.equal(
+    calls.some(call =>
+      call.url.includes('news.google.com/_/DotsSplashUi/data/batchexecute') &&
+      call.method === 'POST'
+    ),
+    true
   );
 });
 
