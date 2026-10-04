@@ -1102,7 +1102,8 @@ async function fetchJinaArticleImages(articleUrl, story, { fetchImpl = fetch } =
     const response = await fetchImpl(readerUrl, {
       headers: {
         'user-agent': 'A-Little-Better-News/1.0',
-        accept: 'text/markdown'
+        accept: 'text/markdown',
+        'x-with-generated-alt': 'true'
       }
     });
 
