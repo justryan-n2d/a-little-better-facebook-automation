@@ -1049,7 +1049,8 @@ export function buildPhotoCredit(image) {
   const license = String(image?.license || '').toUpperCase();
   const creator = cleanText(image?.creator || 'Unknown creator');
   const provider = cleanText(image?.provider || 'Openverse');
-  return `${creator} / ${provider} / ${license || 'licensed'}`;
+  const prefix = image?.visualRelation === 'illustrative' ? 'Illustrative photo / ' : '';
+  return `${prefix}${creator} / ${provider} / ${license || 'licensed'}`;
 }
 
 export { titleFingerprint };
