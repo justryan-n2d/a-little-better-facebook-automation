@@ -558,17 +558,34 @@ The system currently includes:
 - growth analytics
 - content/history tracking
 
-### Immediate next verification
+### Real draft verification ✅
 
-Generate **one real Fresh News draft** on the development branch using Agent-Reach Web Search, with Facebook publishing disabled, then inspect:
-- selected story
-- original source
-- article-declared image
-- story/image context match
-- generated headline and caption
-- final 1080 × 1350 graphic
-- history and metadata recording
+A real Fresh News draft was generated on the development branch using the live Agent-Reach Web Search path with Facebook publishing explicitly disabled.
 
-Do not merge to `main` or publish to Facebook until the real draft passes visual and content inspection.
+Verified:
+- Agent-Reach returned real recent news stories
+- Story Scout selected a human-kindness story
+- original KCTV5 article was resolved
+- article-declared `og:image` was used
+- story and image matched the same event
+- display headline was shortened for feed readability
+- hook and angle reflected the story context
+- final graphic rendered at 1080 × 1350
+- branding, source, credit, fade, and headline were visually inspected
+- history and metadata were recorded
+- `published: false` and no Facebook post ID was created
 
-The next major focus is making the **story, image, headline, and caption feel like one naturally connected, heartwarming Facebook post**.
+The test also exposed and fixed:
+- free MCP rate-limit handling
+- Agent-Reach MCP text-response parsing
+- story-context loss during candidate selection
+- title-only topic filtering
+- overly long display headlines
+
+The one-time draft preview workflow and debug logging were removed after verification.
+
+### Next focus
+
+The next major focus is automated **visual relevance and visual QA** before artifact upload, followed by stronger emotional-quality scoring, story diversity, and caption naturalness.
+
+Do not merge to `main` or publish to Facebook until the feature branch is reviewed.
