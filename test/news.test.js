@@ -275,6 +275,66 @@ test('rejects an original article image when context evidence is unavailable', a
   );
 });
 
+test('uses JSON-LD article metadata to verify a generic source image URL', async () => {
+  const raw = Buffer.alloc(700 * 500 * 3);
+  for (let y = 0; y < 500; y += 1) {
+    for (let x = 0; x < 700; x += 1) {
+      const index = (y * 700 + x) * 3;
+      raw[index] = (x * 3 + y) % 256;
+      raw[index + 1] = (y * 4 + x) % 256;
+      raw[index + 2] = (x + y) % 256;
+    }
+  }
+  const visual = await sharp(raw, {
+    raw: { width: 700, height: 500, channels: 3 }
+  }).png().toBuffer();
+
+  const result = await findSourceArticleImage(
+    {
+      url: 'https://news.google.com/rss/articles/example',
+      domain: 'The Vanderbilt Hustler',
+      title: 'Vanderbilt students help children with school supplies'
+    },
+    {
+      fetchImpl: async input => {
+        const url = String(input);
+
+        if (url.includes('news.google.com')) {
+          return { ok: true, status: 200, url: 'https://vanderbilthustler.com/example-story', text: async () => '' };
+        }
+
+        if (url === 'https://vanderbilthustler.com/example-story') {
+          return new Response(
+            '<html><head>' +
+            '<meta property="og:image" content="https://lh3.googleusercontent.com/example-image=s0-w300">' +
+            '<script type="application/ld+json">' +
+            JSON.stringify({
+              '@type': 'NewsArticle',
+              headline: 'Vanderbilt students help children with school supplies',
+              description: 'Vanderbilt students help children with school supplies through a local community effort.'
+            }) +
+            '</script>' +
+            '</head></html>',
+            { status: 200, headers: { 'content-type': 'text/html' } }
+          );
+        }
+
+        if (url.includes('lh3.googleusercontent.com')) {
+          return new Response(visual, {
+            status: 200,
+            headers: { 'content-type': 'image/png' }
+          });
+        }
+
+        return new Response('not found', { status: 404 });
+      }
+    }
+  );
+
+  assert.equal(result.visualVerification.verified, true);
+  assert.ok(result.relevanceMatches.length > 0);
+});
+
 test('uses article-level metadata to verify a generic source image URL', async () => {
   const raw = Buffer.alloc(700 * 500 * 3);
   for (let y = 0; y < 500; y += 1) {
