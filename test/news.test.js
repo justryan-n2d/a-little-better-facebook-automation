@@ -693,3 +693,88 @@ test('rejects rights-unsafe social media media instead of accepting it as the vi
     /No rights-safe visual source could be resolved/i
   );
 });
+
+
+test('social story publishing path corroborates the lead and uses only the rights-safe visual', async () => {
+  const dir = await mkdtemp('/tmp/a-little-better-social-story-test-');
+  const historyPath = join(dir, 'history.json');
+  const imageBuffer = await sharp({
+    create: {
+      width: 80,
+      height: 80,
+      channels: 3,
+      background: { r: 180, g: 220, b: 200 }
+    }
+  }).jpeg().toBuffer();
+
+  let searchCall = 0;
+  const socialLead = [
+    'Title: Dog stays beside baby and helps keep child safe',
+    'URL: https://www.tiktok.com/@example/video/123',
+    'Published: 2026-10-04T03:00:00Z',
+    'Author: Example Creator',
+    'Highlights:',
+    'The family says their dog protected the baby and alerted them when the child needed help.'
+  ].join('\n');
+
+  const corroboratingArticle = [
+    'Title: Family dog protects baby and alerts parents when child needs help',
+    'URL: https://localnews.example/dog-baby-story',
+    'Published: 2026-10-04T03:30:00Z',
+    'Author: Example Reporter',
+    'Highlights:',
+    'A local news report says the family dog stayed close to the baby and alerted the parents when the child needed help.'
+  ].join('\n');
+
+  try {
+    const result = await runNewsPost({
+      today: '2026-10-04',
+      autoPublish: false,
+      historyPath,
+      execFileImpl: async (_command, args) => {
+        searchCall += 1;
+        const query = JSON.parse(args[args.indexOf('--args') + 1]).query;
+        if (searchCall === 1) {
+          assert.match(query, /site:tiktok\.com/i);
+          return { stdout: JSON.stringify({ content: [{ type: 'text', text: socialLead }] }), stderr: '' };
+        }
+        assert.match(query, /-site:tiktok\.com/i);
+        return { stdout: JSON.stringify({ content: [{ type: 'text', text: corroboratingArticle }] }), stderr: '' };
+      },
+      fetchImpl: async input => {
+        const url = String(input);
+        if (url.includes('api.openverse.org')) {
+          return new Response(JSON.stringify({
+            results: [{
+              url: 'https://images.example/right-safe-dog.jpg',
+              title: 'Dog with baby and family',
+              description: 'A dog staying close to a baby with family nearby.',
+              creator: 'Example Photographer',
+              provider: 'Example Commons',
+              license: 'cc0',
+              width: 1600,
+              height: 1067
+            }]
+          }), { status: 200 });
+        }
+        if (url === 'https://images.example/right-safe-dog.jpg') {
+          return new Response(imageBuffer, {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' }
+          });
+        }
+        throw new Error('Social source must never be fetched for image reuse: ' + url);
+      }
+    });
+
+    const history = JSON.parse(await readFile(historyPath, 'utf8'));
+    assert.equal(searchCall, 2);
+    assert.equal(result.sourceDomain, 'localnews.example');
+    assert.equal(result.imageLicense, 'cc0');
+    assert.equal(history.stories[0].discoveryLead.url, 'https://www.tiktok.com/@example/video/123');
+    assert.equal(history.stories[0].corroboration.verified, true);
+    assert.equal(history.stories[0].url, 'https://localnews.example/dog-baby-story');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
