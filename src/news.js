@@ -588,7 +588,9 @@ export function buildDisplayHeadline(title) {
 }
 
 export function buildImageQueries(title, topic) {
-  const text = cleanText(title).toLowerCase();
+  const story = typeof title === 'string' ? { title } : (title || {});
+  const storyTitle = cleanText(story.title);
+  const text = storyVisualText(story).toLowerCase();
   const topicQueries = {
     'kindness-community': ['community volunteers helping people', 'people helping community'],
     'education-growth': ['students achievement education', 'students celebrating success'],
@@ -605,7 +607,7 @@ export function buildImageQueries(title, topic) {
   if (/(student|graduate|college|school|education)/.test(text)) {
     storySpecific.push('college student science research', 'student scientist laboratory');
   }
-  if (/(crown|pageant|miss\b|beauty queen)/.test(text)) {
+  if (/(crown|pageant|miss\\b|beauty queen)/.test(text)) {
     storySpecific.push('woman community outreach environmental science');
   }
   if (/(scholarship)/.test(text)) {
@@ -615,10 +617,30 @@ export function buildImageQueries(title, topic) {
     storySpecific.push('student award ceremony', 'achievement celebration student');
   }
 
-  const exact = extractImageQuery(title);
+  const profile = buildStoryVisualProfile(story);
+  const semanticQueries = [];
+  if (profile.requiredSubjects.length >= 2) {
+    const pair = profile.requiredSubjects.join(' ');
+    semanticQueries.push(
+      pair,
+      profile.actions[0] ? pair + ' ' + profile.actions[0] : pair
+    );
+  } else if (profile.requiredSubjects.length === 1) {
+    const subject = profile.requiredSubjects[0];
+    if (profile.actions[0]) semanticQueries.push(subject + ' ' + profile.actions[0]);
+    if (profile.contexts[0]) semanticQueries.push(subject + ' ' + profile.contexts[0]);
+    if (profile.objects[0]) semanticQueries.push(subject + ' ' + profile.objects[0]);
+  }
+
+  if (profile.specificTerms.length >= 2) {
+    semanticQueries.push(profile.specificTerms.slice(0, 4).join(' '));
+  }
+
+  const exact = extractImageQuery(storyTitle);
   const fallbacks = topicQueries[topic] || ['positive people community', 'uplifting people'];
   return [...new Set([
     ...storySpecific,
+    ...semanticQueries,
     ...fallbacks,
     exact,
     'people community inspiration'
@@ -711,10 +733,12 @@ function stockSnapDirectImageUrl(landingUrl) {
 
 export async function findOpenverseImage(query, {
   licenses = ['cc0', 'pdm', 'by'],
-  fetchImpl = fetch
+  fetchImpl = fetch,
+  story = null
 } = {}) {
   const queries = Array.isArray(query) ? query : [query];
   let best = null;
+  const minimumSemanticScore = story ? buildStoryVisualProfile(story).requiredSubjects.length >= 2 ? 55 : 35 : 0;
 
   for (const searchQuery of queries.filter(Boolean)) {
     for (const license of licenses) {
@@ -736,9 +760,23 @@ export async function findOpenverseImage(query, {
           const relevance = imageQueryRelevance(item, searchQuery);
           if (tokens.length >= 3 && relevance < 0) continue;
 
-          const score = photoCandidateScore(item, searchQuery);
+          const semantic = story ? scoreStoryVisualMatch(item, story) : null;
+          if (semantic && semantic.score < minimumSemanticScore) continue;
+          if (
+            semantic &&
+            semantic.requiredSubjects.length >= 2 &&
+            !semantic.relationshipMatch
+          ) continue;
+
+          const score = photoCandidateScore(item, searchQuery) + (semantic?.score || 0);
           if (!best || score > best.score) {
-            best = { item, score, searchQuery, license: normalizedLicense };
+            best = {
+              item,
+              score,
+              searchQuery,
+              license: normalizedLicense,
+              semantic
+            };
           }
         }
       } catch (error) {
@@ -771,7 +809,10 @@ export async function findOpenverseImage(query, {
     landingUrl,
     provider,
     searchQuery: best.searchQuery,
-    relevanceScore: best.score
+    relevanceScore: best.score,
+    semanticRelevanceScore: best.semantic?.score ?? null,
+    semanticMatches: best.semantic?.matches || [],
+    semanticRelationshipMatch: best.semantic?.relationshipMatch ?? null
   };
 }
 
@@ -784,7 +825,8 @@ export async function findRightsSafeStoryImage(story, { fetchImpl = fetch } = {}
 
   const image = await findOpenverseImage(queries, {
     licenses: ['cc0', 'pdm', 'by'],
-    fetchImpl
+    fetchImpl,
+    story
   });
 
   if (!image || !['cc0', 'pdm', 'by'].includes(String(image.license || '').toLowerCase())) {
@@ -846,7 +888,19 @@ function imageCandidateScore(candidate, story) {
   if (candidate.kind === 'twitter:image' || candidate.kind === 'twitter:image:src') score += 24;
   if (candidate.kind === 'article-image') score += 5;
 
-  return { score, matches };
+  const semantic = scoreStoryVisualMatch({
+    title: candidate.context || '',
+    description: candidate.url || ''
+  }, story);
+
+  score += Math.round(semantic.score * 0.35);
+
+  return {
+    score,
+    matches,
+    semanticRelevanceScore: semantic.score,
+    semanticMatches: semantic.matches
+  };
 }
 
 function articleImageCandidates(html, articleUrl, story) {
