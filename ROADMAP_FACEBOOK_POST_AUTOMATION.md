@@ -27,48 +27,56 @@ The headline and image must clearly refer to the same story.
 
 ## 2. Current architecture
 
+The production story pipeline is now:
+
 ```
-News discovery
+Find story
    ↓
-Safe / positive story filtering
+Agent-Reach Story Scout
    ↓
-Heartwarming human-story priority
+Candidate ranking
    ↓
-Original article resolution
+Resolve original article
    ↓
-Original article image extraction
+Extract article-declared images
    ↓
-Same-story / same-context image validation
+Free image quality checks
    ↓
-Sharp image rendering
+Story ↔ image context score
    ↓
-Headline + branding + source overlay
+Reject if weak
    ↓
-Draft artifact
+Create A LITTLE BETTER graphic
    ↓
-Optional Facebook publishing
+Free visual/layout QA
    ↓
-History recording
+Publish only if passed
 ```
 
----
+Agent-Reach Web Search is the discovery eyes. It finds candidate stories but does not decide that a story is safe to publish and has no publishing authority.
+
+The existing GDELT + Google News RSS + Top Stories path remains as the free fallback when the Story Scout has no usable candidate or the Agent-Reach search path is unavailable.
 
 ## 3. News discovery
 
-### Providers
+### Primary discovery
 
-**Primary**
+- Agent-Reach Web Search
+- Exa Web Search through the free hosted MCP endpoint
+- Four diverse semantic search queries
+- Eight results per query
+- No EXA_API_KEY
+- No paid search API
+
+The workflow configures the MCP server in an ephemeral GitHub Actions file and exposes it through MCPORTER_CONFIG. No credentials are stored in the repository.
+
+### Free fallbacks
+
 - GDELT
-
-**Fallback**
 - Google News RSS
-
-**Secondary fallback**
 - Google News Top Stories RSS
 
-GDELT rate limiting was encountered during testing, so the fallback path is an important part of reliability.
-
----
+The fallback path is preserved so a temporary Agent-Reach or Exa availability problem does not become a publishing dependency.
 
 ## 4. Story selection
 
@@ -326,12 +334,33 @@ A user should understand the basic story even when seeing only the image in the 
 
 ## Phase 2 — Fresh News ✅
 
-- [x] GDELT discovery
+- [x] Agent-Reach semantic Web Search discovery
+- [x] Agent-Reach Story Scout candidate pool
+- [x] Candidate ranking
+- [x] Candidate deduplication across search queries
+- [x] GDELT fallback
 - [x] Google News RSS fallback
 - [x] Top Stories fallback
-- [x] Recent-story filtering
+- [x] Recent-story scoring
 - [x] Positive-content filtering
 - [x] Unsafe/divisive content blocking
+- [x] Free-only search configuration with no EXA_API_KEY
+
+### Agent-Reach Story Scout
+
+The Story Scout searches for recent, heartwarming, relatable human-interest stories using semantic queries instead of relying only on exact keywords.
+
+The Scout ranks candidates using:
+- A Little Better topic fit
+- human-kindness strength
+- positive and human-context signals
+- freshness
+- query diversity
+- headline quality
+
+The Scout score is recorded in Fresh News metadata for later analysis.
+
+If no eligible Agent-Reach result survives ranking, the system falls back to the existing free news providers.
 
 ## Phase 3 — Visual System ✅
 
@@ -472,6 +501,32 @@ The target is:
 > **"Publish one genuinely good A Little Better story when the system can verify that it is good."**
 
 ---
+
+
+## 19. Agent-Reach Story Scout implementation
+
+### Implemented on feature branch
+
+- [x] Added src/story-scout.js
+- [x] Added focused Story Scout unit tests
+- [x] Added four semantic recent-news queries
+- [x] Added mcporter Exa MCP search invocation
+- [x] Added robust mcporter JSON result parsing
+- [x] Added candidate deduplication
+- [x] Added candidate ranking and scoutScore
+- [x] Reused the existing A Little Better topic and human-kindness filters
+- [x] Added fallback to the existing free news providers
+- [x] Wired Fresh News generation through the Story Scout
+- [x] Configured the free Exa MCP endpoint in GitHub Actions
+- [x] Set MCPORTER_CONFIG explicitly for scheduled GitHub Actions execution
+- [x] Prevented EXA_API_KEY from being forwarded by Story Scout
+- [x] Kept the Facebook publishing layer unchanged
+
+### Free-only policy
+
+Agent-Reach Web Search must use the free MCP route only. The production workflow must not require an Exa API key, paid Exa API access, or a paid proxy for this Story Scout feature.
+
+If the free search path is unavailable, the system uses the existing GDELT / Google News fallbacks instead of switching to a paid service automatically.
 
 ## Current status
 
