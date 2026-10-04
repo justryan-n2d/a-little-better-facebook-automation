@@ -134,3 +134,38 @@ test('invokes mcporter Exa search without an API key', async () => {
   assert.equal(request.numResults, 3);
   assert.equal(request.query, AGENT_REACH_SEARCH_QUERIES[0]);
 });
+
+
+test('public social discovery searches major public social platforms', () => {
+  assert.match(PUBLIC_SOCIAL_DISCOVERY_QUERY, /site:x\.com/i);
+  assert.match(PUBLIC_SOCIAL_DISCOVERY_QUERY, /site:instagram\.com/i);
+  assert.match(PUBLIC_SOCIAL_DISCOVERY_QUERY, /site:facebook\.com/i);
+  assert.match(PUBLIC_SOCIAL_DISCOVERY_QUERY, /site:tiktok\.com/i);
+  assert.match(PUBLIC_SOCIAL_DISCOVERY_QUERY, /site:youtube\.com/i);
+  assert.match(PUBLIC_SOCIAL_DISCOVERY_QUERY, /site:reddit\.com/i);
+});
+
+test('classifies supported public social source domains', () => {
+  assert.equal(detectPublicSocialPlatform('https://x.com/example/status/123'), 'x');
+  assert.equal(detectPublicSocialPlatform('https://www.instagram.com/p/example/'), 'instagram');
+  assert.equal(detectPublicSocialPlatform('https://www.facebook.com/watch/?v=123'), 'facebook');
+  assert.equal(detectPublicSocialPlatform('https://www.tiktok.com/@example/video/123'), 'tiktok');
+  assert.equal(detectPublicSocialPlatform('https://www.youtube.com/watch?v=123'), 'youtube');
+  assert.equal(detectPublicSocialPlatform('https://www.reddit.com/r/MadeMeSmile/comments/example/'), 'reddit');
+  assert.equal(detectPublicSocialPlatform('https://example.com/story'), null);
+});
+
+test('recognizes a heartwarming animal story such as a dog protecting a baby', () => {
+  const ranked = rankStoryCandidates([{
+    title: 'Family says their dog protected a baby during a scary moment',
+    url: 'https://www.tiktok.com/@example/video/123',
+    publishedDate: '2026-10-04T03:00:00Z',
+    snippet: 'The dog stayed close, alerted the family, and helped keep the baby safe.'
+  }], { now: new Date('2026-10-04T04:00:00Z') });
+
+  assert.equal(ranked.length, 1);
+  assert.equal(ranked[0].socialPlatform, 'tiktok');
+  assert.equal(ranked[0].sourceType, 'public-social');
+  assert.equal(ranked[0].topic.name, 'human-kindness');
+  assert.ok(ranked[0].score >= 50);
+});
