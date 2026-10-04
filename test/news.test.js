@@ -830,6 +830,91 @@ test('rejects an unrelated article image and accepts the matching article image 
   assert.ok(result.visualVerification.storyAlignmentScore >= 50);
 });
 
+test('fresh news runner tries the next safe story when the first source image fails', async () => {
+  const tempDir = await mkdtemp('/tmp/a-little-better-retry-test-');
+  const historyPath = join(tempDir, 'history.json');
+  const raw = Buffer.alloc(700 * 500 * 3);
+  for (let y = 0; y < 500; y += 1) {
+    for (let x = 0; x < 700; x += 1) {
+      const index = (y * 700 + x) * 3;
+      raw[index] = (x * 3) % 256;
+      raw[index + 1] = (y * 4) % 256;
+      raw[index + 2] = (x + y) % 256;
+    }
+  }
+  const visual = await sharp(raw, {
+    raw: { width: 700, height: 500, channels: 3 }
+  }).png().toBuffer();
+
+  try {
+    const result = await runNewsPost({
+      today: '2099-12-30',
+      autoPublish: false,
+      historyPath,
+      fetchImpl: async input => {
+        const url = String(input);
+
+        if (url.includes('gdeltproject.org')) {
+          return new Response(JSON.stringify({
+            articles: [
+              {
+                title: 'Neighbor helps family with groceries',
+                url: 'https://first.example/story',
+                domain: 'First News',
+                seendate: '20991230030000',
+                rank: 1
+              },
+              {
+                title: 'Community volunteers provide meals to seniors',
+                url: 'https://second.example/story',
+                domain: 'Second News',
+                seendate: '20991230020000',
+                rank: 2
+              }
+            ]
+          }), { status: 200, headers: { 'content-type': 'application/json' } });
+        }
+
+        if (url === 'https://first.example/story') {
+          return new Response(
+            '<html><head><meta property="og:image" content="https://cdn.example/first.png"></head></html>',
+            { status: 200, headers: { 'content-type': 'text/html' } }
+          );
+        }
+
+        if (url === 'https://second.example/story') {
+          return new Response(
+            '<html><head>' +
+            '<title>Community volunteers provide meals to seniors</title>' +
+            '<meta property="og:image" content="https://cdn.example/second.png">' +
+            '</head><body>' +
+            '<img src="https://cdn.example/second.png" alt="Community volunteers provide meals to seniors">' +
+            '</body></html>',
+            { status: 200, headers: { 'content-type': 'text/html' } }
+          );
+        }
+
+        if (url === 'https://cdn.example/first.png' || url === 'https://cdn.example/second.png') {
+          return new Response(visual, {
+            status: 200,
+            headers: { 'content-type': 'image/png' }
+          });
+        }
+
+        return new Response('not found', { status: 404 });
+      }
+    });
+
+    assert.equal(result.published, false);
+    assert.equal(result.title, 'Community volunteers provide meals to seniors');
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+    await rm(join('artifacts', 'fresh-news-2099-12-30.png'), { force: true }).catch(() => {});
+    await rm(join('artifacts', 'fresh-news-2099-12-30.json'), { force: true }).catch(() => {});
+    await rm(join('artifacts', 'fresh-news-status.json'), { force: true }).catch(() => {});
+  }
+});
+
 test('fresh news runner stores deterministic source and final visual verification results', async () => {
   const tempDir = await mkdtemp('/tmp/a-little-better-phase4-');
   const historyPath = join(tempDir, 'history.json');
