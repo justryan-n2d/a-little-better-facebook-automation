@@ -1,7 +1,7 @@
 import { corroborateSocialStory, scoutStories } from './story-scout.js';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { publishPhoto } from './facebook.js';
+import { publishPhoto, publishPhotoStory } from './facebook.js';
 import {
   buildNewsCaption,
   buildDisplayHeadline,
@@ -135,6 +135,7 @@ export async function runNewsPost({
 
   await mkdir('artifacts', { recursive: true });
   const imagePath = resolve('artifacts', `fresh-news-${date}.png`);
+  const storyImagePath = resolve('artifacts', `fresh-news-${date}-story.png`);
   const metadataPath = resolve('artifacts', `fresh-news-${date}.json`);
 
   await renderNewsImage({
@@ -144,7 +145,19 @@ export async function runNewsPost({
     sourceDomain,
     angle,
     photoCredit,
-    outputPath: imagePath
+    outputPath: imagePath,
+    template: '4:5'
+  });
+
+  await renderNewsImage({
+    imageBuffer,
+    hook,
+    title: displayHeadline,
+    sourceDomain,
+    angle,
+    photoCredit,
+    outputPath: storyImagePath,
+    template: '9:16'
   });
 
   const record = {
@@ -167,6 +180,10 @@ export async function runNewsPost({
     discoveryScore: story.score,
     scoutScore: story.scoutScore ?? null,
     published: false,
+    storyPublished: false,
+    facebookStoryId: null,
+    facebookStoryPhotoId: null,
+    storyPublishError: null,
     image: {
       provider: imageMeta.provider,
       title: imageMeta.title,
@@ -185,10 +202,12 @@ export async function runNewsPost({
     hook,
     angle,
     summary: articleSummary.summary,
+    storyPublishedAt: null,
     generatedAt: new Date().toISOString()
   };
 
   let publishedPostId = null;
+  let storyPostId = null;
   if (autoPublish) {
     publishedPostId = (await publishPhoto({
       pageId: requiredEnv('FB_PAGE_ID'),
@@ -201,6 +220,49 @@ export async function runNewsPost({
     record.published = true;
     record.facebookPostId = publishedPostId;
     record.publishedAt = new Date().toISOString();
+    await saveNewsHistory(historyPath, {
+      version: 1,
+      stories: [
+        ...(Array.isArray(history.stories) ? history.stories : []),
+        record
+      ]
+    });
+
+    try {
+      const storyResult = await publishPhotoStory({
+        pageId: requiredEnv('FB_PAGE_ID'),
+        pageAccessToken: requiredEnv('FB_PAGE_ACCESS_TOKEN'),
+        image: await readFile(storyImagePath),
+        graphVersion: process.env.META_GRAPH_VERSION || 'v26.0'
+      });
+      storyPostId = storyResult.storyPostId;
+      record.storyPublished = true;
+      record.facebookStoryId = storyResult.storyPostId;
+      record.facebookStoryPhotoId = storyResult.photoId;
+      record.storyPublishedAt = new Date().toISOString();
+    } catch (error) {
+      record.storyPublishError = error instanceof Error ? error.message : String(error);
+      await saveNewsHistory(historyPath, {
+        version: 1,
+        stories: [
+          ...(Array.isArray(history.stories) ? history.stories : []),
+          record
+        ]
+      });
+      await writeFile(
+        resolve('artifacts', 'fresh-news-status.json'),
+        `${JSON.stringify({
+          published: true,
+          storyPublished: false,
+          date,
+          facebookPostId: publishedPostId,
+          facebookStoryId: null,
+          error: record.storyPublishError
+        }, null, 2)}\n`,
+        'utf8'
+      );
+      throw error;
+    }
   }
 
   const nextHistory = {
@@ -215,7 +277,13 @@ export async function runNewsPost({
   await writeFile(metadataPath, `${JSON.stringify({ ...record, caption, sourceUrl: story.url }, null, 2)}\n`, 'utf8');
   await writeFile(
     resolve('artifacts', 'fresh-news-status.json'),
-    `${JSON.stringify({ published: record.published, date, facebookPostId: publishedPostId }, null, 2)}\n`,
+    `${JSON.stringify({
+      published: record.published,
+      storyPublished: record.storyPublished,
+      date,
+      facebookPostId: publishedPostId,
+      facebookStoryId: storyPostId
+    }, null, 2)}\n`,
     'utf8'
   );
 
@@ -231,7 +299,9 @@ export async function runNewsPost({
     score: story.score,
     sourceCount: story.sourceCount,
     summary: articleSummary.summary,
-    facebookPostId: publishedPostId
+    facebookPostId: publishedPostId,
+    facebookStoryId: storyPostId,
+    storyPublished: record.storyPublished
   };
 }
 
