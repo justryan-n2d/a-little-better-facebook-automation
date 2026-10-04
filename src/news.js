@@ -799,7 +799,38 @@ function imageCandidateScore(candidate, story) {
   return { score, matches };
 }
 
+function extractArticlePageContext(html) {
+  const meta = extractMetaImages(html);
+  const tags = [...String(html || '').matchAll(/<meta\\b[^>]*>/gi)].map(match => match[0]);
+  const values = [];
+
+  const readAttribute = (tag, names) => {
+    for (const name of names) {
+      const match = tag.match(new RegExp('(?:property|name)\\s*=\\s*["\\']' + name + '["\\'][^>]*content\\s*=\\s*["\\']([^"\\']+)["\\']', 'i'));
+      if (match?.[1]) return decodeXmlEntities(match[1]).trim();
+    }
+    return '';
+  };
+
+  for (const tag of tags) {
+    const value = readAttribute(tag, ['og:title', 'twitter:title', 'description', 'og:description', 'twitter:description']);
+    if (value) values.push(value);
+  }
+
+  const title = String(html || '').match(/<title\\b[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1];
+  if (title) values.push(decodeXmlEntities(title).replace(/<[^>]+>/g, ' ').trim());
+
+  const headings = String(html || '').match(/<h1\\b[^>]*>([\\s\\S]*?)<\\/h1>/gi) || [];
+  for (const heading of headings.slice(0, 3)) {
+    const text = heading.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();
+    if (text) values.push(decodeXmlEntities(text));
+  }
+
+  return [...new Set(values.map(cleanText).filter(Boolean))].join(' ');
+}
+
 function articleImageCandidates(html, articleUrl, story) {
+  const pageContext = extractArticlePageContext(html);
   const candidates = [];
   const add = (url, kind, context = '') => {
     if (!url) return;
@@ -807,7 +838,7 @@ function articleImageCandidates(html, articleUrl, story) {
       candidates.push({
         url: new URL(url, articleUrl).toString(),
         kind,
-        context
+        context: cleanText([pageContext, context].filter(Boolean).join(' '))
       });
     } catch {}
   };
