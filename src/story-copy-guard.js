@@ -67,7 +67,6 @@ function hasAttribution(text) {
 
 function trendEvidenceSupports(story, sourceText) {
   if (story?.trendScore >= 25) return true;
-  if (story?.sourceType === 'public-social') return true;
   return hasAnyPattern(sourceText, TREND_CLAIM_PATTERNS);
 }
 
