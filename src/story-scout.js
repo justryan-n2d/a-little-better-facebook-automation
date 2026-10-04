@@ -269,7 +269,12 @@ export async function runAgentReachSearch({
     maxBuffer: 4 * 1024 * 1024
   });
 
-  return parseAgentReachOutput(result?.stdout || '', query);
+  const stdout = result?.stdout || '';
+  if (process.env.STORY_SCOUT_DEBUG === 'true') {
+    console.log('Agent-Reach raw stdout prefix: ' + stdout.slice(0, 5000));
+  }
+
+  return parseAgentReachOutput(stdout, query);
 }
 
 function hoursOld(publishedDate, now) {
