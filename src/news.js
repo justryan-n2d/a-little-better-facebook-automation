@@ -1084,7 +1084,7 @@ function extractExternalUrlCandidates(html, baseUrl, storyTitle = '') {
     } catch {}
   };
 
-  for (const match of String(html || '').matchAll(/<a\\b[^>]*\\bhref\\s*=\\s*["']([^"']+)["'][^>]*>/gi)) {
+  for (const match of String(html || '').matchAll(/<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>/gi)) {
     addCandidate(match[1]);
   }
 
