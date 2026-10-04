@@ -26,6 +26,7 @@ import {
   isLittleBetterTopic,
   getLittleBetterTopic,
   isHeartwarmingHumanStory,
+  buildPhotoCredit,
   selectFreshStory
 } from '../src/news.js';
 import { buildNewsSvg, calculateNewsLayout, fitTextToBox, NEWS_PRIMARY, rectanglesOverlap, renderNewsImage } from '../src/news-image.js';
@@ -783,4 +784,16 @@ test('social story publishing path corroborates the lead and uses only the right
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+
+test('labels rights-safe illustrative visuals as illustrative', () => {
+  const credit = buildPhotoCredit({
+    license: 'cc0',
+    creator: 'Example Photographer',
+    provider: 'Example Commons',
+    visualRelation: 'illustrative'
+  });
+
+  assert.match(credit, /^Illustrative photo \/ Example Photographer \/ Example Commons \/ CC0$/);
 });
