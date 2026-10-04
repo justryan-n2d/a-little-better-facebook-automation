@@ -140,7 +140,6 @@ export async function corroborateSocialStory(story, {
       candidate.sourceType === 'web' &&
       candidate.corroborationMatches.length >= 3 &&
       candidate.corroborationScore >= 35 &&
-      getLittleBetterTopic(cleanText([candidate.title, candidate.snippet].filter(Boolean).join(' '))) &&
       !BLOCKED_STORY_TERMS.some(term =>
         containsTerm(cleanText([candidate.title, candidate.snippet].filter(Boolean).join(' ')).toLowerCase(), term)
       )
