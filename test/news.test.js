@@ -340,7 +340,7 @@ test('uses JSON-LD article metadata to verify a generic source image URL', async
   assert.ok(result.relevanceMatches.length > 0);
 });
 
-test('rejects a generic source image when only article-level metadata matches', async () => {
+test('uses an article-declared featured image when page-level metadata matches', async () => {
   const raw = Buffer.alloc(700 * 500 * 3);
   for (let y = 0; y < 500; y += 1) {
     for (let x = 0; x < 700; x += 1) {
@@ -354,43 +354,51 @@ test('rejects a generic source image when only article-level metadata matches', 
     raw: { width: 700, height: 500, channels: 3 }
   }).png().toBuffer();
 
-  await assert.rejects(
-    () => findSourceArticleImage(
-      {
-        url: 'https://news.google.com/rss/articles/example',
-        domain: 'The Vanderbilt Hustler',
-        title: 'Vanderbilt students help children with school supplies'
-      },
-      {
-        fetchImpl: async input => {
-          const url = String(input);
-          if (url.includes('news.google.com')) {
-            return { ok: true, status: 200, url: 'https://vanderbilthustler.com/example-story', text: async () => '' };
-          }
-          if (url === 'https://vanderbilthustler.com/example-story') {
-            return new Response(
-              '<html><head>' +
-              '<title>Vanderbilt students help children with school supplies</title>' +
-              '<meta property="og:title" content="Vanderbilt students help children with school supplies">' +
-              '<meta name="description" content="Vanderbilt students help children with school supplies through a local community effort.">' +
-              '<meta property="og:image" content="https://lh3.googleusercontent.com/example-image=s0-w300">' +
-              '</head></html>',
-              { status: 200, headers: { 'content-type': 'text/html' } }
-            );
-          }
-          if (url.includes('lh3.googleusercontent.com')) {
-            return new Response(visual, {
-              status: 200,
-              headers: { 'content-type': 'image/png' }
-            });
-          }
-          return new Response('not found', { status: 404 });
+  const result = await findSourceArticleImage(
+    {
+      url: 'https://news.google.com/rss/articles/example',
+      domain: 'The Vanderbilt Hustler',
+      title: 'Vanderbilt students help children with school supplies'
+    },
+    {
+      fetchImpl: async input => {
+        const url = String(input);
+
+        if (url.includes('news.google.com')) {
+          return { ok: true, status: 200, url: 'https://vanderbilthustler.com/example-story', text: async () => '' };
         }
+
+        if (url === 'https://vanderbilthustler.com/example-story') {
+          return new Response(
+            '<html><head>' +
+            '<title>Vanderbilt students help children with school supplies</title>' +
+            '<meta property="og:title" content="Vanderbilt students help children with school supplies">' +
+            '<meta name="description" content="Vanderbilt students help children with school supplies through a local community effort.">' +
+            '<meta property="og:image" content="https://lh3.googleusercontent.com/example-image=s0-w300">' +
+            '</head></html>',
+            { status: 200, headers: { 'content-type': 'text/html' } }
+          );
+        }
+
+        if (url.includes('lh3.googleusercontent.com')) {
+          return new Response(visual, {
+            status: 200,
+            headers: { 'content-type': 'image/png' }
+          });
+        }
+
+        return new Response('not found', { status: 404 });
       }
-    ),
-    /context-matching.*image/i
+    }
   );
+
+  assert.equal(result.visualVerification.verified, true);
+  assert.equal(result.visualVerification.method, 'deterministic');
+  assert.ok(result.visualVerification.photoQualityScore >= 60);
+  assert.ok(result.visualVerification.storyAlignmentScore >= 50);
 });
+
+
 
 test('uses the Google News RSS source image when the original article exposes no usable image', async () => {
   const raw = Buffer.alloc(700 * 500 * 3);
