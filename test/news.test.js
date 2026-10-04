@@ -19,6 +19,8 @@ import {
   searchGoogleNewsTopStoriesRss,
   findOpenverseImage,
   findRightsSafeStoryImage,
+  buildStoryVisualProfile,
+  scoreStoryVisualMatch,
   findSourceArticleImage,
   downloadImage,
   isPhotoLikeOpenverseImage,
@@ -98,6 +100,80 @@ test('rejects infographic-like Openverse assets', () => {
     width: 1200,
     height: 900
   }), true);
+});
+
+test('builds a semantic visual profile around the people, action, and situation in the story', () => {
+  const profile = buildStoryVisualProfile({
+    title: 'Dog stays beside baby and helps keep child safe',
+    snippet: 'The family says their dog protected the baby and alerted the parents when the child needed help.'
+  });
+
+  assert.ok(profile.subjects.includes('dog'));
+  assert.ok(profile.subjects.includes('baby'));
+  assert.ok(profile.actions.includes('protect'));
+  assert.ok(profile.actions.includes('alert'));
+  assert.ok(profile.requiredSubjects.includes('dog'));
+  assert.ok(profile.requiredSubjects.includes('baby'));
+});
+
+test('semantic visual scoring prefers the combined story scene over a partial subject match', () => {
+  const story = {
+    title: 'Dog stays beside baby and helps keep child safe',
+    snippet: 'The family says their dog protected the baby and alerted the parents when the child needed help.'
+  };
+
+  const strong = scoreStoryVisualMatch({
+    title: 'Dog with baby and family',
+    description: 'A dog staying close to a baby with family nearby.'
+  }, story);
+
+  const partial = scoreStoryVisualMatch({
+    title: 'Dog resting in a city park',
+    description: 'A friendly dog outdoors on a sunny day.'
+  }, story);
+
+  assert.ok(strong.score >= 55);
+  assert.ok(strong.matches.includes('dog'));
+  assert.ok(strong.matches.includes('baby'));
+  assert.ok(strong.relationshipMatch, 'strong image should match the subject relationship');
+  assert.ok(partial.score < 55);
+  assert.ok(!partial.relationshipMatch);
+});
+
+test('rejects a rights-safe illustrative photo that only matches one part of the story', async () => {
+  await assert.rejects(
+    findRightsSafeStoryImage({
+      title: 'Dog stays beside baby and helps keep child safe',
+      snippet: 'The family says their dog protected the baby and alerted the parents when the child needed help.',
+      topic: 'human-kindness'
+    }, {
+      fetchImpl: async input => {
+        const url = String(input);
+        if (url.includes('api.openverse.org')) {
+          return new Response(JSON.stringify({
+            results: [{
+              url: 'https://images.example/dog-only.jpg',
+              title: 'Dog resting in a city park',
+              description: 'A friendly dog outdoors on a sunny day.',
+              creator: 'Example Photographer',
+              provider: 'Example Commons',
+              license: 'cc0',
+              width: 1600,
+              height: 1067
+            }]
+          }), { status: 200 });
+        }
+        if (url === 'https://images.example/dog-only.jpg') {
+          return new Response(Buffer.alloc(12000, 9), {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' }
+          });
+        }
+        throw new Error('unexpected URL: ' + url);
+      }
+    }),
+    /No rights-safe visual source could be resolved/i
+  );
 });
 
 test('builds story-specific image search queries before broad fallbacks', () => {
