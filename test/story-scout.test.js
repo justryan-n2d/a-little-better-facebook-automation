@@ -125,6 +125,7 @@ test('does not add an unsupported popularity claim to generated copy', () => {
     sourceUrl: 'https://example.com/story',
     hook: 'A simple act of kindness is reminding people what matters.',
     angle: 'Small acts of care can make a hard day feel a little lighter.',
+    summary: 'A stranger helped a family get home safely. The act gave the family support during a difficult moment.',
     photoCredit: 'Source article image / example.com'
   });
 
@@ -139,6 +140,7 @@ test('does not treat a public social source alone as proof of a trend', () => {
       sourceUrl: 'https://example.com/story',
       hook: 'This story is trending everywhere.',
       angle: 'Small acts of care can make a hard day feel a little lighter.',
+      summary: 'A public post shows a stranger helping a family. The verified details are still being checked.',
       photoCredit: 'Illustrative photo / Example / Openverse / CC0',
       story: {
         title: 'Stranger helps a family get home safely',
@@ -159,6 +161,7 @@ test('rejects copy that drops important source attribution', () => {
       sourceUrl: 'https://example.com/story',
       hook: 'A simple act of kindness is reminding people what matters.',
       angle: 'Small acts of care can make a hard day feel a little lighter.',
+      summary: 'The dog stayed close to the baby. The dog alerted the parents when the baby needed help.',
       photoCredit: 'Source article image / example.com',
       story: {
         title: 'Family says their dog protected a baby',
@@ -177,6 +180,7 @@ test('rejects stereotype or unsupported motive language', () => {
       sourceUrl: 'https://example.com/story',
       hook: 'A selfless stranger helped because people like him are always kind.',
       angle: 'He only wanted to get attention.',
+      summary: 'A stranger shared food with a family. The act was described as a kind gesture.',
       photoCredit: 'Source article image / example.com',
       story: {
         title: 'Stranger shares food with a family',

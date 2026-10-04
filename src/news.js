@@ -1245,14 +1245,23 @@ export function buildNewsCaption({
   sourceUrl,
   hook,
   angle,
+  summary,
   photoCredit,
-  story
+  story,
+  sourceArticleText
 }) {
+  const summarySentences = cleanText(summary).match(/[^.!?]+[.!?]+/g) || [];
+  if (summarySentences.length < 2 || summarySentences.length > 3) {
+    throw new Error('Caption summary must contain exactly 2 to 3 sentences.');
+  }
+
   assertStoryNarrativeIntegrity({
     story,
     headline: title,
     hook,
-    angle
+    angle,
+    summary,
+    sourceArticleText
   });
 
   return [
@@ -1261,6 +1270,9 @@ export function buildNewsCaption({
     hook,
     '',
     title,
+    '',
+    'Summary:',
+    summary,
     '',
     `A Little Better angle: ${angle}`,
     '',

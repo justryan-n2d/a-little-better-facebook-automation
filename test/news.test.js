@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 import {
   buildNewsHook,
+  buildNewsCaption,
   buildNewsAngle,
   buildDisplayHeadline,
   buildImageQueries,
@@ -706,6 +707,57 @@ test('production renderer preserves the source photo and readable text layers', 
   }
 });
 
+
+test('buildNewsCaption includes the source-grounded 2 to 3 sentence summary', () => {
+  const summary = 'A stranger brought materials to help a storm-damaged home. He gathered a crew and covered the damaged roof with a tarp.';
+  const caption = buildNewsCaption({
+    title: 'Stranger helps storm-damaged home',
+    sourceDomain: 'example.com',
+    sourceUrl: 'https://example.com/story',
+    hook: 'A simple act of kindness is reminding people what matters.',
+    angle: 'Small acts of care can make a hard day feel a little lighter.',
+    summary,
+    photoCredit: 'Source article image / example.com',
+    story: { title: 'Stranger helps storm-damaged home' }
+  });
+
+  assert.match(caption, /Summary:\nA stranger brought materials to help a storm-damaged home\. He gathered a crew and covered the damaged roof with a tarp\./);
+});
+
+test('buildNewsCaption runs the summary through the same narrative guard', () => {
+  assert.throws(
+    () => buildNewsCaption({
+      title: 'Stranger helps storm-damaged home',
+      sourceDomain: 'example.com',
+      sourceUrl: 'https://example.com/story',
+      hook: 'A simple act of kindness is reminding people what matters.',
+      angle: 'Small acts of care can make a hard day feel a little lighter.',
+      summary: 'Everyone is going viral over this stranger and the internet is loving it. People across social media are sharing the story.',
+      photoCredit: 'Source article image / example.com',
+      story: { title: 'Stranger helps storm-damaged home', trendScore: 0 },
+      sourceArticleText: 'A local report describes the stranger helping a storm-damaged home.'
+    }),
+    /unsupported-trend-claim/i
+  );
+});
+
+test('buildNewsCaption preserves attribution required by the verified source article in the summary', () => {
+  assert.throws(
+    () => buildNewsCaption({
+      title: 'Family receives help after storm damage',
+      sourceDomain: 'example.com',
+      sourceUrl: 'https://example.com/story',
+      hook: 'A simple act of kindness is reminding people what matters.',
+      angle: 'Small acts of care can make a hard day feel a little lighter.',
+      summary: 'A neighbor arrived with materials and helped repair the home. The family received support during a difficult time.',
+      photoCredit: 'Source article image / example.com',
+      story: { title: 'Family receives help after storm damage' },
+      sourceArticleText: 'The family says a neighbor arrived with materials and helped repair the home.'
+    }),
+    /dropped-source-attribution/i
+  );
+});
+
 test('news post runner is importable', () => {
   assert.equal(typeof runNewsPost, 'function');
 });
@@ -846,7 +898,13 @@ test('social story publishing path corroborates the lead and uses only the right
             headers: { 'content-type': 'image/jpeg' }
           });
         }
-        throw new Error('Social source must never be fetched for image reuse: ' + url);
+        if (url === 'https://localnews.example/dog-baby-story') {
+          return new Response('<article><p>A local news report says the family dog stayed close to the baby and alerted the parents when the child needed help.</p><p>The family said the dog remained nearby and helped during the frightening moment.</p></article>', {
+            status: 200,
+            headers: { 'content-type': 'text/html' }
+          });
+        }
+        throw new Error('Unexpected fetch URL in social story test: ' + url);
       }
     });
 
@@ -857,6 +915,7 @@ test('social story publishing path corroborates the lead and uses only the right
     assert.equal(history.stories[0].discoveryLead.url, 'https://www.tiktok.com/@example/video/123');
     assert.equal(history.stories[0].corroboration.verified, true);
     assert.equal(history.stories[0].url, 'https://localnews.example/dog-baby-story');
+    assert.equal(result.summary, 'A local news report says the family dog stayed close to the baby and alerted the parents when the child needed help. The family said the dog remained nearby and helped during the frightening moment.');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
