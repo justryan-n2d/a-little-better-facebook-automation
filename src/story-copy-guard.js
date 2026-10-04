@@ -102,7 +102,7 @@ export function validateStoryNarrative({
     riskFlags.push('unsupported-trend-claim');
   }
 
-  if (hasAttribution(sourceText) && !hasAttribution(headlineText)) {
+  if (hasAttribution(sourceText) && !hasAttributionMarker(copyText)) {
     riskFlags.push('dropped-source-attribution');
   }
 
