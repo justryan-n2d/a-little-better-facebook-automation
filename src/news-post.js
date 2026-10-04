@@ -112,6 +112,20 @@ export async function runNewsPost({
   const displayHeadline = buildDisplayHeadline(story.title);
   const sourceDomain = publishingStory.domain || story.domain || 'news source';
 
+  const caption = buildNewsCaption({
+    title: story.title,
+    sourceDomain,
+    sourceUrl: publishingStory.url,
+    hook,
+    angle,
+    photoCredit,
+    story: {
+      ...publishingStory,
+      trendScore: story.trendScore ?? null,
+      sourceCount: story.sourceCount ?? 1
+    }
+  });
+
   await mkdir('artifacts', { recursive: true });
   const imagePath = resolve('artifacts', `fresh-news-${date}.png`);
   const metadataPath = resolve('artifacts', `fresh-news-${date}.json`);
@@ -165,15 +179,6 @@ export async function runNewsPost({
     angle,
     generatedAt: new Date().toISOString()
   };
-
-  const caption = buildNewsCaption({
-    title: story.title,
-    sourceDomain,
-    sourceUrl: publishingStory.url,
-    hook,
-    angle,
-    photoCredit
-  });
 
   let publishedPostId = null;
   if (autoPublish) {
