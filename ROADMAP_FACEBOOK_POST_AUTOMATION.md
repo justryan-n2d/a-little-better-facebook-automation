@@ -17,6 +17,23 @@ Content identity:
 
 The automation should make every post feel like it belongs to A Little Better, not like a generic news page.
 
+### Story example policy
+
+Specific examples such as **"Dog stays beside baby and helps keep child safe"** are only examples of the kind of highly relatable story the system can recognize. They are not fixed topics, required story subjects, or recurring content targets.
+
+The Story Scout should remain flexible and select different stories based on what is timely, trending, heartwarming, and suitable for A Little Better.
+
+### Trend-first discovery principle
+
+When several safe stories are available, prioritize:
+1. very recent stories
+2. stories showing strong trend signals such as viral, trending, widely shared, or strong online attention
+3. public social leads from supported platforms
+4. web stories that are clearly gaining attention
+5. ordinary positive stories when no stronger trending candidate exists
+
+Trend signals must never override the existing safety and credibility gates. A story is not selected merely because it is viral.
+
 ### Core content principle
 
 > **One story → one source → one context → one matching visual**
@@ -383,6 +400,19 @@ Each returned candidate is classified with:
 This means a story such as a dog protecting a baby can be recognized as a high-fit A Little Better human-kindness story even when the discovery lead comes from TikTok, Instagram, X, Facebook, or another public social page.
 
 The production Fresh News workflow explicitly limits the default Agent-Reach search to one query per run to protect the free MCP request budget.
+
+### Trend and recency scoring ✅
+
+The Story Scout now gives extra ranking weight to:
+- very recent publication times
+- viral/trending language
+- widely shared or widely viewed signals
+- online/social-media attention signals
+- public social-source candidates
+
+The selected candidate records trendScore and freshnessScore so the ranking decision can be audited later.
+
+This is a heuristic trend signal, not a direct platform engagement count.
 
 ### Public social media rights boundary ✅
 
