@@ -800,30 +800,29 @@ function imageCandidateScore(candidate, story) {
 }
 
 function extractArticlePageContext(html) {
-  const tags = [...String(html || '').matchAll(/<meta\\b[^>]*>/gi)].map(match => match[0]);
+  const tags = [...String(html || '').matchAll(/<meta\b[^>]*>/gi)].map(match => match[0]);
   const values = [];
   const wanted = new Set(['og:title', 'twitter:title', 'description', 'og:description', 'twitter:description']);
 
   for (const tag of tags) {
-    const property = tag.match(/(?:property|name)\\s*=\\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
-    const content = tag.match(/content\\s*=\\s*["']([^"']+)["']/i)?.[1];
+    const property = tag.match(/(?:property|name)\s*=\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
+    const content = tag.match(/content\s*=\s*["']([^"']+)["']/i)?.[1];
     if (property && wanted.has(property) && content) {
       values.push(decodeXmlEntities(content).trim());
     }
   }
 
-  const title = String(html || '').match(/<title\\b[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1];
+  const title = String(html || '').match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1];
   if (title) values.push(decodeXmlEntities(title).replace(/<[^>]+>/g, ' ').trim());
 
-  const headings = String(html || '').match(/<h1\\b[^>]*>([\\s\\S]*?)<\\/h1>/gi) || [];
+  const headings = String(html || '').match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi) || [];
   for (const heading of headings.slice(0, 3)) {
-    const text = heading.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();
+    const text = heading.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     if (text) values.push(decodeXmlEntities(text));
   }
 
   return [...new Set(values.map(cleanText).filter(Boolean))].join(' ');
 }
-
 function articleImageCandidates(html, articleUrl, story) {
   const pageContext = extractArticlePageContext(html);
   const candidates = [];
