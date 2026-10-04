@@ -660,6 +660,62 @@ test('falls back to Google News RSS after a GDELT failure', async () => {
 
 
 
+test('aggregates multiple Google News queries when GDELT is unavailable', async () => {
+  const calls = [];
+  const result = await searchFreshNews({
+    queries: ['student success', 'community kindness'],
+    maxRecords: 10,
+    fetchImpl: async input => {
+      const url = String(input);
+      calls.push(url);
+
+      if (url.includes('gdeltproject.org')) {
+        return new Response('rate limited', { status: 429 });
+      }
+
+      if (url.includes('news.google.com/rss/search')) {
+        const query = new URL(url).searchParams.get('q');
+        if (query === 'student success') {
+          return new Response(
+            '<rss><channel><item>' +
+            '<title>Student wins national science award</title>' +
+            '<link>https://student.example/story</link>' +
+            '<pubDate>Sat, 03 Oct 2026 03:00:00 GMT</pubDate>' +
+            '<source>Student News</source>' +
+            '</item></channel></rss>',
+            { status: 200 }
+          );
+        }
+
+        if (query === 'community kindness') {
+          return new Response(
+            '<rss><channel><item>' +
+            '<title>Community volunteers provide meals to seniors</title>' +
+            '<link>https://community.example/story</link>' +
+            '<pubDate>Sat, 03 Oct 2026 02:00:00 GMT</pubDate>' +
+            '<source>Community News</source>' +
+            '</item></channel></rss>',
+            { status: 200 }
+          );
+        }
+
+        return new Response('<rss><channel></channel></rss>', { status: 200 });
+      }
+
+      if (url.includes('news.google.com/rss?')) {
+        return new Response('<rss><channel></channel></rss>', { status: 200 });
+      }
+
+      throw new Error('unexpected URL: ' + url);
+    }
+  });
+
+  assert.equal(result.provider, 'google-news-rss');
+  assert.equal(result.articles.length, 2);
+  assert.ok(calls.some(url => new URL(url).searchParams.get('q') === 'student success'));
+  assert.ok(calls.some(url => new URL(url).searchParams.get('q') === 'community kindness'));
+});
+
 test('falls back from empty Google query to Top Stories', async () => {
   const calls = [];
   const result = await searchFreshNews({
