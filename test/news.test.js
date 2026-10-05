@@ -868,6 +868,122 @@ test('news post runner is importable', () => {
 });
 
 
+
+test('falls back to a fresh web story when a social lead cannot be corroborated', async () => {
+  const dir = await mkdtemp('/tmp/a-little-better-social-fallback-test-');
+  const historyPath = join(dir, 'history.json');
+  const imageBuffer = await sharp({
+    create: {
+      width: 800,
+      height: 600,
+      channels: 3,
+      background: { r: 80, g: 150, b: 120 }
+    }
+  }).jpeg().toBuffer();
+
+  let searchCall = 0;
+  try {
+    const result = await runNewsPost({
+      today: '2026-10-05',
+      autoPublish: false,
+      historyPath,
+      execFileImpl: async (_command, args) => {
+        searchCall += 1;
+
+        if (searchCall === 1) {
+          return {
+            stdout: JSON.stringify({
+              content: [{
+                type: 'text',
+                text: [
+                  'Title: Viral dog helps a child after a difficult day',
+                  'URL: https://www.tiktok.com/@example/video/999',
+                  'Published: 2026-10-05T03:00:00Z',
+                  'Author: Example Creator',
+                  'Highlights:',
+                  'A dog helped a child and people shared the kind moment online.'
+                ].join('\n')
+              }]
+            }),
+            stderr: ''
+          };
+        }
+
+        throw new Error('no corroborating source');
+      },
+      fetchImpl: async input => {
+        const url = String(input);
+
+        if (url.includes('api.gdeltproject.org')) {
+          return new Response(JSON.stringify({
+            articles: [{
+              title: 'Neighbor helps family after a storm damages their home',
+              url: 'https://example.com/neighbor-help',
+              domain: 'example.com',
+              seendate: '20261005040000'
+            }]
+          }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          });
+        }
+
+        if (url === 'https://example.com/neighbor-help') {
+          return new Response(
+            '<html><head>' +
+            '<meta property="og:image" content="https://images.example/neighbor.jpg">' +
+            '</head><body><article>' +
+            '<p>A neighbor brought materials and helped the family cover the damaged part of their home.</p>' +
+            '<p>The family said the unexpected help made a difficult day feel lighter.</p>' +
+            '</article></body></html>',
+            { status: 200, headers: { 'content-type': 'text/html' } }
+          );
+        }
+
+        if (url === 'https://images.example/neighbor.jpg') {
+          return new Response(imageBuffer, {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' }
+          });
+        }
+
+        if (url.includes('api.openverse.org')) {
+          return new Response(JSON.stringify({
+            results: [{
+              url: 'https://images.example/neighbor-safe.jpg',
+              title: 'People helping a family after a storm',
+              description: 'People helping a family repair a storm damaged home.',
+              creator: 'Example Photographer',
+              provider: 'Example Commons',
+              license: 'cc0',
+              width: 1600,
+              height: 1067
+            }]
+          }), { status: 200 });
+        }
+
+        if (url === 'https://images.example/neighbor-safe.jpg') {
+          return new Response(imageBuffer, {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' }
+          });
+        }
+
+        throw new Error('unexpected URL: ' + url);
+      }
+    });
+
+    const history = JSON.parse(await readFile(historyPath, 'utf8'));
+
+    assert.equal(searchCall, 2);
+    assert.equal(result.title, 'Neighbor helps family after a storm damages their home');
+    assert.equal(history.stories[0].discoveryLead, null);
+    assert.equal(history.stories[0].url, 'https://example.com/neighbor-help');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('resolves a rights-safe illustrative visual for a public social story', async () => {
   const result = await findRightsSafeStoryImage({
     title: 'Dog stays beside baby and helps keep child safe',
