@@ -70,14 +70,14 @@ export async function runNewsPost({
   }
 
   const configuredScoutQueries = Number(process.env.STORY_SCOUT_MAX_QUERIES);
-  const discovery = await scoutStories({
+  let discovery = await scoutStories({
     fetchImpl,
     execFileImpl,
     maxQueries: Number.isInteger(configuredScoutQueries) && configuredScoutQueries > 0
       ? configuredScoutQueries
       : undefined
   });
-  const story = selectFreshStory(discovery.articles, usedStoryValues(history));
+  let story = selectFreshStory(discovery.articles, usedStoryValues(history));
   if (!story) {
     throw new Error('No safe fresh news story was found.');
   }
@@ -88,18 +88,42 @@ export async function runNewsPost({
   let imageSelection = 'verified-source-article';
 
   if (story.sourceType === 'public-social') {
-    corroboration = await corroborateSocialStory(story, {
-      execFileImpl
-    });
+    try {
+      corroboration = await corroborateSocialStory(story, {
+        execFileImpl
+      });
 
-    publishingStory = {
-      ...story,
-      url: corroboration.corroboratingSource.url,
-      domain: corroboration.corroboratingSource.domain,
-      publishedDate: corroboration.corroboratingSource.publishedDate,
-      snippet: corroboration.corroboratingSource.snippet || story.snippet,
-      corroboration
-    };
+      publishingStory = {
+        ...story,
+        url: corroboration.corroboratingSource.url,
+        domain: corroboration.corroboratingSource.domain,
+        publishedDate: corroboration.corroboratingSource.publishedDate,
+        snippet: corroboration.corroboratingSource.snippet || story.snippet,
+        corroboration
+      };
+    } catch (error) {
+      console.log(
+        'Public social story could not be independently corroborated; falling back to fresh web news: ' +
+        (error instanceof Error ? error.message : String(error))
+      );
+
+      const fallbackDiscovery = await import('./news.js').then(module =>
+        module.searchFreshNews({ fetchImpl })
+      );
+      const fallbackStory = selectFreshStory(
+        fallbackDiscovery.articles,
+        usedStoryValues(history)
+      );
+
+      if (!fallbackStory || fallbackStory.sourceType === 'public-social') {
+        throw error;
+      }
+
+      discovery = fallbackDiscovery;
+      story = fallbackStory;
+      publishingStory = fallbackStory;
+      corroboration = null;
+    }
   }
 
   try {
