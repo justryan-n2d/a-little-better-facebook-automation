@@ -951,8 +951,8 @@ test('falls back to a fresh web story when a social lead cannot be corroborated'
           return new Response(JSON.stringify({
             results: [{
               url: 'https://images.example/neighbor-safe.jpg',
-              title: 'People helping a family after a storm',
-              description: 'People helping a family repair a storm damaged home.',
+              title: 'Volunteer helps family after storm at home',
+              description: 'A volunteer helps a family repair a storm damaged home.',
               creator: 'Example Photographer',
               provider: 'Example Commons',
               license: 'cc0',
