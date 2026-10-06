@@ -337,6 +337,58 @@ function titleFingerprint(title) {
   return [...new Set(words)].sort().slice(0, 12).join(' ');
 }
 
+const DEFAULT_NEWS_REUSE_COOLDOWN_DAYS = 28;
+
+function titleSimilarity(first, second) {
+  const firstTokens = new Set(titleFingerprint(first).split(' ').filter(Boolean));
+  const secondTokens = new Set(titleFingerprint(second).split(' ').filter(Boolean));
+  if (!firstTokens.size || !secondTokens.size) return 0;
+
+  let common = 0;
+  for (const token of firstTokens) {
+    if (secondTokens.has(token)) common += 1;
+  }
+
+  const minimumSize = Math.min(firstTokens.size, secondTokens.size);
+  const requiredCommon = Math.min(5, minimumSize);
+  if (common < requiredCommon) return 0;
+  return common / minimumSize;
+}
+
+function historyAgeDays(value, now) {
+  const parsed = new Date(String(value || '').trim() + 'T00:00:00+08:00');
+  if (Number.isNaN(parsed.getTime())) return Infinity;
+  return (now.getTime() - parsed.getTime()) / 86400000;
+}
+
+function isRecentlyUsedStory(article, {
+  usedUrlSet,
+  usedTitleSet,
+  usedStories = [],
+  now = new Date(),
+  reuseCooldownDays = DEFAULT_NEWS_REUSE_COOLDOWN_DAYS
+} = {}) {
+  const url = normalizeUrl(article?.url);
+  const fingerprint = titleFingerprint(article?.title);
+
+  if (usedUrlSet.has(url) || usedTitleSet.has(fingerprint)) return true;
+  if (!Number.isFinite(reuseCooldownDays) || reuseCooldownDays <= 0) return false;
+
+  return usedStories.some(previous => {
+    const ageDays = historyAgeDays(previous?.date, now);
+    if (ageDays < 0 || ageDays > reuseCooldownDays) return false;
+
+    const previousUrl = normalizeUrl(previous?.url);
+    if (previousUrl && previousUrl === url) return true;
+
+    if (!previous?.title) return false;
+    const previousFingerprint = titleFingerprint(previous.title);
+    if (previousFingerprint && previousFingerprint === fingerprint) return true;
+
+    return titleSimilarity(previous.title, article?.title) >= 0.7;
+  });
+}
+
 function hoursOld(seendate, now = new Date()) {
   if (!seendate) return 999;
   const raw = String(seendate);
@@ -613,7 +665,9 @@ export async function searchFreshNews({
 export function selectFreshStory(articles, {
   usedUrls = [],
   usedTitles = [],
-  now = new Date()
+  usedStories = [],
+  now = new Date(),
+  reuseCooldownDays = DEFAULT_NEWS_REUSE_COOLDOWN_DAYS
 } = {}) {
   const usedUrlSet = new Set(usedUrls.map(normalizeUrl));
   const usedTitleSet = new Set(usedTitles.map(titleFingerprint));
@@ -624,7 +678,16 @@ export function selectFreshStory(articles, {
     if (!isSafeNewsCandidate(storyContext) || !isLittleBetterTopic(storyContext)) continue;
     const url = normalizeUrl(article.url);
     const fingerprint = titleFingerprint(article.title);
-    if (!url || usedUrlSet.has(url) || usedTitleSet.has(fingerprint)) continue;
+    if (
+      !url ||
+      isRecentlyUsedStory(article, {
+        usedUrlSet,
+        usedTitleSet,
+        usedStories,
+        now,
+        reuseCooldownDays
+      })
+    ) continue;
 
     const key = fingerprint || url;
     const group = groups.get(key) || {
