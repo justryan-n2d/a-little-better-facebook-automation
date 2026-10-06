@@ -872,14 +872,18 @@ test('news post runner is importable', () => {
 test('falls back to a fresh web story when a social lead cannot be corroborated', async () => {
   const dir = await mkdtemp('/tmp/a-little-better-social-fallback-test-');
   const historyPath = join(dir, 'history.json');
-  const imageBuffer = await sharp({
-    create: {
-      width: 800,
-      height: 600,
-      channels: 3,
-      background: { r: 80, g: 150, b: 120 }
+  const imageRaw = Buffer.alloc(800 * 600 * 3);
+  for (let y = 0; y < 600; y += 1) {
+    for (let x = 0; x < 800; x += 1) {
+      const offset = (y * 800 + x) * 3;
+      imageRaw[offset] = (x * 3 + y) % 256;
+      imageRaw[offset + 1] = (x + y * 2) % 256;
+      imageRaw[offset + 2] = (x * 2 + y * 3) % 256;
     }
-  }).jpeg().toBuffer();
+  }
+  const imageBuffer = await sharp(imageRaw, {
+    raw: { width: 800, height: 600, channels: 3 }
+  }).jpeg({ quality: 90 }).toBuffer();
 
   let searchCall = 0;
   try {
