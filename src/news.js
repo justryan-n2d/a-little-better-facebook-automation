@@ -992,7 +992,7 @@ export async function findRightsSafeStoryImage(story, { fetchImpl = fetch } = {}
   const storyContext = cleanText(
     [story?.title, story?.snippet].filter(Boolean).join(' ')
   );
-  const queries = buildImageQueries(storyContext, topic);
+  const queries = buildImageQueries(story, topic);
 
   const image = await findOpenverseImage(queries, {
     licenses: ['cc0', 'pdm', 'by'],
