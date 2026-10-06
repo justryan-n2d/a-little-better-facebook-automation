@@ -35,7 +35,7 @@ jobs:
           FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
           META_GRAPH_VERSION: v26.0
           FB_ANALYTICS_LOOKBACK_DAYS: "30"
-          FB_POST_INSIGHT_METRICS: "post_impressions_unique,post_engaged_users"
+          FB_POST_INSIGHT_METRICS: "post_media_view"
         run: node src/analytics-collector.js
 
       - name: Commit analytics history
