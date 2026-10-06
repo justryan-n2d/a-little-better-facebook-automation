@@ -361,17 +361,36 @@ function historyAgeDays(value, now) {
   return (now.getTime() - parsed.getTime()) / 86400000;
 }
 
-function isRecentlyUsedStory(article, {
-  usedUrlSet,
-  usedTitleSet,
+function storyTitles(story) {
+  return [...new Set(
+    [story?.title, story?.canonicalTitle]
+      .map(value => cleanText(value))
+      .filter(Boolean)
+  )];
+}
+
+export function isRecentlyUsedStory(article, {
+  usedUrls = [],
+  usedTitles = [],
+  usedCanonicalTitles = [],
   usedStories = [],
   now = new Date(),
   reuseCooldownDays = DEFAULT_NEWS_REUSE_COOLDOWN_DAYS
 } = {}) {
   const url = normalizeUrl(article?.url);
-  const fingerprint = titleFingerprint(article?.title);
+  const candidateTitles = storyTitles(article);
+  const candidateFingerprints = new Set(
+    candidateTitles.map(titleFingerprint).filter(Boolean)
+  );
+  const usedUrlSet = new Set(usedUrls.map(normalizeUrl).filter(Boolean));
+  const usedTitleSet = new Set([
+    ...usedTitles,
+    ...usedCanonicalTitles
+  ].map(titleFingerprint).filter(Boolean));
 
-  if (usedUrlSet.has(url) || usedTitleSet.has(fingerprint)) return true;
+  if (usedUrlSet.has(url)) return true;
+  if ([...candidateFingerprints].some(fingerprint => usedTitleSet.has(fingerprint))) return true;
+
   if (!Number.isFinite(reuseCooldownDays) || reuseCooldownDays <= 0) return false;
 
   return usedStories.some(previous => {
@@ -381,11 +400,20 @@ function isRecentlyUsedStory(article, {
     const previousUrl = normalizeUrl(previous?.url);
     if (previousUrl && previousUrl === url) return true;
 
-    if (!previous?.title) return false;
-    const previousFingerprint = titleFingerprint(previous.title);
-    if (previousFingerprint && previousFingerprint === fingerprint) return true;
+    const previousTitles = storyTitles(previous);
+    const previousFingerprints = new Set(
+      previousTitles.map(titleFingerprint).filter(Boolean)
+    );
 
-    return titleSimilarity(previous.title, article?.title) >= 0.7;
+    for (const fingerprint of candidateFingerprints) {
+      if (previousFingerprints.has(fingerprint)) return true;
+    }
+
+    return candidateTitles.some(candidateTitle =>
+      previousTitles.some(previousTitle =>
+        titleSimilarity(previousTitle, candidateTitle) >= 0.7
+      )
+    );
   });
 }
 
@@ -665,12 +693,11 @@ export async function searchFreshNews({
 export function selectFreshStory(articles, {
   usedUrls = [],
   usedTitles = [],
+  usedCanonicalTitles = [],
   usedStories = [],
   now = new Date(),
   reuseCooldownDays = DEFAULT_NEWS_REUSE_COOLDOWN_DAYS
 } = {}) {
-  const usedUrlSet = new Set(usedUrls.map(normalizeUrl));
-  const usedTitleSet = new Set(usedTitles.map(titleFingerprint));
   const groups = new Map();
 
   for (const article of Array.isArray(articles) ? articles : []) {
@@ -681,8 +708,9 @@ export function selectFreshStory(articles, {
     if (
       !url ||
       isRecentlyUsedStory(article, {
-        usedUrlSet,
-        usedTitleSet,
+        usedUrls,
+        usedTitles,
+        usedCanonicalTitles,
         usedStories,
         now,
         reuseCooldownDays
