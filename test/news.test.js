@@ -1383,7 +1383,7 @@ test('requires the resolved corroborating source to be different from a recently
               content: [{
                 type: 'text',
                 text: [
-                  'Title: Gita the rescue dog leads a deputy to her injured owner',
+                  'Title: A sweet moment shows how animals can make a difference',
                   'URL: https://www.reddit.com/r/OneKindAct/comments/new-lead',
                   'Published: 2026-10-06T13:00:00Z',
                   'Author: Example Creator',
