@@ -1348,12 +1348,20 @@ test('rejects stale public-social corroboration based on the corroborating artic
 test('requires the resolved corroborating source to be different from a recently used story', async () => {
   const dir = await mkdtemp('/tmp/a-little-better-social-duplicate-test-');
   const historyPath = join(dir, 'history.json');
-  const width = 120;
-  const height = 120;
-  const pixels = Buffer.alloc(width * height * 3, 80);
+  const width = 800;
+  const height = 600;
+  const pixels = Buffer.alloc(width * height * 3);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width + x) * 3;
+      pixels[index] = (x * 17 + y * 11) % 256;
+      pixels[index + 1] = (x * 7 + y * 19) % 256;
+      pixels[index + 2] = (x * 23 + y * 5) % 256;
+    }
+  }
   const imageBuffer = await sharp(pixels, {
     raw: { width, height, channels: 3 }
-  }).jpeg({ quality: 85 }).toBuffer();
+  }).jpeg({ quality: 90 }).toBuffer();
 
   await writeFile(historyPath, JSON.stringify({
     version: 1,
