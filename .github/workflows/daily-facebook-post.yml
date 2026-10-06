@@ -3,6 +3,8 @@ name: Daily A Little Better Facebook Post
 run-name: A Little Better Facebook Post${{ github.event_name == 'repository_dispatch' && ' [watchdog recovery]' || '' }}
 
 on:
+  push:
+    branches: ["main"]
   schedule:
     - cron: "0 16 * * *"
       timezone: "Asia/Manila"
@@ -40,6 +42,7 @@ env:
 
 jobs:
   publish:
+    if: ${{ github.event_name != 'push' || startsWith(github.event.head_commit.message, '[publish-test]') }}
     outputs:
       did_publish: ${{ steps.publish_result.outputs.did_publish }}
     runs-on: ubuntu-latest
