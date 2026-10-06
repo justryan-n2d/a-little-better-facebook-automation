@@ -99,3 +99,5 @@ Sunday: encouragement
 
 Every generated caption includes the A Little Better call to action.
 
+
+<!-- live publish test 2026-10-06 -->
