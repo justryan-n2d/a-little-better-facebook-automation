@@ -1335,7 +1335,7 @@ test('rejects stale public-social corroboration based on the corroborating artic
               'Author: Example Reporter',
               'Highlights:',
               'The rescue dog led deputies to an injured owner.'
-            ].join('\\n')
+            ].join('\n')
           }]
         }),
         stderr: ''
@@ -1397,7 +1397,7 @@ test('requires the resolved corroborating source to be different from a recently
                   'Author: Example Creator',
                   'Highlights:',
                   'A rescue dog led a deputy to an injured owner and helped get him assistance.'
-                ].join('\\n')
+                ].join('\n')
               }]
             }),
             stderr: ''
@@ -1416,7 +1416,7 @@ test('requires the resolved corroborating source to be different from a recently
                 'Author: Example Reporter',
                 'Highlights:',
                 'The rescue dog led deputies to the injured owner and helped him receive assistance.'
-              ].join('\\n')
+              ].join('\n')
             }]
           }),
           stderr: ''
