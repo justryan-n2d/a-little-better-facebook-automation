@@ -2,12 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import sharp from 'sharp';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
-const writeFileCompat = (path, value) => import('node:fs/promises').then(module => module.writeFile(path, value, 'utf8'));
 import {
   buildNewsHook,
   buildNewsCaption,
@@ -1356,7 +1355,7 @@ test('requires the resolved corroborating source to be different from a recently
     raw: { width, height, channels: 3 }
   }).jpeg({ quality: 85 }).toBuffer();
 
-  await writeFileCompat(historyPath, JSON.stringify({
+  await writeFile(historyPath, JSON.stringify({
     version: 1,
     stories: [{
       date: '2026-10-04',
