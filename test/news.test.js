@@ -556,6 +556,28 @@ test('rejects a two-day-old Fresh News story even when the source URL and wordin
   assert.equal(selected, null);
 });
 
+test('does not block a different recent story that only shares a few generic terms', () => {
+  const now = new Date('2026-10-06T14:00:00Z');
+
+  const selected = selectFreshStory(
+    [{
+      title: 'Students celebrate new scholarship awards from a local charity',
+      url: 'https://newsource.example/different-scholarship',
+      seendate: '20261006100000'
+    }],
+    {
+      now,
+      usedStories: [{
+        date: '2026-10-04',
+        title: 'Students receive scholarship awards for college success',
+        url: 'https://oldsource.example/other-scholarship'
+      }]
+    }
+  );
+
+  assert.equal(selected?.url, 'https://newsource.example/different-scholarship');
+});
+
 test('skips unrelated or negative stories even when they are ranked highly', () => {
   const selected = selectFreshStory([
     {
