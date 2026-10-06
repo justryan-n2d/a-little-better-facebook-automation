@@ -98,3 +98,4 @@ Saturday: casual
 Sunday: encouragement
 
 Every generated caption includes the A Little Better call to action.
+

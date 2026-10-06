@@ -44,6 +44,8 @@ const STORY_VISUAL_CONCEPTS = [
   { name: 'student', type: 'subject', terms: ['student', 'students', 'pupil', 'pupils', 'classmate', 'classmates'] },
   { name: 'teacher', type: 'subject', terms: ['teacher', 'teachers', 'professor', 'professors', 'educator', 'educators'] },
   { name: 'scientist', type: 'subject', terms: ['scientist', 'scientists', 'researcher', 'researchers'] },
+  { name: 'family', type: 'subject', terms: ['family', 'families', 'parent', 'parents', 'mother', 'mothers', 'father', 'fathers'] },
+  { name: 'neighbor', type: 'subject', terms: ['neighbor', 'neighbors'] },
   { name: 'volunteer', type: 'subject', terms: ['volunteer', 'volunteers'] },
   { name: 'senior', type: 'subject', terms: ['senior', 'seniors', 'elderly', 'grandmother', 'grandfather', 'grandparent', 'grandparents'] },
   { name: 'home', type: 'context', terms: ['home', 'homes', 'house', 'houses', 'apartment', 'apartments'] },
@@ -990,7 +992,7 @@ export async function findRightsSafeStoryImage(story, { fetchImpl = fetch } = {}
   const storyContext = cleanText(
     [story?.title, story?.snippet].filter(Boolean).join(' ')
   );
-  const queries = buildImageQueries(storyContext, topic);
+  const queries = buildImageQueries(story, topic);
 
   const image = await findOpenverseImage(queries, {
     licenses: ['cc0', 'pdm', 'by'],
