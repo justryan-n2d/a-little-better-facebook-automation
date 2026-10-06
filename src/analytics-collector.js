@@ -239,7 +239,7 @@ export async function collectGrowthAnalytics({
             },
             fetchImpl
           });
-          edgeCounts[fieldName] = summaryCount(edgePayload?.summary);
+          edgeCounts[fieldName] = summaryCount(edgePayload);
         } catch (error) {
           edgeErrors.push({
             metric: edgeName,
