@@ -7,7 +7,7 @@ import { loadHistory } from './history.js';
 
 const DEFAULT_GRAPH_VERSION = 'v26.0';
 const DEFAULT_LOOKBACK_DAYS = 30;
-const DEFAULT_INSIGHT_METRICS = ['post_impressions_unique', 'post_engaged_users'];
+const DEFAULT_INSIGHT_METRICS = ['post_media_view'];
 
 function requiredEnv(name) {
   const value = process.env[name]?.trim();
@@ -42,7 +42,8 @@ function metricAlias(name) {
   const aliases = {
     post_impressions_unique: 'reach',
     post_impressions: 'impressions',
-    post_engaged_users: 'engagedUsers'
+    post_engaged_users: 'engagedUsers',
+    post_media_view: 'mediaViews'
   };
   return aliases[name] || name;
 }
@@ -215,19 +216,52 @@ export async function collectGrowthAnalytics({
         graphVersion,
         path: post.facebookPostId,
         params: {
-          fields: 'id,created_time,permalink_url,shares,comments.limit(0).summary(true),reactions.limit(0).summary(true)',
+          fields: 'id,created_time,permalink_url,shares',
           access_token: pageAccessToken
         },
         fetchImpl
       });
 
-      const snapshot = parsePostMetrics(payload, {
+      const edgeCounts = {};
+      const edgeErrors = [];
+      for (const [edgeName, fieldName] of [
+        ['reactions', 'reactions'],
+        ['comments', 'comments']
+      ]) {
+        try {
+          const edgePayload = await metaGet({
+            graphVersion,
+            path: `${post.facebookPostId}/${edgeName}`,
+            params: {
+              limit: 0,
+              summary: true,
+              access_token: pageAccessToken
+            },
+            fetchImpl
+          });
+          edgeCounts[fieldName] = summaryCount(edgePayload?.summary);
+        } catch (error) {
+          edgeErrors.push({
+            metric: edgeName,
+            message: error instanceof Error ? error.message : String(error)
+          });
+          edgeCounts[fieldName] = 0;
+        }
+      }
+
+      const snapshot = parsePostMetrics({
+        ...payload,
+        reactions: edgeCounts.reactions,
+        comments: edgeCounts.comments
+      }, {
         contentId: post.contentId,
         category: post.category,
         postDate: post.date,
         publishedAt: post.publishedAt || null,
         experiment: post.experiment || null
       });
+
+      if (edgeErrors.length) snapshot.metricErrors = edgeErrors;
 
       const insights = {};
       for (const metric of insightMetrics) {
