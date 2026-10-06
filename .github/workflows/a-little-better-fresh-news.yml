@@ -11,6 +11,9 @@ on:
         required: false
         default: false
         type: boolean
+  repository_dispatch:
+    types:
+      - fresh_news_watchdog_recovery
 
 permissions:
   contents: write
@@ -22,7 +25,7 @@ concurrency:
 jobs:
   fresh-news:
     env:
-      NEWS_AUTO_PUBLISH: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.auto_publish) }}
+      NEWS_AUTO_PUBLISH: ${{ github.event_name == 'schedule' || github.event_name == 'repository_dispatch' || (github.event_name == 'workflow_dispatch' && inputs.auto_publish) }}
       STORY_SCOUT_MAX_QUERIES: "1"
     runs-on: ubuntu-latest
     timeout-minutes: 15
