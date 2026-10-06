@@ -47,9 +47,11 @@ function alreadyPublishedToday(history, date) {
 }
 
 function usedStoryValues(history) {
+  const recentStories = history.stories.slice(-180);
   return {
-    usedUrls: history.stories.slice(-60).map(item => item.url).filter(Boolean),
-    usedTitles: history.stories.slice(-60).map(item => item.title).filter(Boolean)
+    usedUrls: recentStories.map(item => item.url).filter(Boolean),
+    usedTitles: recentStories.map(item => item.title).filter(Boolean),
+    usedStories: recentStories
   };
 }
 
