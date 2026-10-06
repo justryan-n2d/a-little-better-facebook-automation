@@ -387,27 +387,12 @@ async function runMaintenanceChecks({ apiUrl, token, repository, now }) {
   });
 }
 
-async function main() {
-  const token = process.env.GITHUB_TOKEN?.trim();
-  const repository = process.env.GITHUB_REPOSITORY?.trim();
-  const workflowFile = process.env.WATCHDOG_WORKFLOW_FILE?.trim() || '.github/workflows/daily-facebook-post.yml';
-  const apiUrl = (process.env.GITHUB_API_URL?.trim() || 'https://api.github.com').replace(/\/$/, '');
-
-  if (!token) throw new Error('GITHUB_TOKEN is required.');
-  if (!repository) throw new Error('GITHUB_REPOSITORY is required.');
-
-  const now = new Date();
-  const today = todayInManila(now);
-  const graceMinutes = envInt('WATCHDOG_GRACE_MINUTES', 60);
-  const maxAttempts = envInt('WATCHDOG_MAX_ATTEMPTS', DEFAULT_MAX_ATTEMPTS);
-  const scheduleHour = envInt('WATCHDOG_SCHEDULE_HOUR', 16);
-  const scheduleMinute = envInt('WATCHDOG_SCHEDULE_MINUTE', 0);
+async function fetchWorkflowRuns({ apiUrl, token, repository, workflowFile, today }) {
   const encodedWorkflow = encodeURIComponent(workflowFile);
-
   const runsPayload = await githubRequest({
     apiUrl,
     token,
-    path: `/repos/${repository}/actions/workflows/${encodedWorkflow}/runs?per_page=50`
+    path: '/repos/' + repository + '/actions/workflows/' + encodedWorkflow + '/runs?per_page=50'
   });
 
   const rawRuns = Array.isArray(runsPayload.workflow_runs) ? runsPayload.workflow_runs : [];
@@ -423,129 +408,231 @@ async function main() {
       continue;
     }
 
-    const jobsPayload = await githubRequest({
-      apiUrl,
-      token,
-      path: `/repos/${repository}/actions/runs/${run.id}/jobs?per_page=100`
-    });
-    const jobs = Array.isArray(jobsPayload.jobs) ? jobsPayload.jobs : [];
-    const failedJobs = jobs.filter(job => job.conclusion && job.conclusion !== 'success');
+    try {
+      const jobsPayload = await githubRequest({
+        apiUrl,
+        token,
+        path: '/repos/' + repository + '/actions/runs/' + run.id + '/jobs?per_page=100'
+      });
+      const jobs = Array.isArray(jobsPayload.jobs) ? jobsPayload.jobs : [];
+      const failedJobs = jobs.filter(job => job.conclusion && job.conclusion !== 'success');
 
-    runs.push({
-      ...run,
-      failedJobNames: failedJobs.map(job => job.name),
-      failedJobs: failedJobs.map(job => ({
-        name: job.name,
-        html_url: job.html_url,
-        failedSteps: Array.isArray(job.steps)
-          ? job.steps
-              .filter(step => step.conclusion && step.conclusion !== 'success')
-              .map(step => step.name)
-          : []
-      }))
-    });
+      runs.push({
+        ...run,
+        jobsChecked: true,
+        jobCount: jobs.length,
+        failedJobNames: failedJobs.map(job => job.name),
+        failedJobs: failedJobs.map(job => ({
+          name: job.name,
+          html_url: job.html_url,
+          failedSteps: Array.isArray(job.steps)
+            ? job.steps
+                .filter(step => step.conclusion && step.conclusion !== 'success')
+                .map(step => step.name)
+            : []
+        }))
+      });
+    } catch (error) {
+      console.warn(
+        'Could not inspect jobs for workflow run ' + run.id + ': ' +
+        (error instanceof Error ? error.message : String(error))
+      );
+      runs.push({
+        ...run,
+        jobsChecked: false,
+        jobCount: null,
+        failedJobNames: [],
+        failedJobs: []
+      });
+    }
   }
 
-  const action = decideWatchdogAction({
-    now: now.toISOString(),
-    today,
-    scheduleHour,
-    scheduleMinute,
-    graceMinutes,
-    maxAttempts,
-    runs
-  });
+  return runs;
+}
 
-  console.log(`Watchdog ${today}: ${action.type} (${action.reason})${action.runId ? ` run=${action.runId}` : ''}`);
-
-  await runMaintenanceChecks({
-    apiUrl,
-    token,
-    repository,
-    now: now.toISOString()
-  });
-
-  if (action.type === 'wait' || action.type === 'healthy') return;
-
-  if (action.type === 'rerun-failed-jobs') {
-    await githubRequest({
-      apiUrl,
-      token,
-      method: 'POST',
-      path: `/repos/${repository}/actions/runs/${action.runId}/rerun-failed-jobs`
-    });
-    console.log(`Requested rerun of failed jobs for run ${action.runId}.`);
-    return;
-  }
-
-  if (action.type === 'dispatch') {
-    await githubRequest({
-      apiUrl,
-      token,
-      method: 'POST',
-      path: `/repos/${repository}/dispatches`,
-      body: {
-        event_type: 'facebook_watchdog_recovery',
-        client_payload: {
-          recovery_date: today,
-          reason: action.reason
-        }
-      }
-    });
-    console.log(`Dispatched Facebook recovery workflow for ${today}.`);
-    return;
-  }
-
-  const run = runs.find(item => item.id === action.runId) || {};
-  const runUrl = run.html_url || `https://github.com/${repository}/actions/runs/${action.runId}`;
-  const failedJobs = Array.isArray(run.failedJobs) ? run.failedJobs : [];
-  const failedSummary = failedJobs.length
-    ? failedJobs
-        .map(job => `- ${job.name}: ${job.failedSteps.join(', ') || 'failed'}`)
-        .join('\n')
-    : '- Unable to determine failed job details.';
-
-  const searchQuery = encodeURIComponent(`repo:${repository} is:issue is:open in:title [Facebook Watchdog] ${today}`);
-  const existing = await githubRequest({
-    apiUrl,
-    token,
-    path: `/search/issues?q=${searchQuery}&per_page=1`
-  });
-
-  if (Number(existing.total_count || 0) > 0) {
-    console.log(`An open watchdog issue already exists for ${today}.`);
-    return;
-  }
-
-  const body = truncate([
-    `The A Little Better Facebook automation needs attention for ${today}.`,
-    '',
-    `Reason: ${action.reason}`,
-    `Workflow run: ${runUrl}`,
-    `Run attempt: ${run.run_attempt ?? 'unknown'}`,
-    '',
-    'Failed jobs:',
-    failedSummary,
-    '',
-    'The watchdog did not automatically re-publish because retrying an uncertain Facebook publish could create a duplicate post.',
-    '',
-    'Check the workflow logs, verify the Facebook Page/API status, then close this issue after resolving it.'
-  ].join('\n'));
-
+async function dispatchRecovery({ apiUrl, token, repository, eventType, today, reason }) {
   await githubRequest({
     apiUrl,
     token,
     method: 'POST',
-    path: `/repos/${repository}/issues`,
+    path: '/repos/' + repository + '/dispatches',
     body: {
-      title: `[Facebook Watchdog] Attention needed - ${today}`,
-      body
+      event_type: eventType,
+      client_payload: {
+        recovery_date: today,
+        reason
+      }
     }
   });
-
-  console.log(`Created watchdog issue for ${today}.`);
 }
 
+async function createWorkflowAlert({
+  apiUrl,
+  token,
+  repository,
+  today,
+  workflowName,
+  action,
+  runs
+}) {
+  const run = runs.find(item => item.id === action.runId) || {};
+  const runUrl = run.html_url || ('https://github.com/' + repository + '/actions/runs/' + action.runId);
+  const failedJobs = Array.isArray(run.failedJobs) ? run.failedJobs : [];
+  const failedSummary = failedJobs.length
+    ? failedJobs
+        .map(job => '- ' + job.name + ': ' + (job.failedSteps.join(', ') || 'failed'))
+        .join('\n')
+    : '- Unable to determine failed job details.';
+
+  const title = workflowName + ' attention needed - ' + today;
+  await createIssueIfMissing({
+    apiUrl,
+    token,
+    repository,
+    title,
+    body: truncate([
+      'The A Little Better ' + workflowName + ' needs attention for ' + today + '.',
+      '',
+      'Reason: ' + action.reason,
+      'Workflow run: ' + runUrl,
+      'Run attempt: ' + (run.run_attempt ?? 'unknown'),
+      '',
+      'Failed jobs:',
+      failedSummary,
+      '',
+      'The watchdog did not automatically re-publish after a real job failure because retrying an uncertain Facebook publish could create a duplicate post.',
+      '',
+      'Check the workflow logs and Facebook Page/API status, then close this issue after resolving it.'
+    ].join('\n'))
+  });
+}
+
+async function main() {
+  const token = process.env.GITHUB_TOKEN?.trim();
+  const repository = process.env.GITHUB_REPOSITORY?.trim();
+  const apiUrl = (process.env.GITHUB_API_URL?.trim() || 'https://api.github.com').replace(/\/$/, '');
+
+  if (!token) throw new Error('GITHUB_TOKEN is required.');
+  if (!repository) throw new Error('GITHUB_REPOSITORY is required.');
+
+  const now = new Date();
+  const today = todayInManila(now);
+
+  const monitoredWorkflows = [
+    {
+      name: 'regular daily Facebook post',
+      file: process.env.WATCHDOG_WORKFLOW_FILE?.trim() || '.github/workflows/daily-facebook-post.yml',
+      scheduleHour: envInt('WATCHDOG_SCHEDULE_HOUR', 16),
+      scheduleMinute: envInt('WATCHDOG_SCHEDULE_MINUTE', 0),
+      graceMinutes: envInt('WATCHDOG_GRACE_MINUTES', 60),
+      maxAttempts: envInt('WATCHDOG_MAX_ATTEMPTS', DEFAULT_MAX_ATTEMPTS),
+      recoveryEvent: 'facebook_watchdog_recovery'
+    },
+    {
+      name: 'Fresh News Facebook post',
+      file: process.env.WATCHDOG_NEWS_WORKFLOW_FILE?.trim() || '.github/workflows/a-little-better-fresh-news.yml',
+      scheduleHour: envInt('WATCHDOG_NEWS_SCHEDULE_HOUR', 11),
+      scheduleMinute: envInt('WATCHDOG_NEWS_SCHEDULE_MINUTE', 0),
+      graceMinutes: envInt('WATCHDOG_NEWS_GRACE_MINUTES', 60),
+      maxAttempts: envInt('WATCHDOG_NEWS_MAX_ATTEMPTS', DEFAULT_MAX_ATTEMPTS),
+      recoveryEvent: 'fresh_news_watchdog_recovery'
+    }
+  ];
+
+  for (const workflow of monitoredWorkflows) {
+    try {
+      const runs = await fetchWorkflowRuns({
+        apiUrl,
+        token,
+        repository,
+        workflowFile: workflow.file,
+        today
+      });
+
+      const action = decideWatchdogAction({
+        now: now.toISOString(),
+        today,
+        scheduleHour: workflow.scheduleHour,
+        scheduleMinute: workflow.scheduleMinute,
+        graceMinutes: workflow.graceMinutes,
+        maxAttempts: workflow.maxAttempts,
+        runs
+      });
+
+      console.log(
+        'Watchdog ' + today + ' ' + workflow.name + ': ' +
+        action.type + ' (' + action.reason + ')' +
+        (action.runId ? ' run=' + action.runId : '')
+      );
+
+      if (action.type === 'wait' || action.type === 'healthy') continue;
+
+      if (action.type === 'rerun-workflow') {
+        await githubRequest({
+          apiUrl,
+          token,
+          method: 'POST',
+          path: '/repos/' + repository + '/actions/runs/' + action.runId + '/rerun'
+        });
+        console.log('Requested full workflow rerun for ' + workflow.name + ' run ' + action.runId + '.');
+        continue;
+      }
+
+      if (action.type === 'rerun-failed-jobs') {
+        await githubRequest({
+          apiUrl,
+          token,
+          method: 'POST',
+          path: '/repos/' + repository + '/actions/runs/' + action.runId + '/rerun-failed-jobs'
+        });
+        console.log('Requested failed-job rerun for ' + workflow.name + ' run ' + action.runId + '.');
+        continue;
+      }
+
+      if (action.type === 'dispatch') {
+        await dispatchRecovery({
+          apiUrl,
+          token,
+          repository,
+          eventType: workflow.recoveryEvent,
+          today,
+          reason: action.reason
+        });
+        console.log('Dispatched ' + workflow.name + ' recovery workflow for ' + today + '.');
+        continue;
+      }
+
+      await createWorkflowAlert({
+        apiUrl,
+        token,
+        repository,
+        today,
+        workflowName: workflow.name,
+        action,
+        runs
+      });
+    } catch (error) {
+      console.error(
+        'Watchdog could not monitor ' + workflow.name + ': ' +
+        (error instanceof Error ? error.stack || error.message : String(error))
+      );
+    }
+  }
+
+  try {
+    await runMaintenanceChecks({
+      apiUrl,
+      token,
+      repository,
+      now: now.toISOString()
+    });
+  } catch (error) {
+    console.error(
+      'Watchdog maintenance checks failed, but workflow monitoring has already been processed: ' +
+      (error instanceof Error ? error.stack || error.message : String(error))
+    );
+  }
+}
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch(error => {
     console.error(error instanceof Error ? error.stack || error.message : String(error));
