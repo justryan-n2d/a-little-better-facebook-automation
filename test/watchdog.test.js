@@ -85,6 +85,22 @@ test('dispatches recovery when the daily run is missing after the grace period',
   assert.deepEqual(action, { type: 'dispatch', reason: 'missing-daily-run' });
 });
 
+test('dispatches Fresh News recovery after the 11 AM schedule grace period', () => {
+  const action = decideWatchdogAction({
+    now: '2026-10-04T04:15:00.000Z',
+    today: '2026-10-04',
+    scheduleHour: 11,
+    scheduleMinute: 0,
+    graceMinutes: 60,
+    runs: []
+  });
+
+  assert.deepEqual(action, {
+    type: 'dispatch',
+    reason: 'missing-daily-run'
+  });
+});
+
 test('reruns a completed failure with zero jobs as a runner provisioning failure', () => {
   const action = decideWatchdogAction({
     now: '2026-10-04T02:00:00.000Z',
