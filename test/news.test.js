@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
+const writeFileCompat = (path, value) => import('node:fs/promises').then(module => module.writeFile(path, value, 'utf8'));
 import {
   buildNewsHook,
   buildNewsCaption,
@@ -34,6 +35,10 @@ import {
 } from '../src/news.js';
 import { buildNewsSvg, calculateNewsLayout, fitTextToBox, NEWS_PRIMARY, rectanglesOverlap, renderNewsImage } from '../src/news-image.js';
 import { runNewsPost } from '../src/news-post.js';
+import {
+  corroborateSocialStory,
+  isRecentCorroboratingSource
+} from '../src/story-scout.js';
 
 test('rejects unsafe or obviously graphic headlines', () => {
   assert.equal(isSafeNewsCandidate('Community volunteers help families after a storm'), true);
@@ -1290,6 +1295,173 @@ test('social story publishing path corroborates the lead and uses only the right
   }
 });
 
+
+test('rejects stale public-social corroboration based on the corroborating article date', async () => {
+  const now = new Date('2026-10-06T15:00:00Z');
+  const story = {
+    title: 'Rescue dog leads deputies to injured owner',
+    url: 'https://www.reddit.com/r/OneKindAct/comments/example',
+    sourceType: 'public-social',
+    socialPlatform: 'reddit',
+    snippet: 'A rescue dog helped an injured owner and people are sharing the story.'
+  };
+
+  const staleCandidate = {
+    title: 'Rescue dog leads deputies to injured owner',
+    url: 'https://news.example/old-dog-rescue',
+    publishedDate: '2024-10-04T16:51:17Z',
+    snippet: 'The rescue dog led deputies to an injured owner.'
+  };
+
+  assert.equal(
+    isRecentCorroboratingSource(staleCandidate, {
+      now,
+      maxAgeDays: 7
+    }),
+    false
+  );
+
+  await assert.rejects(
+    corroborateSocialStory(story, {
+      now,
+      maxAgeDays: 7,
+      execFileImpl: async () => ({
+        stdout: JSON.stringify({
+          content: [{
+            type: 'text',
+            text: [
+              'Title: Rescue dog leads deputies to injured owner',
+              'URL: https://news.example/old-dog-rescue',
+              'Published: 2024-10-04T16:51:17Z',
+              'Author: Example Reporter',
+              'Highlights:',
+              'The rescue dog led deputies to an injured owner.'
+            ].join('\\n')
+          }]
+        }),
+        stderr: ''
+      })
+    }),
+    /within 7 days/i
+  );
+});
+
+test('requires the resolved corroborating source to be different from a recently used story', async () => {
+  const dir = await mkdtemp('/tmp/a-little-better-social-duplicate-test-');
+  const historyPath = join(dir, 'history.json');
+  const width = 120;
+  const height = 120;
+  const pixels = Buffer.alloc(width * height * 3, 80);
+  const imageBuffer = await sharp(pixels, {
+    raw: { width, height, channels: 3 }
+  }).jpeg({ quality: 85 }).toBuffer();
+
+  await writeFileCompat(historyPath, JSON.stringify({
+    version: 1,
+    stories: [{
+      date: '2026-10-04',
+      title: 'A rescue dog story shared online',
+      canonicalTitle: 'Rescue dog leads deputies to injured owner',
+      url: 'https://localnews.example/dog-rescue',
+      published: true
+    }]
+  }));
+
+  let searchCall = 0;
+
+  try {
+    const result = await runNewsPost({
+      today: '2026-10-06',
+      autoPublish: false,
+      historyPath,
+      execFileImpl: async (_command, args) => {
+        searchCall += 1;
+        const query = JSON.parse(args[args.indexOf('--args') + 1]).query;
+
+        if (searchCall === 1) {
+          return {
+            stdout: JSON.stringify({
+              content: [{
+                type: 'text',
+                text: [
+                  'Title: Gita the rescue dog leads a deputy to her injured owner',
+                  'URL: https://www.reddit.com/r/OneKindAct/comments/new-lead',
+                  'Published: 2026-10-06T13:00:00Z',
+                  'Author: Example Creator',
+                  'Highlights:',
+                  'A rescue dog led a deputy to an injured owner and helped get him assistance.'
+                ].join('\\n')
+              }]
+            }),
+            stderr: ''
+          };
+        }
+
+        assert.match(query, /-site:reddit\\.com/i);
+        return {
+          stdout: JSON.stringify({
+            content: [{
+              type: 'text',
+              text: [
+                'Title: Rescue dog leads deputies to injured owner',
+                'URL: https://localnews.example/dog-rescue',
+                'Published: 2026-10-06T13:30:00Z',
+                'Author: Example Reporter',
+                'Highlights:',
+                'The rescue dog led deputies to the injured owner and helped him receive assistance.'
+              ].join('\\n')
+            }]
+          }),
+          stderr: ''
+        };
+      },
+      fetchImpl: async input => {
+        const url = String(input);
+
+        if (url.includes('api.gdeltproject.org')) {
+          return new Response(JSON.stringify({
+            articles: [{
+              title: 'Students receive a community scholarship award',
+              url: 'https://fresh.example/scholarship',
+              domain: 'fresh.example',
+              seendate: '20261006140000'
+            }]
+          }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          });
+        }
+
+        if (url === 'https://fresh.example/scholarship') {
+          return new Response(
+            '<html><head>' +
+            '<link rel="license" href="https://creativecommons.org/publicdomain/zero/1.0/">' +
+            '<meta property="og:image" content="https://images.example/scholarship.jpg">' +
+            '</head><body><article>' +
+            '<p>A community scholarship is helping students continue their education.</p>' +
+            '<p>The students received the award after local supporters contributed to the program.</p>' +
+            '</article></body></html>',
+            { status: 200, headers: { 'content-type': 'text/html' } }
+          );
+        }
+
+        if (url === 'https://images.example/scholarship.jpg') {
+          return new Response(imageBuffer, {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' }
+          });
+        }
+
+        throw new Error('Unexpected fetch URL: ' + url);
+      }
+    });
+
+    assert.equal(searchCall, 2);
+    assert.equal(result.title, 'Students receive a community scholarship award');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 test('labels rights-safe illustrative visuals as illustrative', () => {
   const credit = buildPhotoCredit({
