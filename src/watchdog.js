@@ -44,6 +44,10 @@ function resultForCompletedFailure(run, maxAttempts) {
   }
 
   const failedJobNames = Array.isArray(run.failedJobNames) ? run.failedJobNames : [];
+  if (run.jobsChecked === true && Number(run.jobCount) === 0) {
+    return { type: 'rerun-workflow', runId: run.id, reason: 'runner-provisioning-failure' };
+  }
+
   if (failedJobNames.length > 0 && failedJobNames.every(name => name === 'record')) {
     return { type: 'rerun-failed-jobs', runId: run.id, reason: 'record-job-failure' };
   }
@@ -118,38 +122,37 @@ export function decideWatchdogAction({
 }) {
   const todayRuns = runs
     .filter(run => isFromDate(run, today))
+    .filter(run => run?.event === 'schedule' || run?.event === 'repository_dispatch')
     .sort((a, b) => toTime(b.created_at) - toTime(a.created_at));
 
-  const latestScheduled = todayRuns.filter(run => run.event === 'schedule')[0];
-  const latestRecovery = todayRuns.filter(run => run.event === 'repository_dispatch')[0];
+  const latestRun = todayRuns[0];
 
-  if (latestScheduled) {
-    if (isActive(latestScheduled)) {
-      return { type: 'wait', reason: 'daily-run-active', runId: latestScheduled.id };
+  if (latestRun) {
+    if (isActive(latestRun)) {
+      return {
+        type: 'wait',
+        reason: latestRun.event === 'repository_dispatch'
+          ? 'recovery-run-active'
+          : 'daily-run-active',
+        runId: latestRun.id
+      };
     }
-    if (isSuccessful(latestScheduled)) {
-      return { type: 'healthy', runId: latestScheduled.id };
+
+    if (isSuccessful(latestRun)) {
+      return { type: 'healthy', runId: latestRun.id };
     }
-    if (latestScheduled.status === 'completed' && latestScheduled.conclusion === 'failure') {
-      return resultForCompletedFailure(latestScheduled, maxAttempts);
+
+    if (latestRun.status === 'completed' && latestRun.conclusion === 'failure') {
+      return resultForCompletedFailure(latestRun, maxAttempts);
     }
-    return { type: 'alert', runId: latestScheduled.id, reason: 'daily-run-not-successful' };
+
+    return { type: 'alert', runId: latestRun.id, reason: 'daily-run-not-successful' };
   }
 
-  if (latestRecovery) {
-    if (isActive(latestRecovery)) {
-      return { type: 'wait', reason: 'recovery-run-active', runId: latestRecovery.id };
-    }
-    if (isSuccessful(latestRecovery)) {
-      return { type: 'healthy', runId: latestRecovery.id };
-    }
-    if (latestRecovery.status === 'completed' && latestRecovery.conclusion === 'failure') {
-      return resultForCompletedFailure(latestRecovery, maxAttempts);
-    }
-    return { type: 'alert', runId: latestRecovery.id, reason: 'recovery-run-not-successful' };
-  }
-
-  const scheduleMs = toTime(`${today}T${String(scheduleHour).padStart(2, '0')}:${String(scheduleMinute).padStart(2, '0')}:00+08:00`);
+  const scheduleMs = toTime(
+    today + 'T' + String(scheduleHour).padStart(2, '0') + ':' +
+    String(scheduleMinute).padStart(2, '0') + ':00+08:00'
+  );
   const nowMs = toTime(now);
   if (nowMs >= scheduleMs + graceMinutes * 60_000) {
     return { type: 'dispatch', reason: 'missing-daily-run' };
@@ -157,7 +160,6 @@ export function decideWatchdogAction({
 
   return { type: 'wait', reason: 'before-grace-period' };
 }
-
 function todayInManila(now = new Date()) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Manila',
