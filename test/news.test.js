@@ -534,6 +534,28 @@ test('extracts GDELT article list', () => {
   assert.equal(items[0].title, 'A story');
 });
 
+test('rejects a two-day-old Fresh News story even when the source URL and wording change', () => {
+  const now = new Date('2026-10-06T14:00:00Z');
+
+  const selected = selectFreshStory(
+    [{
+      title: 'Stranger returns to help cover a storm-damaged home with a tarp',
+      url: 'https://newsource.example/updated-story',
+      seendate: '20261006100000'
+    }],
+    {
+      now,
+      usedStories: [{
+        date: '2026-10-04',
+        title: 'Stranger keeps promise to help cover a storm-damaged family home with a tarp',
+        url: 'https://oldsource.example/original-story'
+      }]
+    }
+  );
+
+  assert.equal(selected, null);
+});
+
 test('skips unrelated or negative stories even when they are ranked highly', () => {
   const selected = selectFreshStory([
     {
