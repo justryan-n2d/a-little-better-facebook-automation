@@ -48,6 +48,8 @@ const CORROBORATION_EXCLUDED_SOCIAL_SITES = [
   'tiktok.com', 'youtube.com', 'reddit.com', 'threads.net'
 ];
 
+export const DEFAULT_SOCIAL_CORROBORATION_MAX_AGE_DAYS = 7;
+
 function storyTokens(story) {
   return [...new Set(
     cleanText([story?.title, story?.snippet].filter(Boolean).join(' '))
@@ -87,9 +89,24 @@ export function buildCorroborationQuery(story) {
   return `"${phrase}" recent report news confirmed covered ${exclusions}`;
 }
 
+export function isRecentCorroboratingSource(candidate, {
+  now = new Date(),
+  maxAgeDays = DEFAULT_SOCIAL_CORROBORATION_MAX_AGE_DAYS
+} = {}) {
+  const publishedDate = String(candidate?.publishedDate || '').trim();
+  if (!publishedDate) return false;
+
+  const parsed = new Date(publishedDate);
+  if (Number.isNaN(parsed.getTime())) return false;
+
+  const ageHours = (now.getTime() - parsed.getTime()) / 3600000;
+  return ageHours >= -6 && ageHours <= maxAgeDays * 24;
+}
+
 export async function corroborateSocialStory(story, {
   numResults = 8,
   now = new Date(),
+  maxAgeDays = DEFAULT_SOCIAL_CORROBORATION_MAX_AGE_DAYS,
   execFileImpl = execFileAsync
 } = {}) {
   if (story?.sourceType !== 'public-social') {
@@ -119,9 +136,10 @@ export async function corroborateSocialStory(story, {
   const ranked = candidates
     .filter(candidate => candidate?.url && !detectPublicSocialPlatform(candidate.url))
     .filter(candidate => candidate.url !== story.url)
+    .filter(candidate => isRecentCorroboratingSource(candidate, { now, maxAgeDays }))
     .map(candidate => {
       const match = corroborationMatchScore(story, candidate);
-      const age = hoursOld(candidate.publishedDate || candidate.seendate, now);
+      const age = hoursOld(candidate.publishedDate, now);
       const freshnessBonus = age === null
         ? 0
         : age <= 48 ? 10
@@ -151,7 +169,9 @@ export async function corroborateSocialStory(story, {
   const corroboratingSource = ranked[0] || null;
   if (!corroboratingSource) {
     throw new Error(
-      'Public social story could not be independently corroborated: ' +
+      'Public social story could not be independently corroborated with a source published within ' +
+      maxAgeDays +
+      ' days: ' +
       cleanText(story?.title)
     );
   }
