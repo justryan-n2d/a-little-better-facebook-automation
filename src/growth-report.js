@@ -145,7 +145,7 @@ export function buildGrowthReport({
     '## Top posts by engagement',
     topPosts.length
       ? topPosts.map((post, index) =>
-          `${index + 1}. **${post.contentId}** (${post.category}) | engagement ${formatNumber(post.engagement)} | rate ${formatPercent(post, 'engagementRate')} | reactions ${formatNumber(post.reactions)} | comments ${formatNumber(post.comments)} | shares ${formatNumber(post.shares)} | reach ${formatMetric(post, 'reach')}`
+          `${index + 1}. **${post.contentId}** (${post.category}) | engagement ${formatNumber(post.engagement)} | rate ${formatPercent(post, 'engagementRate')} | reactions ${formatNumber(post.reactions)} | comments ${formatNumber(post.comments)} | shares ${formatNumber(post.shares)} | media views ${formatMetric(post, 'mediaViews')} | reach ${formatMetric(post, 'reach')}`
         ).join('\n')
       : 'No post analytics were captured for this week yet.',
     '',
@@ -204,7 +204,7 @@ export function buildGrowthReport({
     '- Share the strongest post to relevant communities only where Page sharing is allowed and useful.',
     '- Publish the Reel manually after reviewing the draft and adding suitable audio/visuals.',
     '',
-    '_Engagement score used for comparison: reactions + 2×comments + 3×shares. Reach is shown only when the Meta insight is available._'
+    '_Engagement score used for comparison: reactions + 2×comments + 3×shares. Media views use the current Meta post insight; legacy reach is shown only when available._'
   ];
 
   return lines.join('\n');
