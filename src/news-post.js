@@ -12,6 +12,8 @@ import {
   buildImageQueries,
   findRightsSafeStoryImage,
   findSourceArticleImage,
+  searchFreshNews,
+  isRecentlyUsedStory,
   selectFreshStory
 } from './news.js';
 import { renderNewsImage } from './news-image.js';
@@ -51,7 +53,35 @@ function usedStoryValues(history) {
   return {
     usedUrls: recentStories.map(item => item.url).filter(Boolean),
     usedTitles: recentStories.map(item => item.title).filter(Boolean),
+    usedCanonicalTitles: recentStories.map(item => item.canonicalTitle).filter(Boolean),
     usedStories: recentStories
+  };
+}
+
+async function selectFallbackFreshWebStory({ history, fetchImpl }) {
+  const fallbackDiscovery = await searchFreshNews({ fetchImpl });
+  const fallbackStory = selectFreshStory(
+    fallbackDiscovery.articles,
+    usedStoryValues(history)
+  );
+
+  if (!fallbackStory || fallbackStory.sourceType === 'public-social') {
+    return null;
+  }
+
+  return {
+    discovery: fallbackDiscovery,
+    story: fallbackStory
+  };
+}
+
+function resolvedStoryForDuplicateCheck(story, publishingStory, corroboration) {
+  const canonicalTitle = corroboration?.corroboratingSource?.title || publishingStory?.title || story?.title;
+  return {
+    ...publishingStory,
+    canonicalTitle,
+    title: canonicalTitle || story?.title,
+    snippet: corroboration?.corroboratingSource?.snippet || publishingStory?.snippet || story?.snippet
   };
 }
 
@@ -105,27 +135,68 @@ export async function runNewsPost({
       };
     } catch (error) {
       console.log(
-        'Public social story could not be independently corroborated; falling back to fresh web news: ' +
+        'Public social story is stale, duplicated, or could not be independently corroborated; ' +
+        'falling back to fresh web news: ' +
         (error instanceof Error ? error.message : String(error))
       );
 
-      const fallbackDiscovery = await import('./news.js').then(module =>
-        module.searchFreshNews({ fetchImpl })
-      );
-      const fallbackStory = selectFreshStory(
-        fallbackDiscovery.articles,
-        usedStoryValues(history)
-      );
+      const fallback = await selectFallbackFreshWebStory({
+        history,
+        fetchImpl
+      });
 
-      if (!fallbackStory || fallbackStory.sourceType === 'public-social') {
+      if (!fallback) {
         throw error;
       }
 
-      discovery = fallbackDiscovery;
-      story = fallbackStory;
-      publishingStory = fallbackStory;
+      discovery = fallback.discovery;
+      story = fallback.story;
+      publishingStory = fallback.story;
       corroboration = null;
     }
+  }
+
+  const usage = usedStoryValues(history);
+  const resolvedCandidate = resolvedStoryForDuplicateCheck(
+    story,
+    publishingStory,
+    corroboration
+  );
+
+  if (
+    isRecentlyUsedStory(resolvedCandidate, usage) ||
+    isRecentlyUsedStory(story, usage)
+  ) {
+    console.log(
+      'Resolved Fresh News story is already represented in recent history; ' +
+      'falling back to a different fresh web story.'
+    );
+
+    const fallback = await selectFallbackFreshWebStory({
+      history,
+      fetchImpl
+    });
+
+    if (!fallback) {
+      throw new Error('No safe fresh alternative was available after duplicate detection.');
+    }
+
+    discovery = fallback.discovery;
+    story = fallback.story;
+    publishingStory = fallback.story;
+    corroboration = null;
+  }
+
+  const finalResolvedCandidate = resolvedStoryForDuplicateCheck(
+    story,
+    publishingStory,
+    corroboration
+  );
+
+  if (
+    isRecentlyUsedStory(finalResolvedCandidate, usedStoryValues(history))
+  ) {
+    throw new Error('Fresh News duplicate safety check rejected the selected story.');
   }
 
   try {
@@ -200,8 +271,10 @@ export async function runNewsPost({
   const record = {
     date,
     title: story.title,
+    canonicalTitle: corroboration?.corroboratingSource?.title || publishingStory.title || story.title,
     url: publishingStory.url,
     sourceDomain,
+    sourcePublishedDate: publishingStory.publishedDate || null,
     provider: discovery.provider,
     topic: story.topic,
     discoveryLead: story.sourceType === 'public-social'
