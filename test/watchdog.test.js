@@ -85,6 +85,69 @@ test('dispatches recovery when the daily run is missing after the grace period',
   assert.deepEqual(action, { type: 'dispatch', reason: 'missing-daily-run' });
 });
 
+test('reruns a completed failure with zero jobs as a runner provisioning failure', () => {
+  const action = decideWatchdogAction({
+    now: '2026-10-04T02:00:00.000Z',
+    today: '2026-10-04',
+    scheduleHour: 16,
+    scheduleMinute: 0,
+    graceMinutes: 60,
+    runs: [{
+      id: 122,
+      event: 'schedule',
+      created_at: '2026-10-04T01:00:00.000Z',
+      status: 'completed',
+      conclusion: 'failure',
+      run_attempt: 1,
+      jobsChecked: true,
+      jobCount: 0,
+      failedJobNames: []
+    }]
+  });
+
+  assert.deepEqual(action, {
+    type: 'rerun-workflow',
+    runId: 122,
+    reason: 'runner-provisioning-failure'
+  });
+});
+
+test('treats a successful recovery as healthy even when the older scheduled run failed', () => {
+  const action = decideWatchdogAction({
+    now: '2026-10-04T04:00:00.000Z',
+    today: '2026-10-04',
+    scheduleHour: 16,
+    scheduleMinute: 0,
+    graceMinutes: 60,
+    runs: [
+      {
+        id: 127,
+        event: 'repository_dispatch',
+        created_at: '2026-10-04T03:10:00.000Z',
+        status: 'completed',
+        conclusion: 'success',
+        run_attempt: 1
+      },
+      {
+        id: 128,
+        event: 'schedule',
+        created_at: '2026-10-04T02:50:00.000Z',
+        status: 'completed',
+        conclusion: 'failure',
+        run_attempt: 1,
+        jobsChecked: true,
+        jobCount: 0,
+        failedJobNames: []
+      }
+    ]
+  });
+
+  assert.deepEqual(action, {
+    type: 'healthy',
+    runId: 127
+  });
+});
+
 test('retries a failed record job but does not re-run a publish failure', () => {
   const recordAction = decideWatchdogAction({
     now: '2026-10-04T02:00:00.000Z',
