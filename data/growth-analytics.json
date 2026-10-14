@@ -153,8 +153,8 @@
       "permalinkUrl": "https://www.facebook.com/122126278749396136/posts/122125400949396136",
       "reactions": 0,
       "comments": 0,
-      "shares": 3,
-      "engagement": 9,
+      "shares": 2,
+      "engagement": 6,
       "publishHour": 13,
       "metricErrors": [
         {
@@ -167,7 +167,7 @@
         }
       ],
       "capturedDate": "2026-10-14",
-      "capturedAt": "2026-10-13T17:25:49.445Z"
+      "capturedAt": "2026-10-14T14:56:40.493Z"
     }
   ],
   "followerSnapshots": [
@@ -203,7 +203,7 @@
     },
     {
       "capturedDate": "2026-10-14",
-      "capturedAt": "2026-10-13T17:25:49.445Z",
+      "capturedAt": "2026-10-14T14:56:40.493Z",
       "followersCount": 5
     }
   ],
@@ -344,6 +344,25 @@
     {
       "capturedDate": "2026-10-14",
       "capturedAt": "2026-10-13T17:25:49.445Z",
+      "attemptedPosts": 3,
+      "successfulPosts": 1,
+      "errorCount": 2,
+      "errors": [
+        {
+          "facebookPostId": "1248785541648176_122125382391396136",
+          "contentId": "self-001",
+          "message": "(#10) Object does not exist, cannot be loaded due to missing permission or reviewable feature, or does not support this operation. This endpoint requires the 'pages_read_engagement' permission or the 'Page Public Content Access' feature. Refer to https://developers.facebook.com/docs/apps/review/login-permissions#manage-pages and https://developers.facebook.com/docs/apps/review/feature#reference-PAGES_ACCESS for details. "
+        },
+        {
+          "facebookPostId": "1248785541648176_122125383081396136",
+          "contentId": "self-002",
+          "message": "(#10) Object does not exist, cannot be loaded due to missing permission or reviewable feature, or does not support this operation. This endpoint requires the 'pages_read_engagement' permission or the 'Page Public Content Access' feature. Refer to https://developers.facebook.com/docs/apps/review/login-permissions#manage-pages and https://developers.facebook.com/docs/apps/review/feature#reference-PAGES_ACCESS for details. "
+        }
+      ]
+    },
+    {
+      "capturedDate": "2026-10-14",
+      "capturedAt": "2026-10-14T14:56:40.493Z",
       "attemptedPosts": 3,
       "successfulPosts": 1,
       "errorCount": 2,
