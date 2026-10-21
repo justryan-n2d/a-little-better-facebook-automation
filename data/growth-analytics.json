@@ -288,6 +288,30 @@
       ],
       "capturedDate": "2026-10-20",
       "capturedAt": "2026-10-20T14:49:05.447Z"
+    },
+    {
+      "facebookPostId": "1248785541648176_122125400949396136",
+      "contentId": "casual-001",
+      "category": "casual",
+      "postDate": "2026-10-03",
+      "permalinkUrl": "https://www.facebook.com/122126278749396136/posts/122125400949396136",
+      "reactions": 0,
+      "comments": 0,
+      "shares": 1,
+      "engagement": 3,
+      "publishHour": 13,
+      "metricErrors": [
+        {
+          "metric": "reactions",
+          "message": "(#10) This endpoint requires the 'pages_read_user_content' permission or the 'Page Public Content Access' feature. Refer to https://developers.facebook.com/docs/apps/review/login-permissions#manage-pages and https://developers.facebook.com/docs/apps/review/feature#reference-PAGES_ACCESS for details."
+        },
+        {
+          "metric": "comments",
+          "message": "(#10) This endpoint requires the 'pages_read_user_content' permission or the 'Page Public Content Access' feature. Refer to https://developers.facebook.com/docs/apps/review/login-permissions#manage-pages and https://developers.facebook.com/docs/apps/review/feature#reference-PAGES_ACCESS for details."
+        }
+      ],
+      "capturedDate": "2026-10-21",
+      "capturedAt": "2026-10-21T14:56:21.185Z"
     }
   ],
   "followerSnapshots": [
@@ -349,6 +373,11 @@
     {
       "capturedDate": "2026-10-20",
       "capturedAt": "2026-10-20T14:49:05.447Z",
+      "followersCount": 5
+    },
+    {
+      "capturedDate": "2026-10-21",
+      "capturedAt": "2026-10-21T14:56:21.185Z",
       "followersCount": 5
     }
   ],
@@ -622,6 +651,25 @@
     {
       "capturedDate": "2026-10-20",
       "capturedAt": "2026-10-20T14:49:05.447Z",
+      "attemptedPosts": 3,
+      "successfulPosts": 1,
+      "errorCount": 2,
+      "errors": [
+        {
+          "facebookPostId": "1248785541648176_122125382391396136",
+          "contentId": "self-001",
+          "message": "(#10) Object does not exist, cannot be loaded due to missing permission or reviewable feature, or does not support this operation. This endpoint requires the 'pages_read_engagement' permission or the 'Page Public Content Access' feature. Refer to https://developers.facebook.com/docs/apps/review/login-permissions#manage-pages and https://developers.facebook.com/docs/apps/review/feature#reference-PAGES_ACCESS for details. "
+        },
+        {
+          "facebookPostId": "1248785541648176_122125383081396136",
+          "contentId": "self-002",
+          "message": "(#10) Object does not exist, cannot be loaded due to missing permission or reviewable feature, or does not support this operation. This endpoint requires the 'pages_read_engagement' permission or the 'Page Public Content Access' feature. Refer to https://developers.facebook.com/docs/apps/review/login-permissions#manage-pages and https://developers.facebook.com/docs/apps/review/feature#reference-PAGES_ACCESS for details. "
+        }
+      ]
+    },
+    {
+      "capturedDate": "2026-10-21",
+      "capturedAt": "2026-10-21T14:56:21.185Z",
       "attemptedPosts": 3,
       "successfulPosts": 1,
       "errorCount": 2,
