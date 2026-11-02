@@ -640,6 +640,11 @@
       "capturedDate": "2026-11-02",
       "capturedAt": "2026-11-01T16:38:45.826Z",
       "followersCount": 5
+    },
+    {
+      "capturedDate": "2026-11-03",
+      "capturedAt": "2026-11-02T20:04:17.074Z",
+      "followersCount": 5
     }
   ],
   "collectorRuns": [
@@ -1155,6 +1160,14 @@
           "message": "(#10) Object does not exist, cannot be loaded due to missing permission or reviewable feature, or does not support this operation. This endpoint requires the 'pages_read_engagement' permission or the 'Page Public Content Access' feature. Refer to https://developers.facebook.com/docs/apps/review/login-permissions#manage-pages and https://developers.facebook.com/docs/apps/review/feature#reference-PAGES_ACCESS for details. "
         }
       ]
+    },
+    {
+      "capturedDate": "2026-11-03",
+      "capturedAt": "2026-11-02T20:04:17.074Z",
+      "attemptedPosts": 0,
+      "successfulPosts": 0,
+      "errorCount": 0,
+      "errors": []
     }
   ]
 }
