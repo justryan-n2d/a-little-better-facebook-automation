@@ -690,6 +690,11 @@
       "capturedDate": "2026-11-12",
       "capturedAt": "2026-11-11T17:45:33.505Z",
       "followersCount": 5
+    },
+    {
+      "capturedDate": "2026-11-13",
+      "capturedAt": "2026-11-12T17:58:50.970Z",
+      "followersCount": 5
     }
   ],
   "collectorRuns": [
@@ -1281,6 +1286,14 @@
     {
       "capturedDate": "2026-11-12",
       "capturedAt": "2026-11-11T17:45:33.505Z",
+      "attemptedPosts": 0,
+      "successfulPosts": 0,
+      "errorCount": 0,
+      "errors": []
+    },
+    {
+      "capturedDate": "2026-11-13",
+      "capturedAt": "2026-11-12T17:58:50.970Z",
       "attemptedPosts": 0,
       "successfulPosts": 0,
       "errorCount": 0,
